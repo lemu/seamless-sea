@@ -10,73 +10,53 @@ import {
   Checkbox,
   Badge,
 } from "@rafal.lemieszewski/tide-ui";
-
-// These will be available after Convex initialization
-// import { useQuery, useMutation } from "../convex/_generated/react";
-// import { api } from "../convex/_generated/api";
-
-interface Todo {
-  _id: string;
-  text: string;
-  completed: boolean;
-  createdAt: number;
-}
+import { useQuery, useMutation } from "../../convex/_generated/react";
+import { api } from "../../convex/_generated/api";
 
 export function TodoDemo() {
   const [newTodo, setNewTodo] = useState("");
   
-  // Placeholder data - will be replaced with Convex queries
-  const [todos, setTodos] = useState<Todo[]>([
-    { _id: "1", text: "Set up Convex database", completed: true, createdAt: Date.now() },
-    { _id: "2", text: "Create todo CRUD operations", completed: false, createdAt: Date.now() },
-    { _id: "3", text: "Integrate with Tide UI components", completed: false, createdAt: Date.now() },
-  ]);
-
-  // These will be replaced with Convex mutations
-  // const createTodo = useMutation(api.todos.createTodo);
-  // const toggleTodo = useMutation(api.todos.toggleTodo);
-  // const deleteTodo = useMutation(api.todos.deleteTodo);
+  // Live Convex queries and mutations
+  const todos = useQuery(api.todos.getTodos) ?? [];
+  const createTodo = useMutation(api.todos.createTodo);
+  const toggleTodo = useMutation(api.todos.toggleTodo);
+  const deleteTodo = useMutation(api.todos.deleteTodo);
 
   const handleAddTodo = async () => {
     if (newTodo.trim()) {
-      // Temporary local state update - replace with Convex mutation
-      const tempTodo: Todo = {
-        _id: Date.now().toString(),
-        text: newTodo.trim(),
-        completed: false,
-        createdAt: Date.now(),
-      };
-      setTodos(prev => [tempTodo, ...prev]);
+      await createTodo({ text: newTodo.trim() });
       setNewTodo("");
-      
-      // await createTodo({ text: newTodo.trim() });
     }
   };
 
-  const handleToggleTodo = async (id: string) => {
-    // Temporary local state update - replace with Convex mutation
-    setTodos(prev => prev.map(todo => 
-      todo._id === id ? { ...todo, completed: !todo.completed } : todo
-    ));
-    
-    // await toggleTodo({ id });
+  const handleToggleTodo = async (id: any) => {
+    await toggleTodo({ id });
   };
 
-  const handleDeleteTodo = async (id: string) => {
-    // Temporary local state update - replace with Convex mutation  
-    setTodos(prev => prev.filter(todo => todo._id !== id));
-    
-    // await deleteTodo({ id });
+  const handleDeleteTodo = async (id: any) => {
+    await deleteTodo({ id });
   };
 
   const completedCount = todos.filter(todo => todo.completed).length;
   const totalCount = todos.length;
 
+  if (todos === undefined) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="text-[var(--color-text-secondary)]">
+            Loading todos from Convex...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-heading-lg flex items-center justify-between">
-          Convex Todo Demo
+          🗄️ Live Convex Database Demo
           <Badge intent="brand" appearance="solid">
             {completedCount}/{totalCount} completed
           </Badge>

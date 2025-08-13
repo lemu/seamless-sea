@@ -17,6 +17,7 @@ import {
   Separator,
 } from "@rafal.lemieszewski/tide-ui";
 import { TodoDemo } from "./components/TodoDemo";
+import { ConvexStatus } from "./components/ConvexStatus";
 
 function App() {
   const [email, setEmail] = useState("");
@@ -361,6 +362,7 @@ function App() {
         </Card>
 
         {/* Convex Database Demo */}
+        <ConvexStatus />
         <TodoDemo />
 
         {/* Footer */}
