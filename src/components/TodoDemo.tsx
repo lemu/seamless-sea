@@ -10,7 +10,7 @@ import {
   Checkbox,
   Badge,
 } from "@rafal.lemieszewski/tide-ui";
-import { useQuery, useMutation } from "../../convex/_generated/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 export function TodoDemo() {

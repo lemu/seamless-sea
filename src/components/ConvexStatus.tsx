@@ -1,5 +1,5 @@
 import { Card, CardContent, Badge } from "@rafal.lemieszewski/tide-ui";
-import { useQuery } from "../../convex/_generated/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 export function ConvexStatus() {
