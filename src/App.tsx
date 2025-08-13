@@ -16,6 +16,7 @@ import {
   TabsContent,
   Separator,
 } from "@rafal.lemieszewski/tide-ui";
+import { TodoDemo } from "./components/TodoDemo";
 
 function App() {
   const [email, setEmail] = useState("");
@@ -359,11 +360,13 @@ function App() {
           </CardContent>
         </Card>
 
+        {/* Convex Database Demo */}
+        <TodoDemo />
+
         {/* Footer */}
         <div className="py-8 text-center">
           <p className="text-body-sm text-[var(--color-text-secondary)]">
-            Built with ❤️ using Tide UI, Vite, React, TypeScript, and Tailwind
-            CSS v4
+            Built with ❤️ using Tide UI, Vite, React, TypeScript, Tailwind CSS v4, and Convex
           </p>
         </div>
       </div>
