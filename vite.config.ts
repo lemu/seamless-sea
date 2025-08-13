@@ -6,11 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss({
-      content: [
-        './src/**/*.{js,ts,jsx,tsx}',
-        './node_modules/@rafal.lemieszewski/tide-ui/**/*.{js,ts,jsx,tsx}'
-      ],
-    }),
+    tailwindcss(),
   ],
 })
