@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rafal.lemieszewski/tide-ui": "^0.1.1",
+    "@rafal.lemieszewski/tide-ui": "^0.1.2",
     "convex": "^1.25.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
