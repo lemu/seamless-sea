@@ -511,7 +511,7 @@ function AppSidebar() {
                       </TooltipTrigger>
                       <TooltipContent 
                         side="right" 
-                        className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                        className="hidden group-data-[collapsible=icon]:block"
                       >
                         {getTooltipText(item)}
                       </TooltipContent>
@@ -583,7 +583,7 @@ function AppSidebar() {
                               </TooltipTrigger>
                               <TooltipContent 
                                 side="right" 
-                                className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                                className="hidden group-data-[collapsible=icon]:block"
                               >
                                 {getTooltipText(item)}
                               </TooltipContent>
@@ -633,7 +633,7 @@ function AppSidebar() {
                         </TooltipTrigger>
                         <TooltipContent 
                           side="right" 
-                          className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                          className="hidden group-data-[collapsible=icon]:block"
                         >
                           {getTooltipText(item)}
                         </TooltipContent>
@@ -707,7 +707,7 @@ function AppSidebar() {
                       </TooltipTrigger>
                       <TooltipContent 
                         side="right" 
-                        className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                        className="hidden group-data-[collapsible=icon]:block"
                       >
                         {getTooltipText(item)}
                       </TooltipContent>
@@ -750,7 +750,7 @@ function AppSidebar() {
                       </TooltipTrigger>
                       <TooltipContent 
                         side="right" 
-                        className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                        className="hidden group-data-[collapsible=icon]:block"
                       >
                         {getTooltipText(item)}
                       </TooltipContent>
@@ -771,7 +771,7 @@ function AppSidebar() {
                     </TooltipTrigger>
                     <TooltipContent 
                       side="right" 
-                      className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                      className="hidden group-data-[collapsible=icon]:block"
                     >
                       Show all
                     </TooltipContent>
@@ -808,7 +808,7 @@ function AppSidebar() {
                       </TooltipTrigger>
                       <TooltipContent 
                         side="right" 
-                        className="group-data-[collapsible=icon]:block group-data-[collapsible=off]:hidden"
+                        className="hidden group-data-[collapsible=icon]:block"
                       >
                         {getTooltipText(item)}
                       </TooltipContent>
