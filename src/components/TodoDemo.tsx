@@ -12,6 +12,7 @@ import {
 } from "@rafal.lemieszewski/tide-ui";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 export function TodoDemo() {
   const [newTodo, setNewTodo] = useState("");
@@ -29,11 +30,11 @@ export function TodoDemo() {
     }
   };
 
-  const handleToggleTodo = async (id: string) => {
+  const handleToggleTodo = async (id: Id<"todos">) => {
     await toggleTodo({ id });
   };
 
-  const handleDeleteTodo = async (id: string) => {
+  const handleDeleteTodo = async (id: Id<"todos">) => {
     await deleteTodo({ id });
   };
 
