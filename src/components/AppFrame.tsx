@@ -20,6 +20,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
   Separator,
+  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
@@ -430,11 +431,10 @@ function AppSidebar() {
 
   return (
     <TooltipProvider delayDuration={100}>
-      {/* Replace Sidebar with custom div to fix rendering issues */}
-      <div
-        className="h-full w-64 border-r border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:w-16 transition-[width] duration-75 flex flex-col"
-        data-sidebar="sidebar"
-        data-collapsible="icon"
+      <Sidebar
+        variant="sidebar"
+        collapsible="icon"
+        className="h-full border-r border-[var(--color-border-primary-subtle)] [&>div]:transition-[width] [&>div]:duration-75 flex flex-col"
       >
         {/* Header with Company Logo */}
         <SidebarHeader className="border-b border-[var(--color-border-primary-subtle)] p-[var(--space-md)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
@@ -736,13 +736,14 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className="text-body-medium-md cursor-pointer px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"
+                          className={`text-body-medium-md cursor-pointer px-2 py-1.5 transition-colors group ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
                           onClick={() => console.log(`Navigate to ${item.title}`)}
                         >
                           <Icon
                             name={item.icon as any}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
+                            className={item.isActive ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]" : ""}
                           />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
@@ -938,7 +939,7 @@ function AppSidebar() {
             </CommandGroup>
           </CommandList>
         </CommandDialog>
-      </div>
+      </Sidebar>
     </TooltipProvider>
   );
 }
