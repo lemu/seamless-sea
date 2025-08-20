@@ -29,11 +29,11 @@ export function TodoDemo() {
     }
   };
 
-  const handleToggleTodo = async (id: any) => {
+  const handleToggleTodo = async (id: string) => {
     await toggleTodo({ id });
   };
 
-  const handleDeleteTodo = async (id: any) => {
+  const handleDeleteTodo = async (id: string) => {
     await deleteTodo({ id });
   };
 
