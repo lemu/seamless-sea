@@ -37,6 +37,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -397,6 +398,11 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
   );
 }
 
+// Helper function to detect macOS
+const isMacOS = () => {
+  return typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+};
+
 // App Sidebar Component (using div instead of Sidebar component)
 function AppSidebar() {
   const location = useLocation();
@@ -471,19 +477,32 @@ function AppSidebar() {
                   Search
                 </button>
                 <div className="absolute top-1/2 right-2 flex -translate-y-1/2 gap-1">
-                  <Kbd size="sm">Ctrl</Kbd>
+                  <Kbd size="sm">{isMacOS() ? "⌘" : "Ctrl"}</Kbd>
                   <Kbd size="sm">K</Kbd>
                 </div>
               </div>
 
               {/* Icon-only search button in collapsed state */}
-              <button
-                onClick={() => setCommandOpen(true)}
-                className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] active:border-[var(--color-border-primary-bold)]"
-                aria-label="Search"
-              >
-                <Icon name="search" size="md" color="tertiary" />
-              </button>
+              <Tooltip delayDuration={500}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setCommandOpen(true)}
+                    className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] active:border-[var(--color-border-primary-bold)]"
+                    aria-label="Search"
+                  >
+                    <Icon name="search" size="md" color="tertiary" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="hidden group-data-[collapsible=icon]:block">
+                  <div className="flex items-center gap-2">
+                    <span>Search</span>
+                    <div className="flex gap-1">
+                      <Kbd size="sm" variant="dark">{isMacOS() ? "⌘" : "Ctrl"}</Kbd>
+                      <Kbd size="sm" variant="dark">K</Kbd>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -949,6 +968,38 @@ interface AppFrameProps {
   children: React.ReactNode;
 }
 
+// Sidebar Toggle with Tooltip Component
+function SidebarToggleWithTooltip() {
+  const { state, toggleSidebar } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "[") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [toggleSidebar]);
+
+  return (
+    <Tooltip delayDuration={500}>
+      <TooltipTrigger asChild>
+        <SidebarTrigger className="-ml-1" />
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        <div className="flex items-center gap-2">
+          <span>{isCollapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
+          <Kbd size="sm" variant="dark">[</Kbd>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function AppFrame({ children }: AppFrameProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -968,7 +1019,7 @@ export function AppFrame({ children }: AppFrameProps) {
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-[var(--space-md)]">
-            <SidebarTrigger className="-ml-1" />
+            <SidebarToggleWithTooltip />
             <Separator layout="horizontal" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
