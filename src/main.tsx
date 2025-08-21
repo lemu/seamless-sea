@@ -5,7 +5,6 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import "./index.css";
 import App from "./App.tsx";
 import Login from "./routes/Login.tsx";
-import About from "./routes/About.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
@@ -35,10 +34,6 @@ const router = createBrowserRouter([
       {
         path: "home",
         element: <Home />,
-      },
-      {
-        path: "about",
-        element: <About />,
       },
       // Management routes
       {
