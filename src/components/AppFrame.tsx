@@ -1,4 +1,7 @@
 import * as React from "react";
+import { useUser } from "../contexts/UserContext";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { useLocation, useNavigate } from "react-router";
 import {
   Icon,
@@ -51,6 +54,16 @@ import {
   TooltipTrigger,
 } from "@rafal.lemieszewski/tide-ui";
 
+// Helper functions for user avatar handling
+const getUserInitials = (name: string) => {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+};
+
 // Static user data
 const staticUserData = {
   user: {
@@ -70,9 +83,14 @@ const staticUserData = {
 };
 
 // Function to generate sidebar data based on current path
-const getSidebarData = (currentPath: string) => {
+const getSidebarData = (currentPath: string, user: any, organizations: any[], pinnedBoards: any[]) => {
   return {
-    ...staticUserData,
+    user: user || {
+      name: "Guest User",
+      email: "guest@example.com",
+      avatar: null,
+    },
+    teams: organizations || [],
     navigation: {
       main: [
         {
@@ -143,26 +161,12 @@ const getSidebarData = (currentPath: string) => {
           isActive: currentPath === "/fixtures",
         },
       ],
-      boards: [
-        {
-          title: "Untitled board 1",
-          icon: "layout-dashboard",
-          url: "#",
-          isActive: false,
-        },
-        {
-          title: "Untitled board 2",
-          icon: "layout-dashboard",
-          url: "#",
-          isActive: false,
-        },
-        {
-          title: "Untitled board 3",
-          icon: "layout-dashboard",
-          url: "#",
-          isActive: false,
-        },
-      ],
+      boards: pinnedBoards.map(board => ({
+        title: board.title,
+        icon: "layout-dashboard",
+        url: `/boards/${board._id}`,
+        isActive: currentPath === `/boards/${board._id}`,
+      })),
       support: [
         {
           title: "Notifications",
@@ -221,13 +225,20 @@ const getRouteDisplayName = (pathname: string): string => {
 
 // Combined User/Team Switcher Component
 interface CombinedSwitcherProps {
-  user: typeof staticUserData.user;
-  teams: typeof staticUserData.teams;
+  user: any;
+  teams: any[];
 }
 
 function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
   const navigate = useNavigate();
   const [activeTeam, setActiveTeam] = React.useState(teams[0]);
+
+  // Update activeTeam when teams change
+  React.useEffect(() => {
+    if (teams && teams.length > 0 && !activeTeam) {
+      setActiveTeam(teams[0]);
+    }
+  }, [teams, activeTeam]);
 
   return (
     <div className="rounded-md border border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:border-none">
@@ -242,11 +253,11 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               {/* Team/Company Avatar */}
               <div className="relative">
                 <Avatar size="md" shape="rounded">
-                  <AvatarImage src={activeTeam.logo} alt={activeTeam.name} />
+                  <AvatarImage src={activeTeam?.avatarUrl} alt={activeTeam?.name} />
                   <AvatarFallback variant="primary">
-                    {activeTeam.name
-                      .split(" ")
-                      .map((n) => n[0])
+                    {activeTeam?.name
+                      ?.split(" ")
+                      .map((n: string) => n[0])
                       .join("")
                       .toUpperCase()}
                   </AvatarFallback>
@@ -254,13 +265,9 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
                   <Avatar size="xs" shape="circle">
-                    <AvatarImage src={user.avatar} alt={user.name} />
+                    <AvatarImage src={user.avatarUrl} alt={user.name} />
                     <AvatarFallback variant="primary">
-                      {user.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()}
+                      {getUserInitials(user.name)}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -272,7 +279,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                   {user.name}
                 </div>
                 <div className="text-body-xsm text-[var(--color-text-secondary)]">
-                  {activeTeam.role} at {activeTeam.name}
+                  {activeTeam?.role} at {activeTeam?.name}
                 </div>
               </div>
 
@@ -283,11 +290,11 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             {/* Collapsed state - just avatars */}
             <div className="relative hidden group-data-[collapsible=icon]:block">
               <Avatar size="sm" shape="rounded">
-                <AvatarImage src={activeTeam.logo} alt={activeTeam.name} />
+                <AvatarImage src={activeTeam?.avatarUrl} alt={activeTeam?.name} />
                 <AvatarFallback variant="primary" className="text-[9px]">
-                  {activeTeam.name
-                    .split(" ")
-                    .map((n) => n[0])
+                  {activeTeam?.name
+                    ?.split(" ")
+                    .map((n: string) => n[0])
                     .join("")
                     .toUpperCase()}
                 </AvatarFallback>
@@ -295,13 +302,9 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
                 <Avatar size="sm" shape="circle" className="h-4 w-4">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={user.avatarUrl} alt={user.name} />
                   <AvatarFallback variant="primary" className="text-[7px]">
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()}
+                    {getUserInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
               </div>
@@ -318,13 +321,9 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuLabel className="p-0 font-normal">
             <div className="flex items-center gap-3 px-2 py-2">
               <Avatar size="sm" shape="circle">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={user.avatarUrl} alt={user.name} />
                 <AvatarFallback variant="primary">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()}
+                  {getUserInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left">
@@ -346,16 +345,16 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           </DropdownMenuLabel>
           {teams.map((team) => (
             <DropdownMenuItem
-              key={team.name}
+              key={team._id}
               onClick={() => setActiveTeam(team)}
               className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
             >
               <Avatar size="sm" shape="rounded">
-                <AvatarImage src={team.logo} alt={team.name} />
+                <AvatarImage src={team.avatarUrl} alt={team.name} />
                 <AvatarFallback variant="primary" className="text-[8px]">
                   {team.name
-                    .split(" ")
-                    .map((n) => n[0])
+                    ?.split(" ")
+                    .map((n: string) => n[0])
                     .join("")
                     .toUpperCase()}
                 </AvatarFallback>
@@ -365,10 +364,10 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                   {team.name}
                 </span>
                 <span className="text-caption-xsm truncate text-[var(--color-text-secondary)]">
-                  {team.role} at {team.name} • {team.plan} plan
+                  {team.role} • {team.plan} plan
                 </span>
               </div>
-              {activeTeam.name === team.name && <Icon name="check" size="md" />}
+              {activeTeam?._id === team._id && <Icon name="check" size="md" />}
             </DropdownMenuItem>
           ))}
 
@@ -407,7 +406,27 @@ const isMacOS = () => {
 function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const sidebarData = getSidebarData(location.pathname);
+  const { user } = useUser();
+  
+  // Fetch user's organizations
+  const userOrganizations = useQuery(
+    api.organizations.getUserOrganizations,
+    user ? { userId: user._id } : "skip"
+  );
+
+  // Get the current active organization (first one for now)
+  const currentOrganization = userOrganizations?.[0];
+
+  // Fetch user's pinned boards in current organization
+  const pinnedBoards = useQuery(
+    api.boards.getPinnedBoards,
+    user && currentOrganization ? { 
+      userId: user._id, 
+      organizationId: currentOrganization._id 
+    } : "skip"
+  );
+  
+  const sidebarData = getSidebarData(location.pathname, user, userOrganizations || [], pinnedBoards || []);
   const [commandOpen, setCommandOpen] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Record<string, boolean>>({
     "Trade desk": true, // Default expanded
@@ -749,40 +768,48 @@ function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.boards.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <SidebarMenuButton
-                          isActive={item.isActive}
-                          className={`text-body-medium-md cursor-pointer px-2 py-1.5 transition-colors group ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
-                          onClick={() => console.log(`Navigate to ${item.title}`)}
-                        >
-                          <Icon
-                            name={item.icon as any}
-                            size="sm"
-                            color={item.isActive ? "brand" : undefined}
-                            className={item.isActive ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]" : ""}
-                          />
-                          <span>{item.title}</span>
-                        </SidebarMenuButton>
-                      </TooltipTrigger>
-                      <TooltipContent 
-                        side="right" 
-                        className="hidden group-data-[collapsible=icon]:block"
-                      >
-                        {getTooltipText(item)}
-                      </TooltipContent>
-                    </Tooltip>
+                {sidebarData.navigation.boards.length === 0 ? (
+                  <SidebarMenuItem>
+                    <div className="px-2 py-1.5 text-caption-medium-sm text-[var(--color-text-secondary)] group-data-[collapsible=icon]:hidden">
+                      No pinned boards
+                    </div>
                   </SidebarMenuItem>
-                ))}
+                ) : (
+                  sidebarData.navigation.boards.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SidebarMenuButton
+                            isActive={item.isActive}
+                            className={`text-body-medium-md cursor-pointer px-2 py-1.5 transition-colors group ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                            onClick={() => navigate(item.url)}
+                          >
+                            <Icon
+                              name={item.icon as any}
+                              size="sm"
+                              color={item.isActive ? "brand" : undefined}
+                              className={item.isActive ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]" : ""}
+                            />
+                            <span>{item.title}</span>
+                          </SidebarMenuButton>
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          side="right" 
+                          className="hidden group-data-[collapsible=icon]:block"
+                        >
+                          {getTooltipText(item)}
+                        </TooltipContent>
+                      </Tooltip>
+                    </SidebarMenuItem>
+                  ))
+                )}
                 {/* Show all boards link */}
                 <SidebarMenuItem>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <SidebarMenuButton
                         className="text-body-md cursor-pointer px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"
-                        onClick={() => console.log("Navigate to Show all boards")}
+                        onClick={() => navigate("/boards")}
                       >
                         <Icon name="more-horizontal" size="sm" />
                         <span>Show all</span>

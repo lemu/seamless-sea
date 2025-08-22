@@ -1,11 +1,14 @@
 import { Outlet } from "react-router";
 import { AppFrame } from "./components/AppFrame";
+import { UserProvider } from "./contexts/UserContext";
 
 function App() {
   return (
-    <AppFrame>
-      <Outlet />
-    </AppFrame>
+    <UserProvider>
+      <AppFrame>
+        <Outlet />
+      </AppFrame>
+    </UserProvider>
   );
 }
 

@@ -17,6 +17,8 @@ import Assets from "./routes/Assets.tsx";
 import Fixtures from "./routes/Fixtures.tsx";
 import Notifications from "./routes/Notifications.tsx";
 import HelpSupport from "./routes/HelpSupport.tsx";
+import Boards from "./routes/Boards.tsx";
+import BoardDetail from "./routes/BoardDetail.tsx";
 import UserProfile from "./routes/UserProfile.tsx";
 import OrganizationSettings from "./routes/OrganizationSettings.tsx";
 
@@ -81,6 +83,15 @@ const router = createBrowserRouter([
       {
         path: "help-support",
         element: <HelpSupport />,
+      },
+      // Boards routes
+      {
+        path: "boards",
+        element: <Boards />,
+      },
+      {
+        path: "boards/:id",
+        element: <BoardDetail />,
       },
       // User routes
       {
