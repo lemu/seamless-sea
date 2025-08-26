@@ -1,7 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 
 interface User {
   _id: Id<"users">;
@@ -27,8 +33,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [currentEmail, setCurrentEmail] = useState<string | null>(() => {
     // Initialize from localStorage
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userEmail');
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("userEmail");
     }
     return null;
   });
@@ -41,24 +47,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Single query for current email
   const userData = useQuery(
     api.users.getUserByEmail,
-    currentEmail ? { email: currentEmail } : "skip"
+    currentEmail ? { email: currentEmail } : "skip",
   );
 
   // Handle query results
   useEffect(() => {
     console.log("userData changed:", userData, "currentEmail:", currentEmail);
-    
+
     if (userData && currentEmail) {
       // Set the user in context (this should update the avatar too)
       console.log("Updating user with new data:", userData);
       setUser(userData);
       setIsLoading(false);
-      
+
       // Save to localStorage for persistence
-      localStorage.setItem('userEmail', currentEmail);
-      
+      localStorage.setItem("userEmail", currentEmail);
+
       // Resolve any pending login promise
-      if (loginPromiseResolvers && loginPromiseResolvers.email === currentEmail) {
+      if (
+        loginPromiseResolvers &&
+        loginPromiseResolvers.email === currentEmail
+      ) {
         console.log("Login successful! Resolving promise");
         loginPromiseResolvers.resolve(true);
         setLoginPromiseResolvers(null);
@@ -66,7 +75,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } else if (userData === null && currentEmail) {
       // Query completed but no user found
       setIsLoading(false);
-      if (loginPromiseResolvers && loginPromiseResolvers.email === currentEmail) {
+      if (
+        loginPromiseResolvers &&
+        loginPromiseResolvers.email === currentEmail
+      ) {
         console.log("Login failed! User not found");
         loginPromiseResolvers.resolve(false);
         setLoginPromiseResolvers(null);
@@ -78,14 +90,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const login = async (email: string): Promise<boolean> => {
     console.log("Login attempt for email:", email);
     setIsLoading(true);
-    
+
     return new Promise((resolve) => {
       // Store the promise resolver
       setLoginPromiseResolvers({ resolve, email });
-      
+
       // Set the email to trigger the query
       setCurrentEmail(email);
-      
+
       // Set a timeout as backup
       setTimeout(() => {
         if (loginPromiseResolvers && loginPromiseResolvers.email === email) {
@@ -103,7 +115,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setCurrentEmail(null);
     setIsLoading(false);
-    localStorage.removeItem('userEmail');
+    localStorage.removeItem("userEmail");
   };
 
   const refreshUser = () => {
@@ -119,7 +131,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ user, setUser, login, logout, isLoading, refreshUser }}>
+    <UserContext.Provider
+      value={{ user, setUser, login, logout, isLoading, refreshUser }}
+    >
       {children}
     </UserContext.Provider>
   );
@@ -128,7 +142,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 export function useUser() {
   const context = useContext(UserContext);
   if (context === undefined) {
-    throw new Error('useUser must be used within a UserProvider');
+    throw new Error("useUser must be used within a UserProvider");
   }
   return context;
 }

@@ -425,7 +425,7 @@ function AppSidebar() {
   // Fetch user's pinned boards in current organization
   const pinnedBoards = useQuery(
     api.boards.getPinnedBoards,
-    user && currentOrganization
+    user && currentOrganization?._id
       ? {
           userId: user._id,
           organizationId: currentOrganization._id,

@@ -130,18 +130,6 @@ function BoardDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="mb-2 flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/boards")}
-              className="flex items-center gap-1 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            >
-              <Icon name="arrow-left" size="sm" />
-              Back to Boards
-            </Button>
-          </div>
-
           {isEditing ? (
             <div className="mb-2 flex items-center gap-2">
               <input
@@ -169,7 +157,7 @@ function BoardDetail() {
           ) : (
             <div className="mb-2 flex items-center gap-2">
               <h1 className="text-heading-2xlg text-[var(--color-text-primary)]">
-                📊 {board.title}
+                {board.title}
               </h1>
               {isOwner && (
                 <Button variant="ghost" size="sm" onClick={handleEditTitle}>
@@ -189,9 +177,6 @@ function BoardDetail() {
 
         {isOwner && (
           <div className="flex items-center gap-2">
-            <Button icon="cog" iconPosition="left">
-              Settings
-            </Button>
             <Button
               variant="destructive"
               icon="trash-2"
