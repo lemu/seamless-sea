@@ -1,7 +1,5 @@
 import { Link } from "react-router";
 import { Button } from "@rafal.lemieszewski/tide-ui";
-import { TodoDemo } from "../components/TodoDemo";
-import { ConvexStatus } from "../components/ConvexStatus";
 
 function Home() {
   return (
@@ -19,8 +17,11 @@ function Home() {
           <Button variant="default">Back to Demo</Button>
         </Link>
       </div>
-      <ConvexStatus />
-      <TodoDemo />
+      <div className="text-center py-8">
+        <p className="text-body-lg text-[var(--color-text-secondary)]">
+          Welcome to Seamless Sea! Your application is running successfully.
+        </p>
+      </div>
     </div>
   );
 }

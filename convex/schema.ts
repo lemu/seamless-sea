@@ -45,11 +45,4 @@ export default defineSchema({
     order: v.number(), // 0-4 for ordering in sidebar
   }),
 
-  // Example todos table to integrate with Tide UI
-  todos: defineTable({
-    text: v.string(),
-    completed: v.boolean(),
-    createdAt: v.number(),
-    updatedAt: v.optional(v.number()),
-  }),
 });
