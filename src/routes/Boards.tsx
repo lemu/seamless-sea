@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useNavigate } from "react-router";
+import { useNavigate, Outlet, useLocation } from "react-router";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../contexts/UserContext";
 import { api } from "../../convex/_generated/api";
+import { BoardsSkeleton, BoardsEmptyState } from "../components/BoardsSkeleton";
+import type { Id } from "../../convex/_generated/dataModel";
 
 function Boards() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useUser();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -43,6 +46,14 @@ function Boards() {
   const pinBoard = useMutation(api.boards.pinBoard);
   const unpinBoard = useMutation(api.boards.unpinBoard);
 
+  // Check if we're on a board detail page (child route)
+  const isOnBoardDetail = location.pathname.match(/^\/boards\/[^\/]+$/);
+  
+  // If we're on a board detail page, render the Outlet
+  if (isOnBoardDetail) {
+    return <Outlet />;
+  }
+
   const handleCreateBoard = async (title: string) => {
     if (!user || !currentOrganization?._id) return;
 
@@ -64,7 +75,7 @@ function Boards() {
 
     try {
       await pinBoard({
-        boardId: boardId as any,
+        boardId: boardId as Id<"boards">,
         userId: user._id,
         organizationId: currentOrganization._id,
       });
@@ -79,7 +90,7 @@ function Boards() {
 
     try {
       await unpinBoard({
-        boardId: boardId as any,
+        boardId: boardId as Id<"boards">,
         userId: user._id,
         organizationId: currentOrganization._id,
       });
@@ -103,6 +114,15 @@ function Boards() {
         <p>Please log in to view your boards.</p>
       </div>
     );
+  }
+
+  // Show loading skeleton while any required data is loading
+  if (
+    userOrganizations === undefined ||
+    (currentOrganization && boards === undefined) ||
+    (currentOrganization && pinnedBoards === undefined)
+  ) {
+    return <BoardsSkeleton />;
   }
 
   return (
@@ -129,21 +149,8 @@ function Boards() {
       </div>
 
       {/* Boards Grid */}
-      {!boards || boards.length === 0 ? (
-        <div className="py-12 text-center">
-          <Icon
-            name="layout-dashboard"
-            size="lg"
-            className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
-          />
-          <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">
-            No boards yet
-          </h3>
-          <p className="text-body-md mb-4 text-[var(--color-text-secondary)]">
-            Create your first board to get started with dashboards
-          </p>
-          <Button onClick={() => setShowCreateModal(true)}>Create Board</Button>
-        </div>
+      {boards && boards.length === 0 ? (
+        <BoardsEmptyState onCreateBoard={() => setShowCreateModal(true)} />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {boards.map((board) => (

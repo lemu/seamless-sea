@@ -4,6 +4,8 @@ import { useParams, useNavigate } from "react-router";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../contexts/UserContext";
 import { api } from "../../convex/_generated/api";
+import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
+import type { Id } from "../../convex/_generated/dataModel";
 
 function BoardDetail() {
   const { id } = useParams<{ id: string }>();
@@ -15,7 +17,7 @@ function BoardDetail() {
   // Get the board data
   const board = useQuery(
     api.boards.getBoardById,
-    id ? { boardId: id as any } : "skip",
+    id ? { boardId: id as Id<"boards"> } : "skip",
   );
 
   // Get user's organizations to check permissions
@@ -75,6 +77,11 @@ function BoardDetail() {
         <p>Please log in to view this board.</p>
       </div>
     );
+  }
+
+  // Show loading skeleton while board data is loading
+  if (board === undefined) {
+    return <BoardDetailSkeleton />;
   }
 
   if (!board) {

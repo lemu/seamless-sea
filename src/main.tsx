@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router";
+import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import "./index.css";
 import App from "./App.tsx";
@@ -36,71 +36,133 @@ const router = createBrowserRouter([
       {
         path: "home",
         element: <Home />,
+        handle: {
+          crumb: () => "Home"
+        }
       },
       // Management routes
       {
         path: "freight-planner",
         element: <FreightPlanner />,
+        handle: {
+          crumb: () => "Freight planner"
+        }
       },
       {
         path: "trade-desk",
         element: <TradeDesk />,
-      },
-      {
-        path: "new-order",
-        element: <NewOrder />,
-      },
-      {
-        path: "mailing-list",
-        element: <MailingList />,
+        handle: {
+          crumb: () => "Trade desk",
+          redirectOnly: true // Mark this as a redirect-only route
+        },
+        children: [
+          {
+            index: true,
+            element: <Navigate to="new-order" replace />
+          },
+          {
+            path: "new-order",
+            element: <NewOrder />,
+            handle: {
+              crumb: () => "New order"
+            }
+          },
+          {
+            path: "mailing-list",
+            element: <MailingList />,
+            handle: {
+              crumb: () => "Mailing list"
+            }
+          }
+        ]
       },
       {
         path: "contracts",
         element: <Contracts />,
+        handle: {
+          crumb: () => "Contracts"
+        }
       },
       {
         path: "compliance",
         element: <Compliance />,
+        handle: {
+          crumb: () => "Compliance"
+        }
       },
       // Intelligence routes
       {
         path: "global-market",
         element: <GlobalMarket />,
+        handle: {
+          crumb: () => "Global market"
+        }
       },
       {
         path: "assets",
         element: <Assets />,
+        handle: {
+          crumb: () => "Assets"
+        }
       },
       {
         path: "fixtures",
         element: <Fixtures />,
+        handle: {
+          crumb: () => "Fixtures"
+        }
       },
       // Support routes
       {
         path: "notifications",
         element: <Notifications />,
+        handle: {
+          crumb: () => "Notifications"
+        }
       },
       {
         path: "help-support",
         element: <HelpSupport />,
+        handle: {
+          crumb: () => "Help & support"
+        }
       },
       // Boards routes
       {
         path: "boards",
         element: <Boards />,
-      },
-      {
-        path: "boards/:id",
-        element: <BoardDetail />,
+        handle: {
+          crumb: () => "Boards"
+        },
+        children: [
+          {
+            path: ":id",
+            element: <BoardDetail />,
+            handle: {
+              crumb: (match: any) => {
+                // Try to get board title from the match data or params
+                const boardId = match.params?.id;
+                // For now, we'll handle dynamic loading in the breadcrumb component
+                return boardId ? `Board ${boardId}` : "Board";
+              }
+            }
+          }
+        ]
       },
       // User routes
       {
         path: "user-profile",
         element: <UserProfile />,
+        handle: {
+          crumb: () => "User Profile"
+        }
       },
       {
         path: "organization-settings",
         element: <OrganizationSettings />,
+        handle: {
+          crumb: () => "Organization Settings"
+        }
       },
     ],
   },
