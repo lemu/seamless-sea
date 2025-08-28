@@ -94,7 +94,11 @@ export const updateBoard = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const updates: any = {
+    const updates: Partial<{
+      title: string;
+      description: string;
+      updatedAt: number;
+    }> = {
       updatedAt: Date.now(),
     };
 

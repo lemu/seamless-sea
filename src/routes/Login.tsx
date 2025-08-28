@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button, Input } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../hooks";
 
 function Login() {
   const [email, setEmail] = useState("");

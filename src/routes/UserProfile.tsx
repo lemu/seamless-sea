@@ -6,7 +6,7 @@ import {
   AvatarImage,
   AvatarFallback,
 } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
 
 function UserProfile() {

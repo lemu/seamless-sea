@@ -1,9 +1,54 @@
 import * as React from "react";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../hooks";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useLocation, useNavigate, useMatches } from "react-router";
 import type { Id } from "../../convex/_generated/dataModel";
+
+// Type definitions
+interface User {
+  _id: Id<"users">;
+  name: string;
+  email: string;
+  avatar?: string;
+  avatarUrl?: string | null;
+}
+
+interface Organization {
+  _id?: Id<"organizations">;
+  name?: string;
+  role: string;
+  plan?: string;
+  avatarUrl?: string | null;
+  logo?: string;
+}
+
+interface PinnedBoard {
+  _id: Id<"boards">;
+  title: string;
+}
+
+
+interface MenuSubItem {
+  title: string;
+  url: string;
+  isActive: boolean;
+}
+
+interface MenuItem {
+  title: string;
+  icon: string;
+  url: string;
+  isActive: boolean;
+  items?: MenuSubItem[];
+}
+
+interface Crumb {
+  title: string;
+  path: string;
+  isRedirectOnly?: boolean;
+  isLast?: boolean;
+}
 import {
   Icon,
   Button,
@@ -68,15 +113,17 @@ const getUserInitials = (name: string) => {
 // Function to generate sidebar data based on current path
 const getSidebarData = (
   currentPath: string,
-  user: unknown,
-  organizations: unknown[],
-  pinnedBoards: unknown[],
+  user: User | null,
+  organizations: Organization[],
+  pinnedBoards: PinnedBoard[],
 ) => {
   return {
     user: user || {
+      _id: "" as Id<"users">,
       name: "Guest User",
       email: "guest@example.com",
-      avatar: null,
+      avatar: undefined,
+      avatarUrl: null,
     },
     teams: organizations || [],
     navigation: {
@@ -152,9 +199,9 @@ const getSidebarData = (
           isActive: currentPath === "/fixtures",
         },
       ],
-      boards: pinnedBoards.map((board) => ({
+      boards: pinnedBoards.map((board: PinnedBoard) => ({
         title: board.title,
-        icon: "layout-dashboard",
+        icon: "layout-dashboard" as const,
         url: `/boards/${board._id}`,
         isActive: currentPath === `/boards/${board._id}`,
       })),
@@ -212,24 +259,31 @@ function DynamicBreadcrumbs() {
   
   // Filter matches that have breadcrumb handles
   const routeCrumbs = matches
-    .filter((match: any) => match.handle && match.handle.crumb)
-    .map((match: any) => {
-      const crumbFn = match.handle.crumb;
-      const path = match.pathname;
-      const isRedirectOnly = match.handle.redirectOnly;
+    .filter((match) => 
+      match && typeof match === 'object' && 
+      'handle' in match && match.handle && 
+      typeof match.handle === 'object' && 
+      'crumb' in match.handle
+    )
+    .map((match: unknown) => {
+      const matchTyped = match as { handle: { crumb: (match: unknown) => string; redirectOnly?: boolean }; pathname: string; params?: Record<string, string | undefined> };
+      const handle = matchTyped.handle;
+      const crumbFn = handle?.crumb;
+      const path = matchTyped.pathname;
+      const isRedirectOnly = handle?.redirectOnly || false;
       
       // Special handling for board detail routes
-      if (match.params?.id && match.pathname.startsWith('/boards/')) {
+      if (matchTyped.params?.id && matchTyped.pathname.startsWith('/boards/')) {
         const title = boardData?.title || "Loading...";
         return { title, path, isRedirectOnly };
       }
       
-      const title = typeof crumbFn === 'function' ? crumbFn(match) : crumbFn;
+      const title = typeof crumbFn === 'function' ? crumbFn(matchTyped) : String(crumbFn || '');
       return { title, path, isRedirectOnly };
     });
 
   // Build final breadcrumb array
-  let crumbs = [];
+  let crumbs: Crumb[] = [];
 
   // If we're not on Home, add Home as first item
   if (location.pathname !== "/home") {
@@ -286,13 +340,13 @@ function DynamicBreadcrumbs() {
 
 // Combined User/Team Switcher Component
 interface CombinedSwitcherProps {
-  user: any;
-  teams: any[];
+  user: User;
+  teams: Organization[];
 }
 
 function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
   const navigate = useNavigate();
-  const [activeTeam, setActiveTeam] = React.useState(teams[0]);
+  const [activeTeam, setActiveTeam] = React.useState<Organization | undefined>(teams[0]);
 
   // Update activeTeam when teams change
   React.useEffect(() => {
@@ -315,7 +369,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               <div className="relative">
                 <Avatar size="md" shape="rounded">
                   <AvatarImage
-                    src={activeTeam?.avatarUrl}
+                    src={activeTeam?.avatarUrl || undefined}
                     alt={activeTeam?.name}
                   />
                   <AvatarFallback variant="primary">
@@ -329,7 +383,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
                   <Avatar size="xs" shape="circle">
-                    <AvatarImage src={user.avatarUrl} alt={user.name} />
+                    <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                     <AvatarFallback variant="primary">
                       {getUserInitials(user.name)}
                     </AvatarFallback>
@@ -355,7 +409,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             <div className="relative hidden group-data-[collapsible=icon]:block">
               <Avatar size="sm" shape="rounded">
                 <AvatarImage
-                  src={activeTeam?.avatarUrl}
+                  src={activeTeam?.avatarUrl || undefined}
                   alt={activeTeam?.name}
                 />
                 <AvatarFallback variant="primary" className="text-[9px]">
@@ -369,7 +423,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
                 <Avatar size="sm" shape="circle" className="h-4 w-4">
-                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                  <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                   <AvatarFallback variant="primary" className="text-[7px]">
                     {getUserInitials(user.name)}
                   </AvatarFallback>
@@ -388,7 +442,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuLabel className="p-0 font-normal">
             <div className="flex items-center gap-3 px-2 py-2">
               <Avatar size="sm" shape="circle">
-                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                 <AvatarFallback variant="primary">
                   {getUserInitials(user.name)}
                 </AvatarFallback>
@@ -410,14 +464,14 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuLabel className="text-caption-medium-sm px-2 py-1 text-[var(--color-text-secondary)]">
             Organizations
           </DropdownMenuLabel>
-          {teams.map((team) => (
+          {teams.map((team: Organization) => (
             <DropdownMenuItem
               key={team._id}
               onClick={() => setActiveTeam(team)}
               className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
             >
               <Avatar size="sm" shape="rounded">
-                <AvatarImage src={team.avatarUrl} alt={team.name} />
+                <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
                 <AvatarFallback variant="primary" className="text-[8px]">
                   {team.name
                     ?.split(" ")
@@ -621,7 +675,7 @@ function AppSidebar() {
           <SidebarGroup className="px-2 pb-1">
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.main.map((item) => (
+                {sidebarData.navigation.main.map((item: MenuItem) => (
                   <SidebarMenuItem key={item.title}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -631,7 +685,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as any}
+                            name={item.icon as never}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -668,7 +722,7 @@ function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.management.map((item) => (
+                {sidebarData.navigation.management.map((item: MenuItem) => (
                   <SidebarMenuItem key={item.title}>
                     {item.items && item.items.length > 0 ? (
                       <>
@@ -680,7 +734,7 @@ function AppSidebar() {
                             onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
-                              name={item.icon as any}
+                              name={item.icon as never}
                               size="sm"
                               color={
                                 item.isActive && !item.items?.length
@@ -715,7 +769,7 @@ function AppSidebar() {
                                     className={`text-body-medium-md group w-full cursor-pointer justify-center px-2 py-1.5 transition-colors ${hasActiveChild(item) ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
                                   >
                                     <Icon
-                                      name={item.icon as any}
+                                      name={item.icon as never}
                                       size="sm"
                                       color={
                                         hasActiveChild(item)
@@ -747,7 +801,7 @@ function AppSidebar() {
                                 {item.title}
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {item.items.map((subItem) => (
+                              {item.items?.map((subItem: MenuSubItem) => (
                                 <DropdownMenuItem
                                   key={subItem.title}
                                   onClick={() => navigate(subItem.url)}
@@ -773,7 +827,7 @@ function AppSidebar() {
                             onClick={() => navigate(item.url)}
                           >
                             <Icon
-                              name={item.icon as any}
+                              name={item.icon as never}
                               size="sm"
                               color={item.isActive ? "brand" : undefined}
                               className={
@@ -797,7 +851,7 @@ function AppSidebar() {
                       item.items.length > 0 &&
                       expandedItems[item.title] && (
                         <SidebarMenuSub>
-                          {item.items.map((subItem) => (
+                          {item.items?.map((subItem: MenuSubItem) => (
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton
                                 isActive={subItem.isActive}
@@ -841,7 +895,7 @@ function AppSidebar() {
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.intelligence.map((item) => (
+                {sidebarData.navigation.intelligence.map((item: MenuItem) => (
                   <SidebarMenuItem key={item.title}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -851,7 +905,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as any}
+                            name={item.icon as never}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -895,7 +949,7 @@ function AppSidebar() {
                     </div>
                   </SidebarMenuItem>
                 ) : (
-                  sidebarData.navigation.boards.map((item) => (
+                  sidebarData.navigation.boards.map((item: MenuItem) => (
                     <SidebarMenuItem key={item.title}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -905,7 +959,7 @@ function AppSidebar() {
                             onClick={() => navigate(item.url)}
                           >
                             <Icon
-                              name={item.icon as any}
+                              name={item.icon as never}
                               size="sm"
                               color={item.isActive ? "brand" : undefined}
                               className={
@@ -958,7 +1012,7 @@ function AppSidebar() {
           <SidebarGroup className="px-2 pb-2">
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.support.map((item) => (
+                {sidebarData.navigation.support.map((item: MenuItem) => (
                   <SidebarMenuItem key={item.title}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -968,7 +1022,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as any}
+                            name={item.icon as never}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -996,7 +1050,7 @@ function AppSidebar() {
 
         {/* Footer with Combined User/Team Switcher */}
         <SidebarFooter className="p-[var(--space-md)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
-          <CombinedSwitcher user={sidebarData.user} teams={sidebarData.teams} />
+          <CombinedSwitcher user={sidebarData.user} teams={sidebarData.teams as Organization[]} />
         </SidebarFooter>
 
         <SidebarRail />
@@ -1032,7 +1086,7 @@ function AppSidebar() {
             </CommandGroup>
 
             <CommandGroup heading="Navigation">
-              {sidebarData.navigation.main.map((item) => (
+              {sidebarData.navigation.main.map((item: MenuItem) => (
                 <CommandItem
                   key={item.title}
                   onSelect={() => {
@@ -1040,11 +1094,11 @@ function AppSidebar() {
                     setCommandOpen(false);
                   }}
                 >
-                  <Icon name={item.icon as any} size="sm" className="mr-2" />
+                  <Icon name={item.icon as never} size="sm" className="mr-2" />
                   <span>{item.title}</span>
                 </CommandItem>
               ))}
-              {sidebarData.navigation.management.map((item) => (
+              {sidebarData.navigation.management.map((item: MenuItem) => (
                 <CommandItem
                   key={item.title}
                   onSelect={() => {
@@ -1052,11 +1106,11 @@ function AppSidebar() {
                     setCommandOpen(false);
                   }}
                 >
-                  <Icon name={item.icon as any} size="sm" className="mr-2" />
+                  <Icon name={item.icon as never} size="sm" className="mr-2" />
                   <span>{item.title}</span>
                 </CommandItem>
               ))}
-              {sidebarData.navigation.intelligence.map((item) => (
+              {sidebarData.navigation.intelligence.map((item: MenuItem) => (
                 <CommandItem
                   key={item.title}
                   onSelect={() => {
@@ -1064,23 +1118,23 @@ function AppSidebar() {
                     setCommandOpen(false);
                   }}
                 >
-                  <Icon name={item.icon as any} size="sm" className="mr-2" />
+                  <Icon name={item.icon as never} size="sm" className="mr-2" />
                   <span>{item.title}</span>
                 </CommandItem>
               ))}
-              {sidebarData.navigation.boards.map((item) => (
+              {sidebarData.navigation.boards.map((item: MenuItem) => (
                 <CommandItem
                   key={item.title}
                   onSelect={() => setCommandOpen(false)}
                 >
-                  <Icon name={item.icon as any} size="sm" className="mr-2" />
+                  <Icon name={item.icon as never} size="sm" className="mr-2" />
                   <span>{item.title}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
 
             <CommandGroup heading="Settings">
-              {sidebarData.navigation.support.map((item) => (
+              {sidebarData.navigation.support.map((item: MenuItem) => (
                 <CommandItem
                   key={item.title}
                   onSelect={() => {
@@ -1088,14 +1142,14 @@ function AppSidebar() {
                     setCommandOpen(false);
                   }}
                 >
-                  <Icon name={item.icon as any} size="sm" className="mr-2" />
+                  <Icon name={item.icon as never} size="sm" className="mr-2" />
                   <span>{item.title}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
 
             <CommandGroup heading="Switch Team">
-              {sidebarData.teams.map((team) => (
+              {sidebarData.teams.map((team: Organization) => (
                 <CommandItem
                   key={team.name}
                   onSelect={() => setCommandOpen(false)}

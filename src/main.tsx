@@ -139,7 +139,7 @@ const router = createBrowserRouter([
             path: ":id",
             element: <BoardDetail />,
             handle: {
-              crumb: (match: any) => {
+              crumb: (match: { params?: { id?: string } }) => {
                 // Try to get board title from the match data or params
                 const boardId = match.params?.id;
                 // For now, we'll handle dynamic loading in the breadcrumb component

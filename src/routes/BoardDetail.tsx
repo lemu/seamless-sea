@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate } from "react-router";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
 import type { Id } from "../../convex/_generated/dataModel";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate, Outlet, useLocation } from "react-router";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../contexts/UserContext";
+import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardsSkeleton, BoardsEmptyState } from "../components/BoardsSkeleton";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -47,7 +47,7 @@ function Boards() {
   const unpinBoard = useMutation(api.boards.unpinBoard);
 
   // Check if we're on a board detail page (child route)
-  const isOnBoardDetail = location.pathname.match(/^\/boards\/[^\/]+$/);
+  const isOnBoardDetail = location.pathname.match(/^\/boards\/[^/]+$/);
   
   // If we're on a board detail page, render the Outlet
   if (isOnBoardDetail) {
@@ -153,7 +153,7 @@ function Boards() {
         <BoardsEmptyState onCreateBoard={() => setShowCreateModal(true)} />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {boards.map((board) => (
+          {boards?.map((board) => (
             <div
               key={board._id}
               className="group relative cursor-pointer rounded-lg border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]"
