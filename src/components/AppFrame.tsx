@@ -1040,7 +1040,7 @@ function AppSidebar() {
               >
                 <div className="mr-2 h-4 w-4 overflow-hidden rounded-sm">
                   <Avatar size="sm" shape="rounded">
-                    <AvatarImage src={team.avatarUrl} alt={team.name} />
+                    <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
                     <AvatarFallback variant="primary" className="text-[8px]">
                       {team.name
                         ?.split(" ")
@@ -1175,7 +1175,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               <div className="relative">
                 <Avatar size="md" shape="rounded">
                   <AvatarImage
-                    src={activeTeam?.avatarUrl}
+                    src={activeTeam?.avatarUrl || undefined}
                     alt={activeTeam?.name}
                   />
                   <AvatarFallback variant="primary">
@@ -1189,7 +1189,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
                   <Avatar size="xs" shape="circle">
-                    <AvatarImage src={user.avatarUrl} alt={user.name} />
+                    <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                     <AvatarFallback variant="primary">
                       {getUserInitials(user.name)}
                     </AvatarFallback>
@@ -1215,7 +1215,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             <div className="relative hidden group-data-[collapsible=icon]:block">
               <Avatar size="sm" shape="rounded">
                 <AvatarImage
-                  src={activeTeam?.avatarUrl}
+                  src={activeTeam?.avatarUrl || undefined}
                   alt={activeTeam?.name}
                 />
                 <AvatarFallback variant="primary" className="text-[9px]">
@@ -1229,7 +1229,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
                 <Avatar size="sm" shape="circle" className="h-4 w-4">
-                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                  <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                   <AvatarFallback variant="primary" className="text-[7px]">
                     {getUserInitials(user.name)}
                   </AvatarFallback>
@@ -1248,7 +1248,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuLabel className="p-0 font-normal">
             <div className="flex items-center gap-3 px-2 py-2">
               <Avatar size="sm" shape="circle">
-                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                 <AvatarFallback variant="primary">
                   {getUserInitials(user.name)}
                 </AvatarFallback>
@@ -1277,7 +1277,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
             >
               <Avatar size="sm" shape="rounded">
-                <AvatarImage src={team.avatarUrl} alt={team.name} />
+                <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
                 <AvatarFallback variant="primary" className="text-[8px]">
                   {team.name
                     ?.split(" ")
