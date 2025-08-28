@@ -1077,7 +1077,7 @@ function AppSidebar() {
 // Create Board Modal Component (same as in Boards.tsx)
 interface CreateBoardModalProps {
   onClose: () => void;
-  onCreate: (title: string) => void;
+  onCreate: (title: string) => Promise<void>;
   title: string;
   setTitle: (title: string) => void;
   isCreating: boolean;
