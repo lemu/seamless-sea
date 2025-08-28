@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useUser } from "../hooks";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useLocation, useNavigate, useMatches } from "react-router";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -27,7 +27,6 @@ interface PinnedBoard {
   _id: Id<"boards">;
   title: string;
 }
-
 
 interface MenuSubItem {
   title: string;
@@ -93,11 +92,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuLabel,
-  DropdownMenuGroup,
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  Input,
 } from "@rafal.lemieszewski/tide-ui";
 
 // Helper functions for user avatar handling
@@ -229,7 +228,10 @@ const hasActiveChild = (item: { items?: Array<{ isActive: boolean }> }) => {
 };
 
 // Helper function to get tooltip text for menu items
-const getTooltipText = (item: { title: string; items?: Array<{ title: string; isActive: boolean }> }) => {
+const getTooltipText = (item: {
+  title: string;
+  items?: Array<{ title: string; isActive: boolean }>;
+}) => {
   if (item.items && item.items.length > 0) {
     const activeSubitem = item.items.find((subItem) => subItem.isActive);
     if (activeSubitem) {
@@ -244,41 +246,58 @@ function DynamicBreadcrumbs() {
   const navigate = useNavigate();
   const matches = useMatches();
   const location = useLocation();
-  
+
   // Get board data for dynamic board titles
-  const boardMatch = matches.find((match: unknown) => 
-    match && typeof match === 'object' && 
-    'params' in match && match.params && typeof match.params === 'object' && 'id' in match.params &&
-    'pathname' in match && typeof match.pathname === 'string' && match.pathname.startsWith('/boards/')
+  const boardMatch = matches.find(
+    (match: unknown) =>
+      match &&
+      typeof match === "object" &&
+      "params" in match &&
+      match.params &&
+      typeof match.params === "object" &&
+      "id" in match.params &&
+      "pathname" in match &&
+      typeof match.pathname === "string" &&
+      match.pathname.startsWith("/boards/"),
   ) as { params: { id: string }; pathname: string } | undefined;
   const boardId = boardMatch?.params?.id;
   const boardData = useQuery(
     api.boards.getBoardById,
-    boardId ? { boardId: boardId as Id<"boards"> } : "skip"
+    boardId ? { boardId: boardId as Id<"boards"> } : "skip",
   );
-  
+
   // Filter matches that have breadcrumb handles
   const routeCrumbs = matches
-    .filter((match) => 
-      match && typeof match === 'object' && 
-      'handle' in match && match.handle && 
-      typeof match.handle === 'object' && 
-      'crumb' in match.handle
+    .filter(
+      (match) =>
+        match &&
+        typeof match === "object" &&
+        "handle" in match &&
+        match.handle &&
+        typeof match.handle === "object" &&
+        "crumb" in match.handle,
     )
     .map((match: unknown) => {
-      const matchTyped = match as { handle: { crumb: (match: unknown) => string; redirectOnly?: boolean }; pathname: string; params?: Record<string, string | undefined> };
+      const matchTyped = match as {
+        handle: { crumb: (match: unknown) => string; redirectOnly?: boolean };
+        pathname: string;
+        params?: Record<string, string | undefined>;
+      };
       const handle = matchTyped.handle;
       const crumbFn = handle?.crumb;
       const path = matchTyped.pathname;
       const isRedirectOnly = handle?.redirectOnly || false;
-      
+
       // Special handling for board detail routes
-      if (matchTyped.params?.id && matchTyped.pathname.startsWith('/boards/')) {
+      if (matchTyped.params?.id && matchTyped.pathname.startsWith("/boards/")) {
         const title = boardData?.title || "Loading...";
         return { title, path, isRedirectOnly };
       }
-      
-      const title = typeof crumbFn === 'function' ? crumbFn(matchTyped) : String(crumbFn || '');
+
+      const title =
+        typeof crumbFn === "function"
+          ? crumbFn(matchTyped)
+          : String(crumbFn || "");
       return { title, path, isRedirectOnly };
     });
 
@@ -296,7 +315,7 @@ function DynamicBreadcrumbs() {
   // Mark the last item
   crumbs = crumbs.map((crumb, index, array) => ({
     ...crumb,
-    isLast: index === array.length - 1
+    isLast: index === array.length - 1,
   }));
 
   if (crumbs.length === 0) {
@@ -338,191 +357,6 @@ function DynamicBreadcrumbs() {
   );
 }
 
-// Combined User/Team Switcher Component
-interface CombinedSwitcherProps {
-  user: User;
-  teams: Organization[];
-}
-
-function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
-  const navigate = useNavigate();
-  const [activeTeam, setActiveTeam] = React.useState<Organization | undefined>(teams[0]);
-
-  // Update activeTeam when teams change
-  React.useEffect(() => {
-    if (teams && teams.length > 0 && !activeTeam) {
-      setActiveTeam(teams[0]);
-    }
-  }, [teams, activeTeam]);
-
-  return (
-    <div className="rounded-md border border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:border-none">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="h-auto min-h-[48px] w-full justify-start rounded-md p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:min-h-[32px] group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
-          >
-            {/* Expanded state - full layout */}
-            <div className="flex w-full items-center gap-3 group-data-[collapsible=icon]:hidden">
-              {/* Team/Company Avatar */}
-              <div className="relative">
-                <Avatar size="md" shape="rounded">
-                  <AvatarImage
-                    src={activeTeam?.avatarUrl || undefined}
-                    alt={activeTeam?.name}
-                  />
-                  <AvatarFallback variant="primary">
-                    {activeTeam?.name
-                      ?.split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                {/* User Avatar Overlay */}
-                <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
-                  <Avatar size="xs" shape="circle">
-                    <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                    <AvatarFallback variant="primary">
-                      {getUserInitials(user.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-              </div>
-
-              {/* User/Team Info */}
-              <div className="min-w-0 flex-1 text-left">
-                <div className="text-body-medium-sm truncate font-medium text-[var(--color-text-primary)]">
-                  {user.name}
-                </div>
-                <div className="text-body-xsm text-[var(--color-text-secondary)]">
-                  {activeTeam?.role} at {activeTeam?.name}
-                </div>
-              </div>
-
-              {/* Chevron */}
-              <Icon name="chevron-down" size="md" className="opacity-50" />
-            </div>
-
-            {/* Collapsed state - just avatars */}
-            <div className="relative hidden group-data-[collapsible=icon]:block">
-              <Avatar size="sm" shape="rounded">
-                <AvatarImage
-                  src={activeTeam?.avatarUrl || undefined}
-                  alt={activeTeam?.name}
-                />
-                <AvatarFallback variant="primary" className="text-[9px]">
-                  {activeTeam?.name
-                    ?.split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              {/* User Avatar Overlay - bigger */}
-              <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
-                <Avatar size="sm" shape="circle" className="h-4 w-4">
-                  <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                  <AvatarFallback variant="primary" className="text-[7px]">
-                    {getUserInitials(user.name)}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-            </div>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          className="w-[--radix-dropdown-menu-trigger-width]"
-          align="start"
-          side="top"
-          sideOffset={4}
-        >
-          {/* User Section */}
-          <DropdownMenuLabel className="p-0 font-normal">
-            <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar size="sm" shape="circle">
-                <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                <AvatarFallback variant="primary">
-                  {getUserInitials(user.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left">
-                <span className="text-body-medium-sm truncate font-semibold text-[var(--color-text-primary)]">
-                  {user.name}
-                </span>
-                <span className="text-caption-xsm truncate text-[var(--color-text-secondary)]">
-                  {user.email}
-                </span>
-              </div>
-            </div>
-          </DropdownMenuLabel>
-
-          <DropdownMenuSeparator />
-
-          {/* Team Section */}
-          <DropdownMenuLabel className="text-caption-medium-sm px-2 py-1 text-[var(--color-text-secondary)]">
-            Organizations
-          </DropdownMenuLabel>
-          {teams.map((team: Organization) => (
-            <DropdownMenuItem
-              key={team._id}
-              onClick={() => setActiveTeam(team)}
-              className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
-            >
-              <Avatar size="sm" shape="rounded">
-                <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
-                <AvatarFallback variant="primary" className="text-[8px]">
-                  {team.name
-                    ?.split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-1 flex-col text-left">
-                <span className="text-body-medium-sm truncate font-semibold text-[var(--color-text-primary)]">
-                  {team.name}
-                </span>
-                <span className="text-caption-xsm truncate text-[var(--color-text-secondary)]">
-                  {team.role} • {team.plan} plan
-                </span>
-              </div>
-              {activeTeam?._id === team._id && <Icon name="check" size="md" />}
-            </DropdownMenuItem>
-          ))}
-
-          <DropdownMenuSeparator />
-
-          {/* User Actions */}
-          <DropdownMenuGroup>
-            <DropdownMenuItem
-              className="mx-1 cursor-pointer"
-              onClick={() => navigate("/user-profile")}
-            >
-              <Icon name="user" size="sm" className="mr-2" />
-              User Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="mx-1 cursor-pointer"
-              onClick={() => navigate("/organization-settings")}
-            >
-              <Icon name="settings" size="sm" className="mr-2" />
-              Organization Settings
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem className="mx-1 cursor-pointer" destructive>
-            <Icon name="log-out" size="sm" className="mr-2" />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
 
 // Helper function to detect macOS
 const isMacOS = () => {
@@ -532,11 +366,12 @@ const isMacOS = () => {
   );
 };
 
-// App Sidebar Component (using div instead of Sidebar component)
+// App Sidebar Component with full functionality restored
 function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useUser();
+  const { toggleSidebar } = useSidebar();
 
   // Fetch user's organizations
   const userOrganizations = useQuery(
@@ -558,6 +393,8 @@ function AppSidebar() {
       : "skip",
   );
 
+  const createBoard = useMutation(api.boards.createBoard);
+
   const sidebarData = getSidebarData(
     location.pathname,
     user,
@@ -565,6 +402,34 @@ function AppSidebar() {
     pinnedBoards || [],
   );
   const [commandOpen, setCommandOpen] = React.useState(false);
+  const [newBoardModalOpen, setNewBoardModalOpen] = React.useState(false);
+  const [newBoardTitle, setNewBoardTitle] = React.useState("");
+  const [isCreatingBoard, setIsCreatingBoard] = React.useState(false);
+
+  const handleCreateBoard = async (title: string) => {
+    if (!user || !currentOrganization?._id) return;
+    
+    setIsCreatingBoard(true);
+    try {
+      const boardId = await createBoard({
+        title,
+        userId: user._id,
+        organizationId: currentOrganization._id,
+      });
+      
+      // Close modal and clear form
+      setNewBoardModalOpen(false);
+      setNewBoardTitle("");
+      
+      // Navigate to the new board
+      navigate(`/boards/${boardId}`);
+    } catch (error) {
+      console.error("Failed to create board:", error);
+      alert("Failed to create board");
+    } finally {
+      setIsCreatingBoard(false);
+    }
+  };
   const [expandedItems, setExpandedItems] = React.useState<
     Record<string, boolean>
   >({
@@ -578,6 +443,7 @@ function AppSidebar() {
     }));
   };
 
+  // Command/Search dialog keyboard shortcut
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -589,6 +455,7 @@ function AppSidebar() {
         setCommandOpen(true);
       }
     };
+
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
   }, []);
@@ -685,7 +552,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as never}
+                            name={item.icon as any}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -734,7 +601,7 @@ function AppSidebar() {
                             onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
-                              name={item.icon as never}
+                              name={item.icon as any}
                               size="sm"
                               color={
                                 item.isActive && !item.items?.length
@@ -758,6 +625,38 @@ function AppSidebar() {
                           </SidebarMenuButton>
                         </div>
 
+                        {/* Submenu items */}
+                        {item.items &&
+                          item.items.length > 0 &&
+                          expandedItems[item.title] && (
+                            <SidebarMenuSub>
+                              {item.items.map((subItem: MenuSubItem) => (
+                                <SidebarMenuSubItem key={subItem.title}>
+                                  <SidebarMenuSubButton
+                                    isActive={subItem.isActive}
+                                    className={`[&]:text-body-md px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] ${
+                                      subItem.isActive
+                                        ? "bg-[var(--color-background-brand-selected)] hover:!bg-[var(--color-background-brand-selected-hovered)] active:!bg-[var(--color-background-brand-selected-hovered)] [&]:!text-[var(--color-text-brand)] [&_a]:!text-[var(--color-text-brand)] [&>*]:!text-[var(--color-text-brand)]"
+                                        : ""
+                                    }`}
+                                  >
+                                    <button
+                                      onClick={() => navigate(subItem.url)}
+                                      className={`w-full cursor-pointer text-left transition-colors hover:text-[var(--color-text-primary)] ${subItem.isActive ? "!text-[var(--color-text-brand)] hover:!text-[var(--color-text-brand-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
+                                      style={
+                                        subItem.isActive
+                                          ? { color: "var(--color-text-brand)" }
+                                          : {}
+                                      }
+                                    >
+                                      {subItem.title}
+                                    </button>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          )}
+
                         {/* Collapsed state - dropdown with submenu */}
                         <div className="hidden group-data-[collapsible=icon]:block">
                           <DropdownMenu>
@@ -769,7 +668,7 @@ function AppSidebar() {
                                     className={`text-body-medium-md group w-full cursor-pointer justify-center px-2 py-1.5 transition-colors ${hasActiveChild(item) ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
                                   >
                                     <Icon
-                                      name={item.icon as never}
+                                      name={item.icon as any}
                                       size="sm"
                                       color={
                                         hasActiveChild(item)
@@ -801,7 +700,7 @@ function AppSidebar() {
                                 {item.title}
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {item.items?.map((subItem: MenuSubItem) => (
+                              {item.items.map((subItem: MenuSubItem) => (
                                 <DropdownMenuItem
                                   key={subItem.title}
                                   onClick={() => navigate(subItem.url)}
@@ -819,64 +718,37 @@ function AppSidebar() {
                         </div>
                       </>
                     ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={item.isActive}
-                            className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
-                            onClick={() => navigate(item.url)}
-                          >
-                            <Icon
-                              name={item.icon as never}
-                              size="sm"
-                              color={item.isActive ? "brand" : undefined}
-                              className={
-                                item.isActive
-                                  ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                  : ""
-                              }
-                            />
-                            <span>{item.title}</span>
-                          </SidebarMenuButton>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="right"
-                          className="hidden group-data-[collapsible=icon]:block"
-                        >
-                          {getTooltipText(item)}
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                    {item.items &&
-                      item.items.length > 0 &&
-                      expandedItems[item.title] && (
-                        <SidebarMenuSub>
-                          {item.items?.map((subItem: MenuSubItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton
-                                isActive={subItem.isActive}
-                                className={`[&]:text-body-md px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] ${
-                                  subItem.isActive
-                                    ? "bg-[var(--color-background-brand-selected)] hover:!bg-[var(--color-background-brand-selected-hovered)] active:!bg-[var(--color-background-brand-selected-hovered)] [&]:!text-[var(--color-text-brand)] [&_a]:!text-[var(--color-text-brand)] [&>*]:!text-[var(--color-text-brand)]"
+                      <>
+                        {/* Regular menu item without submenu */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <SidebarMenuButton
+                              isActive={item.isActive}
+                              className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                              onClick={() => navigate(item.url)}
+                            >
+                              <Icon
+                                name={item.icon as any}
+                                size="sm"
+                                color={item.isActive ? "brand" : undefined}
+                                className={
+                                  item.isActive
+                                    ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
                                     : ""
-                                }`}
-                              >
-                                <button
-                                  onClick={() => navigate(subItem.url)}
-                                  className={`w-full cursor-pointer text-left transition-colors hover:text-[var(--color-text-primary)] ${subItem.isActive ? "!text-[var(--color-text-brand)] hover:!text-[var(--color-text-brand-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
-                                  style={
-                                    subItem.isActive
-                                      ? { color: "var(--color-text-brand)" }
-                                      : {}
-                                  }
-                                >
-                                  {subItem.title}
-                                </button>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      )}
+                                }
+                              />
+                              <span>{item.title}</span>
+                            </SidebarMenuButton>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="right"
+                            className="hidden group-data-[collapsible=icon]:block"
+                          >
+                            {getTooltipText(item)}
+                          </TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -889,7 +761,7 @@ function AppSidebar() {
           </div>
 
           {/* Intelligence Section */}
-          <SidebarGroup className="-mt-2 px-2">
+          <SidebarGroup className="px-2">
             <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
               Intelligence
             </SidebarGroupLabel>
@@ -905,7 +777,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as never}
+                            name={item.icon as any}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -936,9 +808,17 @@ function AppSidebar() {
           </div>
 
           {/* Boards Section */}
-          <SidebarGroup className="-mt-2 px-2">
-            <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
-              Boards
+          <SidebarGroup className="px-2">
+            <SidebarGroupLabel className="flex items-center justify-between px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
+              <span>Boards</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 text-[var(--color-text-tertiary)] hover:bg-[var(--color-background-neutral-subtle-hovered)] hover:text-[var(--color-text-secondary)]"
+                onClick={() => setNewBoardModalOpen(true)}
+              >
+                <Icon name="plus" size="sm" className="text-[var(--color-text-tertiary)]" />
+              </Button>
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -950,35 +830,35 @@ function AppSidebar() {
                   </SidebarMenuItem>
                 ) : (
                   sidebarData.navigation.boards.map((item: MenuItem) => (
-                    <SidebarMenuItem key={item.title}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={item.isActive}
-                            className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
-                            onClick={() => navigate(item.url)}
-                          >
-                            <Icon
-                              name={item.icon as never}
-                              size="sm"
-                              color={item.isActive ? "brand" : undefined}
-                              className={
-                                item.isActive
-                                  ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                  : ""
-                              }
-                            />
-                            <span>{item.title}</span>
-                          </SidebarMenuButton>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="right"
-                          className="hidden group-data-[collapsible=icon]:block"
+                  <SidebarMenuItem key={item.title}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <SidebarMenuButton
+                          isActive={item.isActive}
+                          className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                          onClick={() => navigate(item.url)}
                         >
-                          {getTooltipText(item)}
-                        </TooltipContent>
-                      </Tooltip>
-                    </SidebarMenuItem>
+                          <Icon
+                            name={item.icon as any}
+                            size="sm"
+                            color={item.isActive ? "brand" : undefined}
+                            className={
+                              item.isActive
+                                ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
+                                : ""
+                            }
+                          />
+                          <span>{item.title}</span>
+                        </SidebarMenuButton>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="right"
+                        className="hidden group-data-[collapsible=icon]:block"
+                      >
+                        {getTooltipText(item)}
+                      </TooltipContent>
+                    </Tooltip>
+                  </SidebarMenuItem>
                   ))
                 )}
                 {/* Show all boards link */}
@@ -997,7 +877,7 @@ function AppSidebar() {
                       side="right"
                       className="hidden group-data-[collapsible=icon]:block"
                     >
-                      Show all
+                      Show all boards
                     </TooltipContent>
                   </Tooltip>
                 </SidebarMenuItem>
@@ -1022,7 +902,7 @@ function AppSidebar() {
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as never}
+                            name={item.icon as any}
                             size="sm"
                             color={item.isActive ? "brand" : undefined}
                             className={
@@ -1048,127 +928,416 @@ function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
 
-        {/* Footer with Combined User/Team Switcher */}
-        <SidebarFooter className="p-[var(--space-md)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
-          <CombinedSwitcher user={sidebarData.user} teams={sidebarData.teams as Organization[]} />
+        {/* Footer with User/Team Switcher */}
+        <SidebarFooter className="border-t border-[var(--color-border-primary-subtle)] p-[var(--space-md)] group-data-[collapsible=icon]:px-2">
+          {user && (
+            <CombinedSwitcher
+              user={user}
+              teams={userOrganizations || []}
+            />
+          )}
         </SidebarFooter>
 
-        <SidebarRail />
-
-        {/* Command Dialog */}
-        <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-          <CommandInput placeholder="Type a command or search..." />
-          <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
-
-            <CommandGroup heading="Quick Actions">
-              <CommandItem onSelect={() => window.location.reload()}>
-                <Icon name="rotate-ccw" size="sm" className="mr-2" />
-                <span>Reload Page</span>
-                <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
-                  ⌘R
-                </span>
-              </CommandItem>
-              <CommandItem onSelect={() => setCommandOpen(false)}>
-                <Icon name="search" size="sm" className="mr-2" />
-                <span>Search</span>
-                <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
-                  ⌘K
-                </span>
-              </CommandItem>
-              <CommandItem onSelect={() => window.print()}>
-                <Icon name="printer" size="sm" className="mr-2" />
-                <span>Print Page</span>
-                <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
-                  ⌘P
-                </span>
-              </CommandItem>
-            </CommandGroup>
-
-            <CommandGroup heading="Navigation">
-              {sidebarData.navigation.main.map((item: MenuItem) => (
-                <CommandItem
-                  key={item.title}
-                  onSelect={() => {
-                    navigate(item.url);
-                    setCommandOpen(false);
-                  }}
-                >
-                  <Icon name={item.icon as never} size="sm" className="mr-2" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-              {sidebarData.navigation.management.map((item: MenuItem) => (
-                <CommandItem
-                  key={item.title}
-                  onSelect={() => {
-                    navigate(item.url);
-                    setCommandOpen(false);
-                  }}
-                >
-                  <Icon name={item.icon as never} size="sm" className="mr-2" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-              {sidebarData.navigation.intelligence.map((item: MenuItem) => (
-                <CommandItem
-                  key={item.title}
-                  onSelect={() => {
-                    navigate(item.url);
-                    setCommandOpen(false);
-                  }}
-                >
-                  <Icon name={item.icon as never} size="sm" className="mr-2" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-              {sidebarData.navigation.boards.map((item: MenuItem) => (
-                <CommandItem
-                  key={item.title}
-                  onSelect={() => setCommandOpen(false)}
-                >
-                  <Icon name={item.icon as never} size="sm" className="mr-2" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-
-            <CommandGroup heading="Settings">
-              {sidebarData.navigation.support.map((item: MenuItem) => (
-                <CommandItem
-                  key={item.title}
-                  onSelect={() => {
-                    navigate(item.url);
-                    setCommandOpen(false);
-                  }}
-                >
-                  <Icon name={item.icon as never} size="sm" className="mr-2" />
-                  <span>{item.title}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-
-            <CommandGroup heading="Switch Team">
-              {sidebarData.teams.map((team: Organization) => (
-                <CommandItem
-                  key={team.name}
-                  onSelect={() => setCommandOpen(false)}
-                >
-                  <div className="mr-2 h-4 w-4 overflow-hidden rounded-sm">
-                    <img
-                      src={team.logo}
-                      alt={team.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <span>Switch to {team.name}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </CommandDialog>
+        <SidebarRail 
+          className="cursor-ew-resize" 
+          onClick={toggleSidebar}
+        />
       </Sidebar>
+
+      {/* Command Dialog */}
+      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <CommandInput placeholder="Type a command or search..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+
+          <CommandGroup heading="Quick Actions">
+            <CommandItem onSelect={() => window.location.reload()}>
+              <Icon name="rotate-ccw" size="sm" className="mr-2" />
+              <span>Reload Page</span>
+              <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
+                {isMacOS() ? "⌘" : "Ctrl"}R
+              </span>
+            </CommandItem>
+            <CommandItem onSelect={() => setCommandOpen(false)}>
+              <Icon name="search" size="sm" className="mr-2" />
+              <span>Search</span>
+              <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
+                {isMacOS() ? "⌘" : "Ctrl"}K
+              </span>
+            </CommandItem>
+            <CommandItem onSelect={() => window.print()}>
+              <Icon name="printer" size="sm" className="mr-2" />
+              <span>Print Page</span>
+              <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
+                {isMacOS() ? "⌘" : "Ctrl"}P
+              </span>
+            </CommandItem>
+          </CommandGroup>
+
+          <CommandGroup heading="Navigation">
+            {sidebarData.navigation.main.map((item: MenuItem) => (
+              <CommandItem
+                key={item.title}
+                onSelect={() => {
+                  navigate(item.url);
+                  setCommandOpen(false);
+                }}
+              >
+                <Icon name={item.icon as any} size="sm" className="mr-2" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))}
+            {sidebarData.navigation.management.map((item: MenuItem) => (
+              <CommandItem
+                key={item.title}
+                onSelect={() => {
+                  navigate(item.url);
+                  setCommandOpen(false);
+                }}
+              >
+                <Icon name={item.icon as any} size="sm" className="mr-2" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))}
+            {sidebarData.navigation.intelligence.map((item: MenuItem) => (
+              <CommandItem
+                key={item.title}
+                onSelect={() => {
+                  navigate(item.url);
+                  setCommandOpen(false);
+                }}
+              >
+                <Icon name={item.icon as any} size="sm" className="mr-2" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))}
+            {sidebarData.navigation.boards.map((item: MenuItem) => (
+              <CommandItem
+                key={item.title}
+                onSelect={() => setCommandOpen(false)}
+              >
+                <Icon name={item.icon as any} size="sm" className="mr-2" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandGroup heading="Settings">
+            {sidebarData.navigation.support.map((item: MenuItem) => (
+              <CommandItem
+                key={item.title}
+                onSelect={() => {
+                  navigate(item.url);
+                  setCommandOpen(false);
+                }}
+              >
+                <Icon name={item.icon as any} size="sm" className="mr-2" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+
+          <CommandGroup heading="Switch Team">
+            {sidebarData.teams.map((team: Organization) => (
+              <CommandItem
+                key={team.name}
+                onSelect={() => setCommandOpen(false)}
+              >
+                <div className="mr-2 h-4 w-4 overflow-hidden rounded-sm">
+                  <Avatar size="sm" shape="rounded">
+                    <AvatarImage src={team.avatarUrl} alt={team.name} />
+                    <AvatarFallback variant="primary" className="text-[8px]">
+                      {team.name
+                        ?.split(" ")
+                        .map((n: string) => n[0])
+                        .join("")
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <span>{team.name}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      {/* New Board Modal */}
+      {newBoardModalOpen && (
+        <CreateBoardModal
+          onClose={() => {
+            setNewBoardModalOpen(false);
+            setNewBoardTitle("");
+          }}
+          onCreate={handleCreateBoard}
+          title={newBoardTitle}
+          setTitle={setNewBoardTitle}
+          isCreating={isCreatingBoard}
+        />
+      )}
     </TooltipProvider>
+  );
+}
+
+// Create Board Modal Component (same as in Boards.tsx)
+interface CreateBoardModalProps {
+  onClose: () => void;
+  onCreate: (title: string) => void;
+  title: string;
+  setTitle: (title: string) => void;
+  isCreating: boolean;
+}
+
+function CreateBoardModal({
+  onClose,
+  onCreate,
+  title,
+  setTitle,
+  isCreating,
+}: CreateBoardModalProps) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await onCreate(title.trim());
+    } catch (error) {
+      console.error("Failed to create board:", error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50">
+      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
+        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
+          Create New Board
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="text-body-md mb-2 block text-[var(--color-text-primary)]">
+              Board Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter board title..."
+              className="w-full rounded-md border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
+              disabled={isCreating}
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={onClose} disabled={isCreating}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!title.trim() || isCreating}
+            >
+              {isCreating ? "Creating..." : "Create Board"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Combined User/Team Switcher Component
+interface CombinedSwitcherProps {
+  user: User;
+  teams: Organization[];
+}
+
+function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
+  const navigate = useNavigate();
+  const [activeTeam, setActiveTeam] = React.useState<Organization | undefined>(
+    teams[0],
+  );
+
+  // Update activeTeam when teams change
+  React.useEffect(() => {
+    if (teams && teams.length > 0 && !activeTeam) {
+      setActiveTeam(teams[0]);
+    }
+  }, [teams, activeTeam]);
+
+  return (
+    <div className="rounded-md border border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:rounded-none group-data-[collapsible=icon]:border-none">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="h-auto min-h-[48px] w-full justify-start rounded-md p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:min-h-[32px] group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+          >
+            {/* Expanded state - full layout */}
+            <div className="flex w-full items-center gap-3 group-data-[collapsible=icon]:hidden">
+              {/* Team/Company Avatar */}
+              <div className="relative">
+                <Avatar size="md" shape="rounded">
+                  <AvatarImage
+                    src={activeTeam?.avatarUrl}
+                    alt={activeTeam?.name}
+                  />
+                  <AvatarFallback variant="primary">
+                    {activeTeam?.name
+                      ?.split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                {/* User Avatar Overlay */}
+                <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
+                  <Avatar size="xs" shape="circle">
+                    <AvatarImage src={user.avatarUrl} alt={user.name} />
+                    <AvatarFallback variant="primary">
+                      {getUserInitials(user.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </div>
+
+              {/* User/Team Info */}
+              <div className="min-w-0 flex-1 text-left">
+                <div className="text-body-medium-sm truncate font-medium text-[var(--color-text-primary)]">
+                  {user.name}
+                </div>
+                <div className="text-body-xsm text-[var(--color-text-secondary)]">
+                  {activeTeam?.role} at {activeTeam?.name}
+                </div>
+              </div>
+
+              {/* Chevron */}
+              <Icon name="chevron-down" size="md" className="opacity-50" />
+            </div>
+
+            {/* Collapsed state - just avatars */}
+            <div className="relative hidden group-data-[collapsible=icon]:block">
+              <Avatar size="sm" shape="rounded">
+                <AvatarImage
+                  src={activeTeam?.avatarUrl}
+                  alt={activeTeam?.name}
+                />
+                <AvatarFallback variant="primary" className="text-[9px]">
+                  {activeTeam?.name
+                    ?.split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {/* User Avatar Overlay - bigger */}
+              <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
+                <Avatar size="sm" shape="circle" className="h-4 w-4">
+                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                  <AvatarFallback variant="primary" className="text-[7px]">
+                    {getUserInitials(user.name)}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+            </div>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-[--radix-dropdown-menu-trigger-width]"
+          align="start"
+          side="top"
+          sideOffset={4}
+        >
+          {/* User Section */}
+          <DropdownMenuLabel className="p-0 font-normal">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <Avatar size="sm" shape="circle">
+                <AvatarImage src={user.avatarUrl} alt={user.name} />
+                <AvatarFallback variant="primary">
+                  {getUserInitials(user.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left">
+                <span className="text-body-medium-sm truncate font-semibold text-[var(--color-text-primary)]">
+                  {user.name}
+                </span>
+                <span className="text-caption-xsm truncate text-[var(--color-text-secondary)]">
+                  {user.email}
+                </span>
+              </div>
+            </div>
+          </DropdownMenuLabel>
+
+          <DropdownMenuSeparator />
+
+          {/* Team Section */}
+          <DropdownMenuLabel className="px-2 py-1 text-[12px] font-medium text-[var(--color-text-tertiary)]">
+            Organizations
+          </DropdownMenuLabel>
+          {teams.map((team) => (
+            <DropdownMenuItem
+              key={team._id}
+              onClick={() => setActiveTeam(team)}
+              className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
+            >
+              <Avatar size="sm" shape="rounded">
+                <AvatarImage src={team.avatarUrl} alt={team.name} />
+                <AvatarFallback variant="primary" className="text-[8px]">
+                  {team.name
+                    ?.split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-1 flex-col text-left">
+                <span className="text-body-medium-sm truncate font-semibold text-[var(--color-text-primary)]">
+                  {team.name}
+                </span>
+                <span className="text-caption-xsm truncate text-[var(--color-text-secondary)]">
+                  {team.role} • {team.plan} plan
+                </span>
+              </div>
+              {activeTeam?._id === team._id && <Icon name="check" size="md" />}
+            </DropdownMenuItem>
+          ))}
+
+          <DropdownMenuSeparator />
+
+          {/* Action Items */}
+          <DropdownMenuItem
+            onClick={() => navigate("/user-profile")}
+            className="cursor-pointer flex items-center gap-2"
+          >
+            <Icon name="user" size="sm" />
+            <span>User profile</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => navigate("/organization-settings")}
+            className="cursor-pointer flex items-center gap-2"
+          >
+            <Icon name="settings" size="sm" />
+            <span>Organization settings</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={() => {
+              // Add logout logic here
+              localStorage.removeItem("userEmail");
+              navigate("/");
+            }}
+            className="cursor-pointer flex items-center gap-2"
+            destructive
+          >
+            <Icon name="log-out" size="sm" />
+            <span>Sign out</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -1220,7 +1389,7 @@ export function AppFrame({ children }: AppFrameProps) {
   }
 
   return (
-    <SidebarProvider className="h-full">
+    <SidebarProvider className="h-full [&>div]:!block" defaultOpen={true}>
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
