@@ -483,9 +483,10 @@ function AppSidebar() {
           </div>
         </SidebarHeader>
 
-        {/* Content */}
-        <SidebarContent className="flex flex-1 flex-col gap-1">
-          {/* Search Section */}
+        {/* Content - scrollable area that takes remaining space */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <SidebarContent className="space-y-1">
+            {/* Search Section */}
           <div className="p-[var(--space-md)] pt-[var(--space-sm)] group-data-[collapsible=icon]:px-2">
             <div className="relative">
               <div className="absolute top-1/2 left-2 -translate-y-1/2 group-data-[collapsible=icon]:hidden">
@@ -883,9 +884,6 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Spacer to push support section to bottom */}
-          <div className="min-h-[var(--space-lg)] flex-1" />
-
           {/* Support Section */}
           <SidebarGroup className="px-2 pb-2">
             <SidebarGroupContent>
@@ -924,7 +922,8 @@ function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        </SidebarContent>
+          </SidebarContent>
+        </div>
 
         {/* Footer with User/Team Switcher */}
         <SidebarFooter className="border-t border-[var(--color-border-primary-subtle)] p-[var(--space-md)] group-data-[collapsible=icon]:px-2">
