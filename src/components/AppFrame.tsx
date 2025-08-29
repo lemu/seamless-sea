@@ -588,7 +588,7 @@ function AppSidebar() {
               <div className="group-data-[collapsible=icon]:hidden">
                 <button
                   onClick={() => setCommandOpen(true)}
-                  className="text-body-md flex h-8 w-full cursor-pointer items-center rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-1 pr-20 pl-8 text-left text-[var(--color-text-tertiary)] transition-colors hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] focus:ring-1 focus:ring-[var(--color-border-focus)] focus:outline-none active:border-[var(--color-border-primary-bold)]"
+                  className="text-body-md flex h-8 w-full cursor-pointer items-center rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-1 pr-20 pl-8 text-left text-[var(--color-text-tertiary)] transition-colors hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none active:border-[var(--color-border-primary-bold)]"
                 >
                   Search
                 </button>
@@ -603,7 +603,7 @@ function AppSidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setCommandOpen(true)}
-                    className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] active:border-[var(--color-border-primary-bold)]"
+                    className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none active:border-[var(--color-border-primary-bold)]"
                     aria-label="Search"
                   >
                     <Icon name="search" size="md" color="tertiary" />
@@ -733,7 +733,7 @@ function AppSidebar() {
                                   >
                                     <button
                                       onClick={() => navigate(subItem.url)}
-                                      className={`w-full cursor-pointer text-left transition-colors hover:text-[var(--color-text-primary)] ${subItem.isActive ? "!text-[var(--color-text-brand)] hover:!text-[var(--color-text-brand-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
+                                      className={`w-full cursor-pointer text-left transition-colors hover:text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none rounded-sm ${subItem.isActive ? "!text-[var(--color-text-brand)] hover:!text-[var(--color-text-brand-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
                                       style={
                                         subItem.isActive
                                           ? { color: "var(--color-text-brand)" }
