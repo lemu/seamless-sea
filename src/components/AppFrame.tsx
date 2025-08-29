@@ -69,7 +69,6 @@ import {
   BreadcrumbSeparator,
   Separator,
   Sidebar,
-  SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
