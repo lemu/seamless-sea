@@ -98,6 +98,9 @@ import {
   TooltipTrigger,
 } from "@rafal.lemieszewski/tide-ui";
 
+// Temporary import from shadcn UI until Tide UI has SidebarMenuAction
+import { SidebarMenuAction } from "./ui/sidebar";
+
 // Helper functions for user avatar handling
 const getUserInitials = (name: string) => {
   return name
@@ -392,6 +395,9 @@ function AppSidebar() {
   );
 
   const createBoard = useMutation(api.boards.createBoard);
+  const updateBoard = useMutation(api.boards.updateBoard);
+  const deleteBoard = useMutation(api.boards.deleteBoard);
+  const unpinBoard = useMutation(api.boards.unpinBoard);
 
   const sidebarData = getSidebarData(
     location.pathname,
@@ -403,6 +409,14 @@ function AppSidebar() {
   const [newBoardModalOpen, setNewBoardModalOpen] = React.useState(false);
   const [newBoardTitle, setNewBoardTitle] = React.useState("");
   const [isCreatingBoard, setIsCreatingBoard] = React.useState(false);
+  
+  // Board menu modals state
+  const [renameBoardModalOpen, setRenameBoardModalOpen] = React.useState(false);
+  const [deleteBoardModalOpen, setDeleteBoardModalOpen] = React.useState(false);
+  const [selectedBoard, setSelectedBoard] = React.useState<MenuItem | null>(null);
+  const [renameBoardTitle, setRenameBoardTitle] = React.useState("");
+  const [isUpdatingBoard, setIsUpdatingBoard] = React.useState(false);
+  const [isDeletingBoard, setIsDeletingBoard] = React.useState(false);
 
   const handleCreateBoard = async (title: string) => {
     if (!user || !currentOrganization?._id) return;
@@ -428,6 +442,86 @@ function AppSidebar() {
       setIsCreatingBoard(false);
     }
   };
+
+  // Board menu handlers
+  const handleUnpinBoard = async (board: MenuItem) => {
+    if (!user || !currentOrganization?._id) return;
+    
+    try {
+      // Extract board ID from URL
+      const boardId = board.url.split('/').pop();
+      if (!boardId) return;
+      
+      await unpinBoard({
+        boardId: boardId as Id<"boards">,
+        userId: user._id,
+        organizationId: currentOrganization._id,
+      });
+    } catch (error) {
+      console.error("Failed to unpin board:", error);
+    }
+  };
+
+  const handleRenameBoard = (board: MenuItem) => {
+    setSelectedBoard(board);
+    setRenameBoardTitle(board.title);
+    setRenameBoardModalOpen(true);
+  };
+
+  const handleDeleteBoard = (board: MenuItem) => {
+    setSelectedBoard(board);
+    setDeleteBoardModalOpen(true);
+  };
+
+  const handleRenameBoardSubmit = async (title: string) => {
+    if (!selectedBoard) return;
+    
+    setIsUpdatingBoard(true);
+    try {
+      const boardId = selectedBoard.url.split('/').pop();
+      if (!boardId) return;
+      
+      await updateBoard({
+        boardId: boardId as Id<"boards">,
+        title: title.trim(),
+      });
+      
+      setRenameBoardModalOpen(false);
+      setRenameBoardTitle("");
+      setSelectedBoard(null);
+    } catch (error) {
+      console.error("Failed to rename board:", error);
+    } finally {
+      setIsUpdatingBoard(false);
+    }
+  };
+
+  const handleDeleteBoardSubmit = async () => {
+    if (!selectedBoard) return;
+    
+    setIsDeletingBoard(true);
+    try {
+      const boardId = selectedBoard.url.split('/').pop();
+      if (!boardId) return;
+      
+      await deleteBoard({
+        boardId: boardId as Id<"boards">,
+      });
+      
+      setDeleteBoardModalOpen(false);
+      setSelectedBoard(null);
+      
+      // If we were on the deleted board page, navigate to boards
+      if (location.pathname === selectedBoard.url) {
+        navigate('/boards');
+      }
+    } catch (error) {
+      console.error("Failed to delete board:", error);
+    } finally {
+      setIsDeletingBoard(false);
+    }
+  };
+
   const [expandedItems, setExpandedItems] = React.useState<
     Record<string, boolean>
   >({
@@ -484,8 +578,7 @@ function AppSidebar() {
         </SidebarHeader>
 
         {/* Content - scrollable area that takes remaining space */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <SidebarContent className="space-y-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto group-data-[collapsible=icon]:overflow-hidden" data-sidebar="content">
             {/* Search Section */}
           <div className="p-[var(--space-md)] pt-[var(--space-sm)] group-data-[collapsible=icon]:px-2">
             <div className="relative">
@@ -538,7 +631,7 @@ function AppSidebar() {
           </div>
 
           {/* Main Navigation */}
-          <SidebarGroup className="px-2 pb-1">
+          <SidebarGroup className="px-2 pb-1 mt-1">
             <SidebarGroupContent>
               <SidebarMenu>
                 {sidebarData.navigation.main.map((item: MenuItem) => (
@@ -582,7 +675,7 @@ function AppSidebar() {
           </div>
 
           {/* Management Section */}
-          <SidebarGroup className="-mt-2 px-2">
+          <SidebarGroup className="px-2 mt-1">
             <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
               Management
             </SidebarGroupLabel>
@@ -760,7 +853,7 @@ function AppSidebar() {
           </div>
 
           {/* Intelligence Section */}
-          <SidebarGroup className="px-2">
+          <SidebarGroup className="px-2 mt-1">
             <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
               Intelligence
             </SidebarGroupLabel>
@@ -807,7 +900,7 @@ function AppSidebar() {
           </div>
 
           {/* Boards Section */}
-          <SidebarGroup className="px-2">
+          <SidebarGroup className="px-2 mt-1">
             <SidebarGroupLabel className="flex items-center justify-between px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
               <span>Boards</span>
               <Button
@@ -857,6 +950,46 @@ function AppSidebar() {
                         {getTooltipText(item)}
                       </TooltipContent>
                     </Tooltip>
+                    
+                    {/* Board Actions Menu - Only show in expanded state */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <SidebarMenuAction showOnHover className="group-data-[collapsible=icon]:hidden">
+                          <Icon name="more-horizontal" size="sm" />
+                        </SidebarMenuAction>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => navigate(item.url)}
+                          className="cursor-pointer"
+                        >
+                          <Icon name="eye" size="sm" />
+                          <span>View</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleUnpinBoard(item)}
+                          className="cursor-pointer"
+                        >
+                          <Icon name="pin-off" size="sm" />
+                          <span>Unpin</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleRenameBoard(item)}
+                          className="cursor-pointer"
+                        >
+                          <Icon name="edit" size="sm" />
+                          <span>Rename</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteBoard(item)}
+                          className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
+                        >
+                          <Icon name="trash" size="sm" />
+                          <span>Delete</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </SidebarMenuItem>
                   ))
                 )}
@@ -884,8 +1017,8 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Support Section */}
-          <SidebarGroup className="px-2 pb-2">
+          {/* Support Section - takes remaining space and aligns to bottom */}
+          <SidebarGroup className="px-2 pb-2 flex-1 flex flex-col justify-end">
             <SidebarGroupContent>
               <SidebarMenu>
                 {sidebarData.navigation.support.map((item: MenuItem) => (
@@ -922,7 +1055,6 @@ function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          </SidebarContent>
         </div>
 
         {/* Footer with User/Team Switcher */}
@@ -1069,6 +1201,34 @@ function AppSidebar() {
           isCreating={isCreatingBoard}
         />
       )}
+
+      {/* Rename Board Modal */}
+      {renameBoardModalOpen && (
+        <RenameBoardModal
+          onClose={() => {
+            setRenameBoardModalOpen(false);
+            setRenameBoardTitle("");
+            setSelectedBoard(null);
+          }}
+          onRename={handleRenameBoardSubmit}
+          title={renameBoardTitle}
+          setTitle={setRenameBoardTitle}
+          isRenaming={isUpdatingBoard}
+        />
+      )}
+
+      {/* Delete Board Modal */}
+      {deleteBoardModalOpen && (
+        <DeleteBoardModal
+          onClose={() => {
+            setDeleteBoardModalOpen(false);
+            setSelectedBoard(null);
+          }}
+          onDelete={handleDeleteBoardSubmit}
+          boardTitle={selectedBoard?.title || ""}
+          isDeleting={isDeletingBoard}
+        />
+      )}
     </TooltipProvider>
   );
 }
@@ -1133,6 +1293,129 @@ function CreateBoardModal({
               disabled={!title.trim() || isCreating}
             >
               {isCreating ? "Creating..." : "Create Board"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Rename Board Modal Component
+interface RenameBoardModalProps {
+  onClose: () => void;
+  onRename: (title: string) => Promise<void>;
+  title: string;
+  setTitle: (title: string) => void;
+  isRenaming: boolean;
+}
+
+function RenameBoardModal({
+  onClose,
+  onRename,
+  title,
+  setTitle,
+  isRenaming,
+}: RenameBoardModalProps) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    try {
+      await onRename(title.trim());
+    } catch (error) {
+      console.error("Failed to rename board:", error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50">
+      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
+        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
+          Rename Board
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="text-body-md mb-2 block text-[var(--color-text-primary)]">
+              Board Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter board title..."
+              className="w-full rounded-md border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
+              disabled={isRenaming}
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={onClose} disabled={isRenaming}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!title.trim() || isRenaming}
+            >
+              {isRenaming ? "Renaming..." : "Rename Board"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Delete Board Modal Component
+interface DeleteBoardModalProps {
+  onClose: () => void;
+  onDelete: () => Promise<void>;
+  boardTitle: string;
+  isDeleting: boolean;
+}
+
+function DeleteBoardModal({
+  onClose,
+  onDelete,
+  boardTitle,
+  isDeleting,
+}: DeleteBoardModalProps) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await onDelete();
+    } catch (error) {
+      console.error("Failed to delete board:", error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50">
+      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
+        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
+          Delete Board
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-6">
+            <p className="text-body-md text-[var(--color-text-primary)]">
+              Are you sure you want to delete <strong>'{boardTitle}'</strong>? This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" onClick={onClose} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete Board"}
             </Button>
           </div>
         </form>

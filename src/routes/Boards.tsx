@@ -223,7 +223,7 @@ function CreateBoardModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (title: string) => void;
+  onCreate: (title: string) => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
