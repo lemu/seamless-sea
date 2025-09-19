@@ -95,15 +95,29 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  SidebarMenuAction,
 } from "@rafal.lemieszewski/tide-ui";
 
 // Temporary import from shadcn UI until Tide UI has SidebarMenuAction
-import { SidebarMenuAction } from "./ui/sidebar";
+// SidebarMenuAction is now available directly from tide-ui 0.3.1
 
 // Helper functions for user avatar handling
 const getUserInitials = (name: string) => {
+  if (!name) return "?";
   return name
     .split(" ")
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+};
+
+const getTeamInitials = (name: string) => {
+  if (!name) return "T";
+  return name
+    .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
@@ -556,10 +570,10 @@ function AppSidebar() {
       <Sidebar
         variant="sidebar"
         collapsible="icon"
-        className="flex h-full flex-col border-r border-[var(--color-border-primary-subtle)] [&]:!transition-none [&>*]:!transition-none"
+        className="flex h-full flex-col"
       >
         {/* Header with Company Logo */}
-        <SidebarHeader className="border-b border-[var(--color-border-primary-subtle)] p-[var(--space-md)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
+        <SidebarHeader className="h-12 border-b border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 box-border">
           <div className="flex h-[22px] w-7 items-center justify-center">
             <svg
               width="28"
@@ -630,7 +644,7 @@ function AppSidebar() {
           </div>
 
           {/* Main Navigation */}
-          <SidebarGroup className="px-2 pb-1 mt-1">
+          <SidebarGroup className="pb-1 mt-1 p-[var(--space-sm)]">
             <SidebarGroupContent>
               <SidebarMenu>
                 {sidebarData.navigation.main.map((item: MenuItem) => (
@@ -639,18 +653,12 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                          className="cursor-pointer"
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
                             size="sm"
-                            color={item.isActive ? "brand" : undefined}
-                            className={
-                              item.isActive
-                                ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                : ""
-                            }
                           />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
@@ -674,8 +682,8 @@ function AppSidebar() {
           </div>
 
           {/* Management Section */}
-          <SidebarGroup className="px-2 mt-1">
-            <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
+          <SidebarGroup className="mt-1 p-[var(--space-sm)]">
+            <SidebarGroupLabel className="py-1 pb-1.5 group-data-[collapsible=icon]:hidden">
               Management
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -688,22 +696,12 @@ function AppSidebar() {
                         <div className="group-data-[collapsible=icon]:hidden">
                           <SidebarMenuButton
                             isActive={item.isActive && !item.items?.length}
-                            className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)] ${item.isActive && !item.items?.length ? "hover:!bg-[var(--color-background-brand-selected-hovered)] hover:!text-[var(--color-text-brand-hovered)] active:!bg-[var(--color-background-brand-selected-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
+                            className="cursor-pointer"
                             onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
                               name={item.icon as string}
                               size="sm"
-                              color={
-                                item.isActive && !item.items?.length
-                                  ? "brand"
-                                  : undefined
-                              }
-                              className={
-                                item.isActive && !item.items?.length
-                                  ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                  : ""
-                              }
                             />
                             <span>{item.title}</span>
                             <Icon
@@ -725,20 +723,10 @@ function AppSidebar() {
                                 <SidebarMenuSubItem key={subItem.title}>
                                   <SidebarMenuSubButton
                                     isActive={subItem.isActive}
-                                    className={`[&]:text-body-md px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] ${
-                                      subItem.isActive
-                                        ? "bg-[var(--color-background-brand-selected)] hover:!bg-[var(--color-background-brand-selected-hovered)] active:!bg-[var(--color-background-brand-selected-hovered)] [&]:!text-[var(--color-text-brand)] [&_a]:!text-[var(--color-text-brand)] [&>*]:!text-[var(--color-text-brand)]"
-                                        : ""
-                                    }`}
                                   >
                                     <button
                                       onClick={() => navigate(subItem.url)}
-                                      className={`w-full cursor-pointer text-left transition-colors hover:text-[var(--color-text-primary)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none rounded-sm ${subItem.isActive ? "!text-[var(--color-text-brand)] hover:!text-[var(--color-text-brand-hovered)] active:!text-[var(--color-text-brand-hovered)]" : ""}`}
-                                      style={
-                                        subItem.isActive
-                                          ? { color: "var(--color-text-brand)" }
-                                          : {}
-                                      }
+                                      className="w-full cursor-pointer text-left"
                                     >
                                       {subItem.title}
                                     </button>
@@ -756,21 +744,11 @@ function AppSidebar() {
                                 <DropdownMenuTrigger asChild>
                                   <SidebarMenuButton
                                     isActive={hasActiveChild(item)}
-                                    className={`text-body-medium-md group w-full cursor-pointer justify-center px-2 py-1.5 transition-colors ${hasActiveChild(item) ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                                    className="cursor-pointer w-full justify-center"
                                   >
                                     <Icon
                                       name={item.icon as string}
                                       size="sm"
-                                      color={
-                                        hasActiveChild(item)
-                                          ? "brand"
-                                          : undefined
-                                      }
-                                      className={
-                                        hasActiveChild(item)
-                                          ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                          : ""
-                                      }
                                     />
                                   </SidebarMenuButton>
                                 </DropdownMenuTrigger>
@@ -815,7 +793,7 @@ function AppSidebar() {
                           <TooltipTrigger asChild>
                             <SidebarMenuButton
                               isActive={item.isActive}
-                              className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                              className="cursor-pointer"
                               onClick={() => navigate(item.url)}
                             >
                               <Icon
@@ -852,8 +830,8 @@ function AppSidebar() {
           </div>
 
           {/* Intelligence Section */}
-          <SidebarGroup className="px-2 mt-1">
-            <SidebarGroupLabel className="px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
+          <SidebarGroup className="mt-1 p-[var(--space-sm)]">
+            <SidebarGroupLabel className="py-1 pb-1.5 group-data-[collapsible=icon]:hidden">
               Intelligence
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -864,18 +842,12 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                          className="cursor-pointer"
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
                             size="sm"
-                            color={item.isActive ? "brand" : undefined}
-                            className={
-                              item.isActive
-                                ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                : ""
-                            }
                           />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
@@ -899,8 +871,8 @@ function AppSidebar() {
           </div>
 
           {/* Boards Section */}
-          <SidebarGroup className="px-2 mt-1">
-            <SidebarGroupLabel className="flex items-center justify-between px-2 py-1 pb-1.5 text-[12px] font-medium text-[var(--color-text-tertiary)] group-data-[collapsible=icon]:hidden">
+          <SidebarGroup className="mt-1 p-[var(--space-sm)]">
+            <SidebarGroupLabel className="flex items-center justify-between py-1 pb-1.5 group-data-[collapsible=icon]:hidden">
               <span>Boards</span>
               <Button
                 variant="ghost"
@@ -926,18 +898,12 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                          className="cursor-pointer"
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
                             size="sm"
-                            color={item.isActive ? "brand" : undefined}
-                            className={
-                              item.isActive
-                                ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                : ""
-                            }
                           />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
@@ -953,7 +919,7 @@ function AppSidebar() {
                     {/* Board Actions Menu - Only show in expanded state */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <SidebarMenuAction showOnHover className="group-data-[collapsible=icon]:hidden">
+                        <SidebarMenuAction showOnHover>
                           <Icon name="more-horizontal" size="sm" />
                         </SidebarMenuAction>
                       </DropdownMenuTrigger>
@@ -997,7 +963,7 @@ function AppSidebar() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <SidebarMenuButton
-                        className="text-body-md cursor-pointer px-2 py-1.5 transition-colors hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"
+                        className="cursor-pointer"
                         onClick={() => navigate("/boards")}
                       >
                         <Icon name="more-horizontal" size="sm" />
@@ -1017,7 +983,7 @@ function AppSidebar() {
           </SidebarGroup>
 
           {/* Support Section - takes remaining space and aligns to bottom */}
-          <SidebarGroup className="px-2 pb-2 flex-1 flex flex-col justify-end">
+          <SidebarGroup className="pb-2 flex-1 flex flex-col justify-end p-[var(--space-sm)]">
             <SidebarGroupContent>
               <SidebarMenu>
                 {sidebarData.navigation.support.map((item: MenuItem) => (
@@ -1026,18 +992,12 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className={`text-body-medium-md group cursor-pointer px-2 py-1.5 transition-colors ${item.isActive ? "hover:bg-[var(--color-background-brand-selected-hovered)] hover:text-[var(--color-text-brand-hovered)] active:bg-[var(--color-background-brand-selected-hovered)] active:text-[var(--color-text-brand-hovered)]" : "hover:bg-[var(--color-background-neutral-subtle-hovered)] active:bg-[var(--color-background-neutral-subtle-hovered)]"}`}
+                          className="cursor-pointer"
                           onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
                             size="sm"
-                            color={item.isActive ? "brand" : undefined}
-                            className={
-                              item.isActive
-                                ? "group-hover:text-[var(--color-icon-brand-hover)] group-active:text-[var(--color-icon-brand-hover)]"
-                                : ""
-                            }
                           />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
@@ -1057,7 +1017,7 @@ function AppSidebar() {
         </div>
 
         {/* Footer with User/Team Switcher */}
-        <SidebarFooter className="border-t border-[var(--color-border-primary-subtle)] p-[var(--space-md)] group-data-[collapsible=icon]:px-2">
+        <SidebarFooter className="border-t border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:px-2">
           {user && (
             <CombinedSwitcher
               user={user}
@@ -1168,18 +1128,12 @@ function AppSidebar() {
                 key={team.name}
                 onSelect={() => setCommandOpen(false)}
               >
-                <div className="mr-2 h-4 w-4 overflow-hidden rounded-sm">
-                  <Avatar size="sm" shape="rounded">
+                <Avatar size="sm" shape="rounded" className="mr-2">
                     <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
-                    <AvatarFallback variant="primary" className="text-[8px]">
-                      {team.name
-                        ?.split(" ")
-                        .map((n: string) => n[0])
-                        .join("")
-                        .toUpperCase()}
+                    <AvatarFallback>
+                      {getTeamInitials(team.name || "")}
                     </AvatarFallback>
                   </Avatar>
-                </div>
                 <span>{team.name}</span>
               </CommandItem>
             ))}
@@ -1459,19 +1413,15 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                     src={activeTeam?.avatarUrl || undefined}
                     alt={activeTeam?.name}
                   />
-                  <AvatarFallback variant="primary">
-                    {activeTeam?.name
-                      ?.split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .toUpperCase()}
+                  <AvatarFallback>
+                    {getTeamInitials(activeTeam?.name || "")}
                   </AvatarFallback>
                 </Avatar>
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
                   <Avatar size="xs" shape="circle">
                     <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                    <AvatarFallback variant="primary">
+                    <AvatarFallback>
                       {getUserInitials(user.name)}
                     </AvatarFallback>
                   </Avatar>
@@ -1499,19 +1449,15 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                   src={activeTeam?.avatarUrl || undefined}
                   alt={activeTeam?.name}
                 />
-                <AvatarFallback variant="primary" className="text-[9px]">
-                  {activeTeam?.name
-                    ?.split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
-                    .toUpperCase()}
+                <AvatarFallback>
+                  {getTeamInitials(activeTeam?.name || "")}
                 </AvatarFallback>
               </Avatar>
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
-                <Avatar size="sm" shape="circle" className="h-4 w-4">
+                <Avatar size="xs" shape="circle">
                   <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                  <AvatarFallback variant="primary" className="text-[7px]">
+                  <AvatarFallback>
                     {getUserInitials(user.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -1530,7 +1476,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             <div className="flex items-center gap-3 px-2 py-2">
               <Avatar size="sm" shape="circle">
                 <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
-                <AvatarFallback variant="primary">
+                <AvatarFallback>
                   {getUserInitials(user.name)}
                 </AvatarFallback>
               </Avatar>
@@ -1559,12 +1505,8 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             >
               <Avatar size="sm" shape="rounded">
                 <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
-                <AvatarFallback variant="primary" className="text-[8px]">
-                  {team.name
-                    ?.split(" ")
-                    .map((n: string) => n[0])
-                    .join("")
-                    .toUpperCase()}
+                <AvatarFallback>
+                  {getTeamInitials(team.name || "")}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-1 flex-col text-left">
@@ -1658,17 +1600,59 @@ function SidebarToggleWithTooltip() {
 
 export function AppFrame({ children }: AppFrameProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isLoading } = useUser();
+
+  // Handle authentication redirect - must be at top level
+  React.useEffect(() => {
+    // Only redirect if we're not loading and there's no user AND no stored email
+    const storedEmail = localStorage.getItem("userEmail");
+    if (location.pathname !== "/" && !isLoading && !user && !storedEmail) {
+      navigate("/");
+    }
+  }, [location.pathname, isLoading, user, navigate]);
 
   // Show login page without sidebar
   if (location.pathname === "/") {
     return <main className="h-full">{children}</main>;
   }
 
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <main className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border-primary-subtle)] border-t-[var(--color-border-brand)]"></div>
+          <p className="text-body-md text-[var(--color-text-secondary)]">Loading...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Show loading or redirecting message if not authenticated
+  if (!user) {
+    const storedEmail = localStorage.getItem("userEmail");
+    return (
+      <main className="h-full flex items-center justify-center">
+        <div className="text-center">
+          {isLoading || storedEmail ? (
+            <>
+              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border-primary-subtle)] border-t-[var(--color-border-brand)]"></div>
+              <p className="text-body-md text-[var(--color-text-secondary)]">Loading...</p>
+            </>
+          ) : (
+            <p className="text-body-md text-[var(--color-text-secondary)]">Redirecting to login...</p>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <SidebarProvider className="h-full [&>div]:!block" defaultOpen={true}>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-border-primary-subtle)] transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 box-border">
           <div className="flex items-center gap-2 px-[var(--space-md)]">
             <SidebarToggleWithTooltip />
             <Separator layout="horizontal" className="mr-2 h-4" />
@@ -1677,9 +1661,10 @@ export function AppFrame({ children }: AppFrameProps) {
                 <DynamicBreadcrumbs />
               </BreadcrumbList>
             </Breadcrumb>
+
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-[var(--space-md)] p-6">
+        <div className="flex flex-1 flex-col overflow-auto min-h-0">
           {children}
         </div>
       </SidebarInset>
