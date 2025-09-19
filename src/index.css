@@ -3,12 +3,134 @@
 @import "@rafal.lemieszewski/tide-ui/styles";
 @import "tailwindcss";
 
+/* React Grid Layout Styles */
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
+
 /* Ensure full height layout chain */
 html,
-body {
-  height: 100%;
-}
-
+body,
 #root {
   height: 100%;
 }
+
+/* Widget Grid Layout Styles */
+.react-grid-layout {
+  position: relative;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top;
+}
+
+.react-grid-item.react-grid-placeholder {
+  transition-duration: 100ms;
+  z-index: 2;
+  border-radius: 8px;
+  background: rgba(0, 95, 133, 0.15) !important;
+  border: 2px solid rgba(0, 95, 133, 0.3) !important;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute !important;
+  width: 20px !important;
+  height: 20px !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  background: transparent !important;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="none" height="10" viewBox="0 0 10 10" width="10" xmlns="http://www.w3.org/2000/svg"><path d="m8.5.5c.55229 0 1 .447715 1 1v1.5c0 3.47784-2.73116 6.31713-6.16602 6.49121l-.01269.00098-.30859.00781h-1.5127c-.552285 0-1-.44771-1-1s.447715-1 1-1h1.5c2.48528 0 4.5-2.01472 4.5-4.5v-1.5c0-.552285.44771-1 1-1z" fill="%23888888"/></svg>') !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  cursor: se-resize !important;
+  z-index: 3 !important;
+  opacity: 0.4 !important;
+  border-radius: 0 0 8px 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.react-grid-item > .react-resizable-handle:hover {
+  opacity: 1 !important;
+  background-color: transparent !important;
+}
+
+/* Hide the default react-resizable ::after pseudo-element */
+.react-grid-item > .react-resizable-handle::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Widget container styles */
+.widget-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Widget dragging shadow effect */
+.react-grid-item.react-draggable-dragging {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+}
+
+.react-grid-item.react-draggable-dragging .widget-container {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.react-grid-item.react-draggable-dragging .widget-container > div {
+  border-radius: 12px !important;
+}
+
+/* Drag handle cursor */
+
+.widget-drag-handle {
+  cursor: move;
+}
+
+.react-grid-item.react-draggable-dragging .widget-drag-handle {
+  cursor: grabbing;
+}
+
+/* Ensure sidebar menu hover effects are visible */
+button[data-sidebar="menu-button"]:hover {
+  background-color: var(--color-background-neutral-subtle-hovered) !important;
+}
+
+/* More specific selector for Tide UI sidebar menu buttons */
+.sidebar button:hover {
+  background-color: var(--color-background-neutral-subtle-hovered) !important;
+  transition: background-color 150ms ease-in-out;
+}
+
+/* Even more specific - target any button inside sidebar that has cursor-pointer */
+[data-sidebar="sidebar"] button.cursor-pointer:hover {
+  background-color: var(--color-background-neutral-subtle-hovered) !important;
+  transition: background-color 150ms ease-in-out;
+}
+
+/* Active menu item hover colors - comprehensive Tide UI targeting */
+/* Target active SidebarMenuButton components */
+button[data-sidebar="menu-button"][data-active="true"]:hover,
+button[data-sidebar="menu-button"][data-state="active"]:hover,
+button[data-sidebar="menu-button"][aria-current="page"]:hover,
+[data-sidebar="menu-button"][data-active="true"]:hover,
+[data-sidebar="menu-button"][data-state="active"]:hover,
+[data-sidebar="menu-button"][aria-current="page"]:hover,
+/* Target any button with active classes inside sidebar */
+[data-sidebar] button[data-active="true"]:hover,
+[data-sidebar] button[data-state="active"]:hover,
+[data-sidebar] button[aria-current="page"]:hover,
+[data-sidebar] [data-active="true"]:hover,
+[data-sidebar] [data-state="active"]:hover,
+/* Target buttons with active-related class names */
+[data-sidebar] .sidebar-menu-button[data-active="true"]:hover,
+[data-sidebar] .active:hover,
+[data-sidebar] [aria-current="page"]:hover {
+  background-color: var(--color-background-brand-selected-hovered) !important;
+  color: var(--color-text-brand-hovered) !important;
+  transition: all 150ms ease-in-out;
+}
+
