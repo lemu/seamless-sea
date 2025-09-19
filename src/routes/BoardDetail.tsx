@@ -290,19 +290,19 @@ function BoardDetail() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
+                  icon="layout"
                   onClick={handleCleanupWidgets}
                   className="cursor-pointer"
                 >
-                  <Icon name="layout" size="sm" />
-                  <span>Cleanup Widgets</span>
+                  Cleanup Widgets
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  icon="trash-2"
                   onClick={handleDeleteBoard}
                   className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
                 >
-                  <Icon name="trash-2" size="sm" />
-                  <span>Delete Board</span>
+                  Delete Board
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

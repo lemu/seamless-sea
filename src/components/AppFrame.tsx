@@ -925,33 +925,33 @@ function AppSidebar() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem
+                          icon="eye"
                           onClick={() => navigate(item.url)}
                           className="cursor-pointer"
                         >
-                          <Icon name="eye" size="sm" />
-                          <span>View</span>
+                          View
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          icon="pin-off"
                           onClick={() => handleUnpinBoard(item)}
                           className="cursor-pointer"
                         >
-                          <Icon name="pin-off" size="sm" />
-                          <span>Unpin</span>
+                          Unpin
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          icon="edit"
                           onClick={() => handleRenameBoard(item)}
                           className="cursor-pointer"
                         >
-                          <Icon name="edit" size="sm" />
-                          <span>Rename</span>
+                          Rename
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
+                          icon="trash"
                           onClick={() => handleDeleteBoard(item)}
                           className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
                         >
-                          <Icon name="trash" size="sm" />
-                          <span>Delete</span>
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -1525,33 +1525,33 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
 
           {/* Action Items */}
           <DropdownMenuItem
+            icon="user"
             onClick={() => navigate("/user-profile")}
-            className="cursor-pointer flex items-center gap-2"
+            className="cursor-pointer"
           >
-            <Icon name="user" size="sm" />
-            <span>User profile</span>
+            User profile
           </DropdownMenuItem>
           <DropdownMenuItem
+            icon="settings"
             onClick={() => navigate("/organization-settings")}
-            className="cursor-pointer flex items-center gap-2"
+            className="cursor-pointer"
           >
-            <Icon name="settings" size="sm" />
-            <span>Organization settings</span>
+            Organization settings
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
+            icon="log-out"
             onClick={() => {
               // Add logout logic here
               localStorage.removeItem("userEmail");
               navigate("/");
             }}
-            className="cursor-pointer flex items-center gap-2"
+            className="cursor-pointer"
             destructive
           >
-            <Icon name="log-out" size="sm" />
-            <span>Sign out</span>
+            Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

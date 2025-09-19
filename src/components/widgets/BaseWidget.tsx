@@ -75,27 +75,31 @@ export function BaseWidget({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onEdit && (
-                    <DropdownMenuItem onClick={onEdit} className="cursor-pointer">
-                      <Icon name="edit" size="sm" />
-                      <span>Edit Widget</span>
+                    <DropdownMenuItem
+                      icon="edit"
+                      onClick={onEdit}
+                      className="cursor-pointer"
+                    >
+                      Edit Widget
                     </DropdownMenuItem>
                   )}
                   {onDuplicate && (
-                    <DropdownMenuItem onClick={onDuplicate} className="cursor-pointer">
-                      <Icon name="copy" size="sm" />
-                      <span>Duplicate</span>
+                    <DropdownMenuItem
+                      icon="copy"
+                      onClick={onDuplicate}
+                      className="cursor-pointer"
+                    >
+                      Duplicate
                     </DropdownMenuItem>
                   )}
                   {onDelete && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={onDelete}
-                        className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)]"
-                      >
-                        <Icon name="trash-2" size="sm" />
-                        <span>Delete</span>
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem
+                      icon="trash-2"
+                      onClick={onDelete}
+                      className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)]"
+                    >
+                      Delete
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
