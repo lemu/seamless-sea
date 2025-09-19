@@ -87,7 +87,7 @@ body,
 /* Drag handle cursor */
 
 .widget-drag-handle {
-  cursor: move;
+  cursor: grab;
 }
 
 .react-grid-item.react-draggable-dragging .widget-drag-handle {

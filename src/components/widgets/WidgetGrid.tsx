@@ -398,6 +398,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
           containerPadding={[0, 0]}
           isDraggable={isEditable}
           isResizable={isEditable}
+          dragHandleClassName="widget-drag-handle"
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={handleBreakpointChange}
           // Free placement with widget pushing during resize

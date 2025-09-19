@@ -54,7 +54,7 @@ export function BaseWidget({
   return (
     <div className="flex h-full flex-col rounded-xlg border border-[var(--color-border-primary-bold)] bg-[var(--color-surface-primary)]">
       {/* Widget Header */}
-      <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3 widget-drag-handle cursor-move">
+      <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3 widget-drag-handle">
         <div className="flex items-center justify-between">
           <h3 className="text-body-medium-md font-medium text-[var(--color-text-primary)] truncate">
             {title}
@@ -78,7 +78,6 @@ export function BaseWidget({
                     <DropdownMenuItem
                       icon="edit"
                       onClick={onEdit}
-                      className="cursor-pointer"
                     >
                       Edit Widget
                     </DropdownMenuItem>
@@ -87,7 +86,6 @@ export function BaseWidget({
                     <DropdownMenuItem
                       icon="copy"
                       onClick={onDuplicate}
-                      className="cursor-pointer"
                     >
                       Duplicate
                     </DropdownMenuItem>
@@ -96,7 +94,7 @@ export function BaseWidget({
                     <DropdownMenuItem
                       icon="trash-2"
                       onClick={onDelete}
-                      className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)]"
+                      destructive
                     >
                       Delete
                     </DropdownMenuItem>
