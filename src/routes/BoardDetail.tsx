@@ -1,10 +1,19 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate } from "react-router";
-import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
+import {
+  Button,
+  Icon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
+} from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
+import { WidgetGrid, AddWidgetModal } from "../components/widgets";
 import type { Id } from "../../convex/_generated/dataModel";
 
 function BoardDetail() {
@@ -13,6 +22,7 @@ function BoardDetail() {
   const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
+  const [showAddWidgetModal, setShowAddWidgetModal] = useState(false);
 
   // Get the board data
   const board = useQuery(
@@ -28,6 +38,17 @@ function BoardDetail() {
 
   const updateBoard = useMutation(api.boards.updateBoard);
   const deleteBoard = useMutation(api.boards.deleteBoard);
+  const updateBoardLayout = useMutation(api.widgets.updateBoardLayout);
+
+  // Get widgets for cleanup functionality
+  const widgets = useQuery(
+    api.widgets.getWidgetsByBoard,
+    id ? { boardId: id as Id<"boards"> } : "skip",
+  );
+  const layouts = useQuery(
+    api.widgets.getBoardLayouts,
+    id ? { boardId: id as Id<"boards"> } : "skip",
+  );
 
   const handleEditTitle = () => {
     if (!board) return;
@@ -69,6 +90,74 @@ function BoardDetail() {
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
+  };
+
+  const handleAddWidget = () => {
+    setShowAddWidgetModal(true);
+  };
+
+  const handleCleanupWidgets = async () => {
+    if (!board || !widgets || !layouts) return;
+
+    try {
+      // Define grid configuration (same as WidgetGrid)
+      const breakpoints = { lg: 1200, md: 768, sm: 0 };
+      const cols = { lg: 4, md: 2, sm: 1 };
+
+      // Get current viewport width to determine breakpoint
+      const currentBreakpoint = window.innerWidth >= 1200 ? 'lg' :
+                               window.innerWidth >= 768 ? 'md' : 'sm';
+      const currentCols = cols[currentBreakpoint as keyof typeof cols];
+
+      // Get existing layouts for current breakpoint
+      const currentLayouts = layouts[currentBreakpoint] || [];
+      const widgetMap = new Map(widgets.map(w => [w._id, w]));
+
+      // Sort widgets by their current position (top-left first)
+      const sortedWidgets = currentLayouts
+        .filter(layout => widgetMap.has(layout.i))
+        .sort((a, b) => {
+          if (a.y !== b.y) return a.y - b.y; // Sort by row first
+          return a.x - b.x; // Then by column
+        });
+
+      // Create compact layout
+      const compactLayout = [];
+      let currentX = 0;
+      let currentY = 0;
+
+      for (const layout of sortedWidgets) {
+        // Check if widget fits in current row
+        if (currentX + layout.w > currentCols) {
+          // Move to next row
+          currentX = 0;
+          currentY++;
+        }
+
+        // Place widget at current position
+        compactLayout.push({
+          i: layout.i,
+          x: currentX,
+          y: currentY,
+          w: layout.w,
+          h: layout.h,
+        });
+
+        // Update position for next widget
+        currentX += layout.w;
+      }
+
+      // Update layout for current breakpoint
+      await updateBoardLayout({
+        boardId: board._id,
+        breakpoint: currentBreakpoint,
+        layout: compactLayout,
+      });
+
+    } catch (error) {
+      console.error("Failed to cleanup widgets:", error);
+      alert("Failed to cleanup widgets");
+    }
   };
 
   if (!user) {
@@ -185,37 +274,48 @@ function BoardDetail() {
         {isOwner && (
           <div className="flex items-center gap-2">
             <Button
-              variant="destructive"
-              icon="trash-2"
+              variant="secondary"
+              icon="plus"
               iconPosition="left"
-              onClick={handleDeleteBoard}
+              onClick={handleAddWidget}
             >
-              Delete
+              Add Widget
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Icon name="more-horizontal" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={handleCleanupWidgets}
+                  className="cursor-pointer"
+                >
+                  <Icon name="layout" size="sm" />
+                  <span>Cleanup Widgets</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleDeleteBoard}
+                  className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
+                >
+                  <Icon name="trash-2" size="sm" />
+                  <span>Delete Board</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
 
-      {/* Board Content - Empty State */}
-      <div className="flex min-h-[500px] items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-border-primary-subtle)]">
-        <div className="text-center">
-          <Icon
-            name="plus"
-            size="xl"
-            className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
-          />
-          <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">
-            Add widgets
-          </h3>
-          <p className="text-body-md mb-4 max-w-sm text-[var(--color-text-secondary)]">
-            This board is empty. Start building your dashboard by adding widgets
-            like charts, tables, and metrics.
-          </p>
-          <Button icon="plus" iconPosition="left">
-            Add Widget
-          </Button>
-        </div>
-      </div>
+      {/* Board Content - Widget Grid */}
+      <WidgetGrid
+        boardId={board._id}
+        isEditable={isOwner}
+        onAddWidget={handleAddWidget}
+      />
 
       {/* Board Description */}
       {board.description && (
@@ -228,6 +328,13 @@ function BoardDetail() {
           </p>
         </div>
       )}
+
+      {/* Add Widget Modal */}
+      <AddWidgetModal
+        isOpen={showAddWidgetModal}
+        onClose={() => setShowAddWidgetModal(false)}
+        boardId={board._id}
+      />
     </div>
   );
 }
