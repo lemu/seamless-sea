@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, memo, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -93,7 +93,6 @@ function BoardDetail() {
   const navigate = useNavigate();
   const { user } = useUser();
   const [showAddWidgetModal, setShowAddWidgetModal] = useState(false);
-  const [titleValue, setTitleValue] = useState("");
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -110,7 +109,6 @@ function BoardDetail() {
     user ? { userId: user._id } : "skip",
   );
 
-  const updateBoard = useMutation(api.boards.updateBoard);
   const deleteBoard = useMutation(api.boards.deleteBoard);
   const updateBoardLayout = useMutation(api.widgets.updateBoardLayout);
 
@@ -177,7 +175,6 @@ function BoardDetail() {
 
     try {
       // Define grid configuration (same as WidgetGrid)
-      const breakpoints = { lg: 1200, md: 768, sm: 0 };
       const cols = { lg: 4, md: 2, sm: 1 };
 
       // Get current viewport width to determine breakpoint
@@ -195,8 +192,8 @@ function BoardDetail() {
 
       // Sort widgets by their current position (top-left first)
       const sortedWidgets = currentLayouts
-        .filter((layout) => widgetMap.has(layout.i))
-        .sort((a, b) => {
+        .filter((layout: any) => widgetMap.has(layout.i))
+        .sort((a: any, b: any) => {
           if (a.y !== b.y) return a.y - b.y; // Sort by row first
           return a.x - b.x; // Then by column
         });

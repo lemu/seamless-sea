@@ -58,7 +58,6 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
 
   // Track widget count to detect new additions
   const [previousWidgetCount, setPreviousWidgetCount] = useState(0);
-  const [lastAddedWidgetId, setLastAddedWidgetId] = useState<string | null>(null);
   
   // Mutations for updating layouts
   const updateBoardLayout = useMutation(api.widgets.updateBoardLayout);
@@ -68,7 +67,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   const [pendingLayouts, setPendingLayouts] = useState<Record<string, Layout[]> | null>(null);
 
   // Function to scroll to a grid position
-  const scrollToPosition = useCallback((x: number, y: number) => {
+  const scrollToPosition = useCallback((_x: number, y: number) => {
     if (!gridRef.current) return;
 
     // Find the scrollable container (main content area)
@@ -148,7 +147,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
         const currentLayout = layouts[currentBreakpoint];
 
         if (currentLayout) {
-          const widgetLayout = currentLayout.find(item => item.i === newWidget._id);
+          const widgetLayout = currentLayout.find((item: any) => item.i === newWidget._id);
 
           if (widgetLayout) {
             // Ensure grid has enough rows for this widget
@@ -236,13 +235,13 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
 
     // Create a map of existing widget positions
     const existingPositions = new Map();
-    existingLayouts.forEach(item => {
+    existingLayouts.forEach((item: any) => {
       existingPositions.set(item.i, item);
     });
 
     // Create a grid to track occupied spaces
     const occupiedGrid = new Set<string>();
-    existingLayouts.forEach(item => {
+    existingLayouts.forEach((item: any) => {
       for (let x = item.x; x < item.x + item.w; x++) {
         for (let y = item.y; y < item.y + item.h; y++) {
           occupiedGrid.add(`${x},${y}`);
@@ -366,14 +365,14 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
 
     for (const breakpoint of breakpointsToUpdate) {
       const existingLayout = updatedLayouts[breakpoint] || [];
-      const existingWidgetIds = new Set(existingLayout.map(item => item.i));
+      const existingWidgetIds = new Set(existingLayout.map((item: any) => item.i));
       const newWidgets = widgets.filter(widget => !existingWidgetIds.has(widget._id));
 
       if (newWidgets.length > 0) {
         // Create occupied grid for this breakpoint
         const currentCols = cols[breakpoint as keyof typeof cols];
         const occupiedGrid = new Set<string>();
-        existingLayout.forEach(item => {
+        existingLayout.forEach((item: any) => {
           for (let x = item.x; x < item.x + item.w; x++) {
             for (let y = item.y; y < item.y + item.h; y++) {
               occupiedGrid.add(`${x},${y}`);

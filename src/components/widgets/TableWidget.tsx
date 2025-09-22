@@ -1,6 +1,5 @@
-import { useState, useMemo } from "react";
 import { BaseWidget, type WidgetProps } from "./BaseWidget";
-import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
+import { Icon } from "@rafal.lemieszewski/tide-ui";
 
 interface TableConfig {
   dataSource?: string;
@@ -15,10 +14,6 @@ interface TableConfig {
   showPagination?: boolean;
   showSearch?: boolean;
   title: string;
-}
-
-interface TableRow {
-  [key: string]: any;
 }
 
 export function TableWidget({ config, onEdit, onDelete, onDuplicate, isEditable }: WidgetProps) {
