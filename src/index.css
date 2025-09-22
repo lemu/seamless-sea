@@ -26,7 +26,7 @@ body,
 
 .react-grid-item.react-grid-placeholder {
   transition-duration: 100ms;
-  z-index: 2;
+  z-index: 12 !important;
   border-radius: 8px;
   background: rgba(0, 95, 133, 0.15) !important;
   border: 2px solid rgba(0, 95, 133, 0.3) !important;
@@ -43,7 +43,7 @@ body,
   background-repeat: no-repeat !important;
   background-position: center !important;
   cursor: se-resize !important;
-  z-index: 3 !important;
+  z-index: 11 !important;
   opacity: 0.4 !important;
   border-radius: 0 0 8px 0 !important;
   border: none !important;
@@ -101,4 +101,15 @@ body.resize-active * {
 /* Cursor grabbing state during drag - React Grid Layout applies .react-draggable-dragging */
 .react-grid-item.react-draggable-dragging .widget-drag-handle {
   cursor: grabbing;
+}
+
+/* Elevate widget being resized above other widgets */
+.react-grid-item.react-resizable-resizing {
+  z-index: 10 !important;
+  transition: z-index 0ms; /* Immediate z-index change */
+}
+
+/* Ensure resize handles stay on top during resize */
+.react-grid-item.react-resizable-resizing > .react-resizable-handle {
+  z-index: 13 !important;
 }

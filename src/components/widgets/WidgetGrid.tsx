@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { WidgetRenderer } from "./WidgetRenderer";
+import { EmptyState } from "../EmptyState";
 import {
   Button,
   Dialog,
@@ -29,7 +30,13 @@ export interface WidgetGridProps {
   onScrollComplete?: () => void;
 }
 
-export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWidget = false, onScrollComplete }: WidgetGridProps) {
+export function WidgetGrid({
+  boardId,
+  isEditable = true,
+  onAddWidget,
+  isAddingWidget = false,
+  onScrollComplete,
+}: WidgetGridProps) {
   // State for current breakpoint
   const [currentBreakpoint, setCurrentBreakpoint] = useState<string>("lg");
 
@@ -41,7 +48,6 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   const [widgetToDelete, setWidgetToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-
   // Calculate initial viewport-fitting rows
   const [maxRows, setMaxRows] = useState(() => {
     const availableHeight = window.innerHeight - 96; // 48px header + 48px padding
@@ -51,32 +57,40 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
 
     return finalRows;
   });
-  
+
   // Fetch widgets and layouts from Convex
   const widgets = useQuery(api.widgets.getWidgetsByBoard, { boardId });
   const layouts = useQuery(api.widgets.getBoardLayouts, { boardId });
 
   // Track widget count to detect new additions
   const [previousWidgetCount, setPreviousWidgetCount] = useState(0);
-  
+
   // Mutations for updating layouts
   const updateBoardLayout = useMutation(api.widgets.updateBoardLayout);
   const deleteWidget = useMutation(api.widgets.deleteWidget);
 
   // Debounced layout save
-  const [pendingLayouts, setPendingLayouts] = useState<Record<string, Layout[]> | null>(null);
+  const [pendingLayouts, setPendingLayouts] = useState<Record<
+    string,
+    Layout[]
+  > | null>(null);
 
   // Function to scroll to a grid position
   const scrollToPosition = useCallback((_x: number, y: number) => {
     if (!gridRef.current) return;
 
     // Find the scrollable container (main content area)
-    const findScrollableContainer = (element: HTMLElement): HTMLElement | null => {
+    const findScrollableContainer = (
+      element: HTMLElement,
+    ): HTMLElement | null => {
       let current = element.parentElement;
       while (current) {
         const style = window.getComputedStyle(current);
-        if (style.overflow === 'auto' || style.overflowY === 'auto' ||
-            current.classList.contains('overflow-auto')) {
+        if (
+          style.overflow === "auto" ||
+          style.overflowY === "auto" ||
+          current.classList.contains("overflow-auto")
+        ) {
           return current;
         }
         current = current.parentElement;
@@ -93,13 +107,13 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
     if (scrollContainer) {
       scrollContainer.scrollTo({
         top: scrollTop,
-        behavior: 'smooth'
+        behavior: "smooth",
       });
     } else {
       // Fallback to window scroll if no container found
       window.scrollTo({
         top: scrollTop,
-        behavior: 'smooth'
+        behavior: "smooth",
       });
     }
   }, []);
@@ -115,7 +129,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
           await updateBoardLayout({
             boardId,
             breakpoint,
-            layout: layout.map(item => ({
+            layout: layout.map((item) => ({
               i: item.i,
               x: item.x,
               y: item.y,
@@ -147,7 +161,9 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
         const currentLayout = layouts[currentBreakpoint];
 
         if (currentLayout) {
-          const widgetLayout = currentLayout.find((item: any) => item.i === newWidget._id);
+          const widgetLayout = currentLayout.find(
+            (item: any) => item.i === newWidget._id,
+          );
 
           if (widgetLayout) {
             // Ensure grid has enough rows for this widget
@@ -171,7 +187,16 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
       // Widget was deleted
       setPreviousWidgetCount(widgets.length);
     }
-  }, [widgets, layouts, currentBreakpoint, previousWidgetCount, scrollToPosition, maxRows, isAddingWidget, onScrollComplete]);
+  }, [
+    widgets,
+    layouts,
+    currentBreakpoint,
+    previousWidgetCount,
+    scrollToPosition,
+    maxRows,
+    isAddingWidget,
+    onScrollComplete,
+  ]);
 
   // Keep track of widget count changes even when not adding widgets
   useEffect(() => {
@@ -184,20 +209,23 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   }, [widgets, isAddingWidget, previousWidgetCount]);
 
   // Handle layout change
-  const handleLayoutChange = useCallback((_layout: Layout[], allLayouts: Record<string, Layout[]>) => {
-    if (!isEditable) return;
+  const handleLayoutChange = useCallback(
+    (_layout: Layout[], allLayouts: Record<string, Layout[]>) => {
+      if (!isEditable) return;
 
-    // Check if any widget is in the last row and expand grid if needed
-    if (_layout.length > 0) {
-      const maxY = Math.max(..._layout.map(item => item.y + item.h - 1));
-      const maxAllowedRows = 20; // Maximum 20 rows to prevent infinite growth
-      if (maxY >= maxRows - 1 && maxRows < maxAllowedRows) {
-        setMaxRows(prev => Math.min(prev + 1, maxAllowedRows)); // Add 1 row when needed, up to max
+      // Check if any widget is in the last row and expand grid if needed
+      if (_layout.length > 0) {
+        const maxY = Math.max(..._layout.map((item) => item.y + item.h - 1));
+        const maxAllowedRows = 20; // Maximum 20 rows to prevent infinite growth
+        if (maxY >= maxRows - 1 && maxRows < maxAllowedRows) {
+          setMaxRows((prev) => Math.min(prev + 1, maxAllowedRows)); // Add 1 row when needed, up to max
+        }
       }
-    }
 
-    setPendingLayouts(allLayouts);
-  }, [isEditable, maxRows]);
+      setPendingLayouts(allLayouts);
+    },
+    [isEditable, maxRows],
+  );
 
   // Handle breakpoint change
   const handleBreakpointChange = useCallback((breakpoint: string) => {
@@ -205,11 +233,14 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   }, []);
 
   // Handle widget deletion
-  const handleDeleteWidget = useCallback((widgetId: string) => {
-    if (!isEditable) return;
-    setWidgetToDelete(widgetId);
-    setShowDeleteDialog(true);
-  }, [isEditable]);
+  const handleDeleteWidget = useCallback(
+    (widgetId: string) => {
+      if (!isEditable) return;
+      setWidgetToDelete(widgetId);
+      setShowDeleteDialog(true);
+    },
+    [isEditable],
+  );
 
   // Handle confirmed deletion
   const handleConfirmDelete = useCallback(async () => {
@@ -229,67 +260,72 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   }, [widgetToDelete, deleteWidget]);
 
   // Smart layout generation that preserves existing widget positions
-  const generateDefaultLayout = useCallback((widgets: any[]) => {
-    const currentCols = cols[currentBreakpoint as keyof typeof cols];
-    const existingLayouts = layouts?.[currentBreakpoint] || [];
+  const generateDefaultLayout = useCallback(
+    (widgets: any[]) => {
+      const currentCols = cols[currentBreakpoint as keyof typeof cols];
+      const existingLayouts = layouts?.[currentBreakpoint] || [];
 
-    // Create a map of existing widget positions
-    const existingPositions = new Map();
-    existingLayouts.forEach((item: any) => {
-      existingPositions.set(item.i, item);
-    });
+      // Create a map of existing widget positions
+      const existingPositions = new Map();
+      existingLayouts.forEach((item: any) => {
+        existingPositions.set(item.i, item);
+      });
 
-    // Create a grid to track occupied spaces
-    const occupiedGrid = new Set<string>();
-    existingLayouts.forEach((item: any) => {
-      for (let x = item.x; x < item.x + item.w; x++) {
-        for (let y = item.y; y < item.y + item.h; y++) {
-          occupiedGrid.add(`${x},${y}`);
-        }
-      }
-    });
-
-    // Function to find next available position
-    const findNextAvailablePosition = () => {
-      for (let y = 0; y < maxRows; y++) {
-        for (let x = 0; x < currentCols; x++) {
-          if (!occupiedGrid.has(`${x},${y}`)) {
+      // Create a grid to track occupied spaces
+      const occupiedGrid = new Set<string>();
+      existingLayouts.forEach((item: any) => {
+        for (let x = item.x; x < item.x + item.w; x++) {
+          for (let y = item.y; y < item.y + item.h; y++) {
             occupiedGrid.add(`${x},${y}`);
-            return { x, y };
           }
         }
-      }
-      // If no space available, return position that will trigger row expansion
-      return { x: 0, y: maxRows };
-    };
+      });
 
-    return widgets.map((widget) => {
-      // If widget already has a position, keep it
-      if (existingPositions.has(widget._id)) {
-        return existingPositions.get(widget._id);
-      }
-
-      // For new widgets, find the next available position
-      const position = findNextAvailablePosition();
-      return {
-        i: widget._id,
-        x: position.x,
-        y: position.y,
-        w: 1,
-        h: 1,
-        minW: 1,
-        minH: 1,
+      // Function to find next available position
+      const findNextAvailablePosition = () => {
+        for (let y = 0; y < maxRows; y++) {
+          for (let x = 0; x < currentCols; x++) {
+            if (!occupiedGrid.has(`${x},${y}`)) {
+              occupiedGrid.add(`${x},${y}`);
+              return { x, y };
+            }
+          }
+        }
+        // If no space available, return position that will trigger row expansion
+        return { x: 0, y: maxRows };
       };
-    });
-  }, [currentBreakpoint, layouts, maxRows]);
+
+      return widgets.map((widget) => {
+        // If widget already has a position, keep it
+        if (existingPositions.has(widget._id)) {
+          return existingPositions.get(widget._id);
+        }
+
+        // For new widgets, find the next available position
+        const position = findNextAvailablePosition();
+        return {
+          i: widget._id,
+          x: position.x,
+          y: position.y,
+          w: 1,
+          h: 1,
+          minW: 1,
+          minH: 1,
+        };
+      });
+    },
+    [currentBreakpoint, layouts, maxRows],
+  );
 
   // Show loading state
   if (widgets === undefined || layouts === undefined) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
           <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border-primary-subtle)] border-t-[var(--color-border-brand)]"></div>
-          <p className="text-body-md text-[var(--color-text-secondary)]">Loading widgets...</p>
+          <p className="text-body-md text-[var(--color-text-secondary)]">
+            Loading widgets...
+          </p>
         </div>
       </div>
     );
@@ -298,53 +334,12 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
   // Show empty state if no widgets
   if (!widgets || widgets.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[500px] rounded-lg border-2 border-dashed border-[var(--color-border-primary-subtle)]">
-        <div className="text-center max-w-sm">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-[var(--color-background-neutral-subtle)] flex items-center justify-center">
-            <svg
-              className="h-6 w-6 text-[var(--color-text-tertiary)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
-            </svg>
-          </div>
-          <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">
-            Add widgets
-          </h3>
-          <p className="text-body-md mb-4 text-[var(--color-text-secondary)]">
-            This board is empty. Start building your dashboard by adding widgets
-            like charts and tables.
-          </p>
-          {isEditable && onAddWidget && (
-            <button
-              onClick={onAddWidget}
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--color-background-brand)] px-4 py-2 text-body-md font-medium text-[var(--color-text-brand-contrast)] hover:bg-[var(--color-background-brand-hovered)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Add Widget
-            </button>
-          )}
-        </div>
-      </div>
+      <EmptyState
+        title="Add widgets"
+        description="This board is empty. Start building your board by adding widgets like charts and tables."
+        actionLabel={isEditable && onAddWidget ? "Add Widget" : undefined}
+        onAction={isEditable && onAddWidget ? onAddWidget : undefined}
+      />
     );
   }
 
@@ -365,8 +360,12 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
 
     for (const breakpoint of breakpointsToUpdate) {
       const existingLayout = updatedLayouts[breakpoint] || [];
-      const existingWidgetIds = new Set(existingLayout.map((item: any) => item.i));
-      const newWidgets = widgets.filter(widget => !existingWidgetIds.has(widget._id));
+      const existingWidgetIds = new Set(
+        existingLayout.map((item: any) => item.i),
+      );
+      const newWidgets = widgets.filter(
+        (widget) => !existingWidgetIds.has(widget._id),
+      );
 
       if (newWidgets.length > 0) {
         // Create occupied grid for this breakpoint
@@ -381,7 +380,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
         });
 
         // Find positions for new widgets
-        const newLayoutItems = newWidgets.map(widget => {
+        const newLayoutItems = newWidgets.map((widget) => {
           // Find next available position
           for (let y = 0; y < maxRows; y++) {
             for (let x = 0; x < currentCols; x++) {
@@ -418,7 +417,6 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
     return updatedLayouts;
   })();
 
-
   return (
     <div className="w-full">
       {/* Responsive grid container */}
@@ -438,13 +436,13 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={handleBreakpointChange}
           // Free placement with widget pushing during resize
-          compactType={null}
+          compactType="vertical"
           preventCollision={false}
           allowOverlap={false}
           maxRows={maxRows}
         >
           {widgets.map((widget: any) => (
-            <div key={widget._id} className="h-full w-full relative">
+            <div key={widget._id} className="relative h-full w-full">
               <WidgetRenderer
                 widget={widget}
                 isEditable={isEditable}
@@ -463,7 +461,8 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWi
           </DialogHeader>
           <DialogBody>
             <p className="text-body-md text-[var(--color-text-primary)]">
-              Are you sure you want to remove this widget? This action cannot be undone.
+              Are you sure you want to remove this widget? This action cannot be
+              undone.
             </p>
           </DialogBody>
           <DialogFooter>
