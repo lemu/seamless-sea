@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useMutation } from "convex/react";
-import { 
-  Button, 
+import {
+  Button,
   Icon,
   FormField,
   FormLabel,
@@ -13,6 +13,8 @@ import {
   DialogTitle,
   DialogBody,
   DialogFooter,
+  RadioGroup,
+  RadioGroupItem,
 } from "@rafal.lemieszewski/tide-ui";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -23,6 +25,7 @@ import { defaultEmptyConfig } from "./EmptyWidget";
 interface AddWidgetModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onWidgetCreated?: () => void;
   boardId: Id<"boards">;
 }
 
@@ -96,8 +99,8 @@ const widgetTemplates: WidgetTemplate[] = [
   },
 ];
 
-export function AddWidgetModal({ isOpen, onClose, boardId }: AddWidgetModalProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<WidgetTemplate | null>(null);
+export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: AddWidgetModalProps) {
+  const [selectedType, setSelectedType] = useState<string>("");
   const [widgetTitle, setWidgetTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
@@ -106,20 +109,26 @@ export function AddWidgetModal({ isOpen, onClose, boardId }: AddWidgetModalProps
   // Reset state when modal opens/closes
   React.useEffect(() => {
     if (isOpen) {
-      setSelectedTemplate(null);
+      setSelectedType("");
       setWidgetTitle("");
     }
   }, [isOpen]);
 
   // Update title when template changes
   React.useEffect(() => {
-    if (selectedTemplate) {
-      setWidgetTitle(selectedTemplate.defaultConfig.title);
+    if (selectedType) {
+      const template = widgetTemplates.find(t => t.type === selectedType);
+      if (template) {
+        setWidgetTitle(template.defaultConfig.title);
+      }
     }
-  }, [selectedTemplate]);
+  }, [selectedType]);
 
   const handleCreateWidget = async () => {
-    if (!selectedTemplate || !widgetTitle.trim()) return;
+    if (!selectedType || !widgetTitle.trim()) return;
+
+    const selectedTemplate = widgetTemplates.find(t => t.type === selectedType);
+    if (!selectedTemplate) return;
 
     setIsCreating(true);
     try {
@@ -133,17 +142,15 @@ export function AddWidgetModal({ isOpen, onClose, boardId }: AddWidgetModalProps
         },
       });
 
-      onClose();
+      // Notify parent that widget was successfully created
+      onWidgetCreated?.();
+      // Note: onClose is now called by the parent (onWidgetCreated callback)
     } catch (error) {
       console.error("Failed to create widget:", error);
       alert("Failed to create widget. Please try again.");
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleTemplateSelect = (template: WidgetTemplate) => {
-    setSelectedTemplate(template);
   };
 
   return (
@@ -153,150 +160,70 @@ export function AddWidgetModal({ isOpen, onClose, boardId }: AddWidgetModalProps
           <DialogTitle>Add Widget</DialogTitle>
         </DialogHeader>
         
-        <DialogBody className="space-y-6 max-h-[60vh] overflow-auto">
-          {!selectedTemplate ? (
-            // Template Selection Step
-            <>
-              <div>
-                <h3 className="text-body-medium-md font-medium text-[var(--color-text-primary)] mb-2">
-                  Choose a widget type
-                </h3>
-                <p className="text-body-sm text-[var(--color-text-secondary)] mb-4">
-                  Select the type of widget you want to add to your dashboard
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {widgetTemplates.map((template) => (
-                  <button
-                    key={template.type}
-                    onClick={() => handleTemplateSelect(template)}
-                    className="p-4 border border-[var(--color-border-primary-subtle)] rounded-lg hover:border-[var(--color-border-brand)] hover:bg-[var(--color-background-neutral-subtle)] text-left transition-colors group"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 bg-[var(--color-background-brand-subtle)] rounded-lg flex items-center justify-center group-hover:bg-[var(--color-background-brand)]">
-                        <Icon 
-                          name={template.icon as any} 
-                          size="md" 
-                          className="text-[var(--color-text-brand)] group-hover:text-white" 
-                        />
-                      </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-body-medium-md font-medium text-[var(--color-text-primary)] mb-1">
+        <DialogBody className="space-y-6">
+          <div className="space-y-4">
+            <FormField>
+              <FormLabel>Widget Type</FormLabel>
+              <FormControl>
+                <RadioGroup value={selectedType} onValueChange={setSelectedType}>
+                  {widgetTemplates.map((template) => (
+                    <div key={template.type} className="flex items-start space-x-3">
+                      <RadioGroupItem value={template.type} id={template.type} className="mt-1" />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={template.type}
+                          className="block text-body-medium-md font-medium text-[var(--color-text-primary)] mb-1 cursor-pointer"
+                        >
                           {template.name}
-                        </h4>
-                        <p className="text-body-sm text-[var(--color-text-secondary)] mb-3">
+                        </label>
+                        <p className="text-body-sm text-[var(--color-text-secondary)]">
                           {template.description}
                         </p>
-                        
-                        {/* Widget Preview */}
-                        <div className="w-full h-16 bg-[var(--color-background-neutral-subtle)] rounded border p-2">
-                          {template.preview}
-                        </div>
                       </div>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            // Configuration Step
-            <>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedTemplate(null)}
-                  className="flex-shrink-0"
-                >
-                  <Icon name="arrow-left" size="sm" />
-                  Back
-                </Button>
-                
-                <div>
-                  <h3 className="text-body-medium-md font-medium text-[var(--color-text-primary)]">
-                    Configure {selectedTemplate.name}
-                  </h3>
-                  <p className="text-body-sm text-[var(--color-text-secondary)]">
-                    {selectedTemplate.description}
-                  </p>
-                </div>
-              </div>
+                  ))}
+                </RadioGroup>
+              </FormControl>
+            </FormField>
 
-              {/* Widget Configuration Form */}
-              <div className="space-y-4">
-                <FormField>
-                  <FormLabel htmlFor="widget-title">Widget Title</FormLabel>
-                  <FormControl>
-                    <Input
-                      id="widget-title"
-                      type="text"
-                      value={widgetTitle}
-                      onChange={(e) => setWidgetTitle(e.target.value)}
-                      placeholder="Enter widget title..."
-                      autoFocus
-                    />
-                  </FormControl>
-                </FormField>
-
-                {/* Widget Type Specific Configuration */}
-                {selectedTemplate.type === "chart" && (
-                  <FormField>
-                    <FormLabel>Chart Type</FormLabel>
-                    <FormControl>
-                      <div className="grid grid-cols-4 gap-2">
-                        {["bar", "line", "pie", "area"].map((chartType) => (
-                          <button
-                            key={chartType}
-                            className="p-2 border border-[var(--color-border-primary-subtle)] rounded text-center hover:border-[var(--color-border-brand)] capitalize text-body-sm"
-                          >
-                            {chartType}
-                          </button>
-                        ))}
-                      </div>
-                    </FormControl>
-                  </FormField>
-                )}
-
-                {/* Preview */}
-                <FormField>
-                  <FormLabel>Preview</FormLabel>
-                  <FormControl>
-                    <div className="w-full h-32 bg-[var(--color-background-neutral-subtle)] rounded-lg border p-4 flex items-center justify-center">
-                      {selectedTemplate.preview}
-                    </div>
-                  </FormControl>
-                </FormField>
-              </div>
-            </>
-          )}
+            <FormField>
+              <FormLabel htmlFor="widget-title">Widget Title</FormLabel>
+              <FormControl>
+                <Input
+                  id="widget-title"
+                  type="text"
+                  value={widgetTitle}
+                  onChange={(e) => setWidgetTitle(e.target.value)}
+                  placeholder="Enter widget title..."
+                  disabled={!selectedType}
+                />
+              </FormControl>
+            </FormField>
+          </div>
         </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={isCreating}>
             Cancel
           </Button>
-          
-          {selectedTemplate && (
-            <Button 
-              onClick={handleCreateWidget}
-              disabled={!widgetTitle.trim() || isCreating}
-              className="min-w-24"
-            >
-              {isCreating ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Icon name="plus" size="sm" />
-                  Create Widget
-                </>
-              )}
-            </Button>
-          )}
+
+          <Button
+            onClick={handleCreateWidget}
+            disabled={!selectedType || !widgetTitle.trim() || isCreating}
+            className="min-w-24"
+          >
+            {isCreating ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                Creating...
+              </>
+            ) : (
+              <>
+                <Icon name="plus" size="sm" />
+                Create Widget
+              </>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

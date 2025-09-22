@@ -48,6 +48,7 @@ body,
   border-radius: 0 0 8px 0 !important;
   border: none !important;
   box-shadow: none !important;
+  user-select: none !important;
 }
 
 .react-grid-item > .react-resizable-handle:hover {
@@ -61,18 +62,13 @@ body,
   content: none !important;
 }
 
-/* Widget container styles */
-.widget-container {
-  height: 100%;
-  width: 100%;
-  position: relative;
-}
-
 /* Widget dragging shadow effect */
 .react-grid-item.react-draggable-dragging {
   border-radius: 12px !important;
   overflow: hidden !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
 }
 
 .react-grid-item.react-draggable-dragging .widget-container {
@@ -84,53 +80,25 @@ body,
   border-radius: 12px !important;
 }
 
-/* Drag handle cursor */
-
-.widget-drag-handle {
-  cursor: grab;
+/* Prevent text selection during drag/resize operations */
+.react-grid-item.react-draggable-dragging {
+  user-select: none !important;
 }
 
+.react-grid-item.react-draggable-dragging * {
+  user-select: none !important;
+}
+
+/* JavaScript-controlled text selection prevention during resize */
+body.resize-active {
+  user-select: none !important;
+}
+
+body.resize-active * {
+  user-select: none !important;
+}
+
+/* Cursor grabbing state during drag - React Grid Layout applies .react-draggable-dragging */
 .react-grid-item.react-draggable-dragging .widget-drag-handle {
   cursor: grabbing;
 }
-
-/* Ensure sidebar menu hover effects are visible */
-button[data-sidebar="menu-button"]:hover {
-  background-color: var(--color-background-neutral-subtle-hovered) !important;
-}
-
-/* More specific selector for Tide UI sidebar menu buttons */
-.sidebar button:hover {
-  background-color: var(--color-background-neutral-subtle-hovered) !important;
-  transition: background-color 150ms ease-in-out;
-}
-
-/* Even more specific - target any button inside sidebar that has cursor-pointer */
-[data-sidebar="sidebar"] button.cursor-pointer:hover {
-  background-color: var(--color-background-neutral-subtle-hovered) !important;
-  transition: background-color 150ms ease-in-out;
-}
-
-/* Active menu item hover colors - comprehensive Tide UI targeting */
-/* Target active SidebarMenuButton components */
-button[data-sidebar="menu-button"][data-active="true"]:hover,
-button[data-sidebar="menu-button"][data-state="active"]:hover,
-button[data-sidebar="menu-button"][aria-current="page"]:hover,
-[data-sidebar="menu-button"][data-active="true"]:hover,
-[data-sidebar="menu-button"][data-state="active"]:hover,
-[data-sidebar="menu-button"][aria-current="page"]:hover,
-/* Target any button with active classes inside sidebar */
-[data-sidebar] button[data-active="true"]:hover,
-[data-sidebar] button[data-state="active"]:hover,
-[data-sidebar] button[aria-current="page"]:hover,
-[data-sidebar] [data-active="true"]:hover,
-[data-sidebar] [data-state="active"]:hover,
-/* Target buttons with active-related class names */
-[data-sidebar] .sidebar-menu-button[data-active="true"]:hover,
-[data-sidebar] .active:hover,
-[data-sidebar] [aria-current="page"]:hover {
-  background-color: var(--color-background-brand-selected-hovered) !important;
-  color: var(--color-text-brand-hovered) !important;
-  transition: all 150ms ease-in-out;
-}
-

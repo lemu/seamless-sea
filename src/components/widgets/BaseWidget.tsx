@@ -1,5 +1,12 @@
 import React from "react";
-import { Button, Icon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@rafal.lemieszewski/tide-ui";
+import {
+  Button,
+  Icon,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@rafal.lemieszewski/tide-ui";
 
 export interface BaseWidgetProps {
   title: string;
@@ -12,11 +19,11 @@ export interface BaseWidgetProps {
   error?: string;
 }
 
-export function BaseWidget({ 
-  title, 
-  children, 
-  onEdit, 
-  onDelete, 
+export function BaseWidget({
+  title,
+  children,
+  onEdit,
+  onDelete,
   onDuplicate,
   isEditable = true,
   loading = false,
@@ -27,22 +34,22 @@ export function BaseWidget({
       <div className="flex h-full flex-col rounded-lg border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)]">
         <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-body-medium-md font-medium text-[var(--color-text-primary)] truncate">
+            <h3 className="text-body-medium-md truncate font-medium text-[var(--color-text-primary)]">
               {title}
             </h3>
           </div>
         </div>
         <div className="flex flex-1 items-center justify-center p-6">
           <div className="text-center">
-            <Icon 
-              name="alert-circle" 
-              size="lg" 
-              className="mx-auto mb-2 text-[var(--color-text-tertiary)]" 
+            <Icon
+              name="alert-circle"
+              size="lg"
+              className="mx-auto mb-2 text-[var(--color-text-tertiary)]"
             />
             <p className="text-body-sm text-[var(--color-text-secondary)]">
               Failed to load widget
             </p>
-            <p className="text-body-xs text-[var(--color-text-tertiary)] mt-1">
+            <p className="text-body-xs mt-1 text-[var(--color-text-tertiary)]">
               {error}
             </p>
           </div>
@@ -52,51 +59,39 @@ export function BaseWidget({
   }
 
   return (
-    <div className="flex h-full flex-col rounded-xlg border border-[var(--color-border-primary-bold)] bg-[var(--color-surface-primary)]">
+    <div className="rounded-xlg flex h-full flex-col border border-[var(--color-border-primary-bold)] bg-[var(--color-surface-primary)]">
       {/* Widget Header */}
-      <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3 widget-drag-handle">
+      <div className="widget-drag-handle cursor-grab border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-body-medium-md font-medium text-[var(--color-text-primary)] truncate">
+          <h3 className="text-body-medium-md truncate font-medium text-[var(--color-text-primary)]">
             {title}
           </h3>
-          
+
           {isEditable && (
             <div className="flex items-center gap-1">
               {/* Widget Actions Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-6 w-6 p-0 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
-                  >
-                    <Icon name="more-horizontal" size="sm" />
-                  </Button>
+                  <Button variant="ghost" size="sm" icon="more-horizontal" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onEdit && (
-                    <DropdownMenuItem
-                      icon="edit"
-                      onClick={onEdit}
-                    >
-                      Edit Widget
+                    <DropdownMenuItem icon="edit" onClick={onEdit}>
+                      Edit widget
                     </DropdownMenuItem>
                   )}
                   {onDuplicate && (
-                    <DropdownMenuItem
-                      icon="copy"
-                      onClick={onDuplicate}
-                    >
-                      Duplicate
+                    <DropdownMenuItem icon="copy" onClick={onDuplicate}>
+                      Duplicate widget
                     </DropdownMenuItem>
                   )}
                   {onDelete && (
                     <DropdownMenuItem
-                      icon="trash-2"
+                      icon="square-x"
                       onClick={onDelete}
                       destructive
                     >
-                      Delete
+                      Remove widget
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -107,7 +102,7 @@ export function BaseWidget({
       </div>
 
       {/* Widget Content */}
-      <div className="flex flex-1 flex-col overflow-hidden min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {loading ? (
           <div className="flex flex-1 items-center justify-center p-6">
             <div className="text-center">
@@ -118,7 +113,7 @@ export function BaseWidget({
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col overflow-auto min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto">
             {children}
           </div>
         )}
