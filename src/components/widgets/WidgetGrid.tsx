@@ -5,6 +5,15 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { WidgetRenderer } from "./WidgetRenderer";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+} from "@rafal.lemieszewski/tide-ui";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -16,14 +25,22 @@ export interface WidgetGridProps {
   boardId: Id<"boards">;
   isEditable?: boolean;
   onAddWidget?: () => void;
+  isAddingWidget?: boolean;
+  onScrollComplete?: () => void;
 }
 
-export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGridProps) {
+export function WidgetGrid({ boardId, isEditable = true, onAddWidget, isAddingWidget = false, onScrollComplete }: WidgetGridProps) {
   // State for current breakpoint
   const [currentBreakpoint, setCurrentBreakpoint] = useState<string>("lg");
 
   // Ref to the grid container for scrolling
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // State for delete dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [widgetToDelete, setWidgetToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
 
   // Calculate initial viewport-fitting rows
   const [maxRows, setMaxRows] = useState(() => {
@@ -117,9 +134,9 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
     return () => clearTimeout(timeoutId);
   }, [pendingLayouts, boardId, updateBoardLayout]);
 
-  // Detect new widgets and scroll to them after creation
+  // Detect new widgets and scroll to them after creation (only when user is actively adding)
   useEffect(() => {
-    if (!widgets || !layouts) return;
+    if (!widgets || !layouts || !isAddingWidget) return;
 
     // Check if we have a new widget
     if (widgets.length > previousWidgetCount) {
@@ -142,9 +159,11 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
               // Wait for grid to expand before scrolling
               setTimeout(() => {
                 scrollToPosition(widgetLayout.x, widgetLayout.y);
+                onScrollComplete?.(); // Notify parent that scrolling is complete
               }, 200);
             } else {
               scrollToPosition(widgetLayout.x, widgetLayout.y);
+              onScrollComplete?.(); // Notify parent that scrolling is complete
             }
           }
         }
@@ -153,8 +172,17 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
       // Widget was deleted
       setPreviousWidgetCount(widgets.length);
     }
-  }, [widgets, layouts, currentBreakpoint, previousWidgetCount, scrollToPosition, maxRows]);
+  }, [widgets, layouts, currentBreakpoint, previousWidgetCount, scrollToPosition, maxRows, isAddingWidget, onScrollComplete]);
 
+  // Keep track of widget count changes even when not adding widgets
+  useEffect(() => {
+    if (!widgets) return;
+
+    // Only update the count if we're not in adding mode (to avoid interfering with the scroll logic above)
+    if (!isAddingWidget && widgets.length !== previousWidgetCount) {
+      setPreviousWidgetCount(widgets.length);
+    }
+  }, [widgets, isAddingWidget, previousWidgetCount]);
 
   // Handle layout change
   const handleLayoutChange = useCallback((_layout: Layout[], allLayouts: Record<string, Layout[]>) => {
@@ -178,19 +206,28 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
   }, []);
 
   // Handle widget deletion
-  const handleDeleteWidget = useCallback(async (widgetId: string) => {
+  const handleDeleteWidget = useCallback((widgetId: string) => {
     if (!isEditable) return;
+    setWidgetToDelete(widgetId);
+    setShowDeleteDialog(true);
+  }, [isEditable]);
 
-    const confirmed = confirm("Are you sure you want to delete this widget?");
-    if (!confirmed) return;
+  // Handle confirmed deletion
+  const handleConfirmDelete = useCallback(async () => {
+    if (!widgetToDelete) return;
 
+    setIsDeleting(true);
     try {
-      await deleteWidget({ widgetId: widgetId as Id<"widgets"> });
+      await deleteWidget({ widgetId: widgetToDelete as Id<"widgets"> });
+      setShowDeleteDialog(false);
+      setWidgetToDelete(null);
     } catch (error) {
       console.error("Failed to delete widget:", error);
       alert("Failed to delete widget");
+    } finally {
+      setIsDeleting(false);
     }
-  }, [isEditable, deleteWidget]);
+  }, [widgetToDelete, deleteWidget]);
 
   // Smart layout generation that preserves existing widget positions
   const generateDefaultLayout = useCallback((widgets: any[]) => {
@@ -398,7 +435,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
           containerPadding={[0, 0]}
           isDraggable={isEditable}
           isResizable={isEditable}
-          dragHandleClassName="widget-drag-handle"
+          draggableHandle=".widget-drag-handle"
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={handleBreakpointChange}
           // Free placement with widget pushing during resize
@@ -408,7 +445,7 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
           maxRows={maxRows}
         >
           {widgets.map((widget: any) => (
-            <div key={widget._id} className="widget-container">
+            <div key={widget._id} className="h-full w-full relative">
               <WidgetRenderer
                 widget={widget}
                 isEditable={isEditable}
@@ -418,6 +455,39 @@ export function WidgetGrid({ boardId, isEditable = true, onAddWidget }: WidgetGr
           ))}
         </ResponsiveGridLayout>
       </div>
+
+      {/* Delete Widget Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove Widget</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="text-body-md text-[var(--color-text-primary)]">
+              Are you sure you want to remove this widget? This action cannot be undone.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setWidgetToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Removing..." : "Remove Widget"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

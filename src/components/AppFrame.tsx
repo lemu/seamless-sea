@@ -96,10 +96,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
   SidebarMenuAction,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogBody,
+  DialogFooter,
+  DialogTitle,
+  Input,
 } from "@rafal.lemieszewski/tide-ui";
-
-// Temporary import from shadcn UI until Tide UI has SidebarMenuAction
-// SidebarMenuAction is now available directly from tide-ui 0.3.1
 
 // Helper functions for user avatar handling
 const getUserInitials = (name: string) => {
@@ -573,7 +577,7 @@ function AppSidebar() {
         className="flex h-full flex-col"
       >
         {/* Header with Company Logo */}
-        <SidebarHeader className="h-12 border-b border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 box-border">
+        <SidebarHeader className="h-12 border-b border-[var(--color-border-primary-subtle)] group-data-[collapsible=icon]:flex  group-data-[collapsible=icon]:px-2 box-border">
           <div className="flex h-[22px] w-7 items-center justify-center">
             <svg
               width="28"
@@ -602,7 +606,7 @@ function AppSidebar() {
               <div className="group-data-[collapsible=icon]:hidden">
                 <button
                   onClick={() => setCommandOpen(true)}
-                  className="text-body-md flex h-8 w-full cursor-pointer items-center rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-1 pr-20 pl-8 text-left text-[var(--color-text-tertiary)] transition-colors hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none active:border-[var(--color-border-primary-bold)]"
+                  className="text-body-md flex h-8 w-full cursor-pointer items-center rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-1 pr-20 pl-8 text-left text-[var(--color-text-tertiary)] transition-colors hover:border-[var(--color-border-primary-bold)] hover:!bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)]/20 focus:ring-offset-0 focus:outline-none active:border-[var(--color-border-primary-bold)]"
                 >
                   Search
                 </button>
@@ -617,7 +621,7 @@ function AppSidebar() {
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => setCommandOpen(true)}
-                    className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)] focus:ring-offset-2 focus:outline-none active:border-[var(--color-border-primary-bold)]"
+                    className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded border border-[var(--color-border-primary-subtle)] bg-transparent transition-all duration-200 group-data-[collapsible=icon]:flex hover:border-[var(--color-border-primary-bold)] hover:!bg-[var(--color-background-neutral-subtle-hovered)] focus:border-[var(--color-border-brand)] focus:ring-2 focus:ring-[var(--color-border-brand)]/20 focus:ring-offset-0 focus:outline-none active:border-[var(--color-border-primary-bold)]"
                     aria-label="Search"
                   >
                     <Icon name="search" size="md" color="tertiary" />
@@ -653,8 +657,7 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className="cursor-pointer"
-                          onClick={() => navigate(item.url)}
+                                                    onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
@@ -696,8 +699,7 @@ function AppSidebar() {
                         <div className="group-data-[collapsible=icon]:hidden">
                           <SidebarMenuButton
                             isActive={item.isActive && !item.items?.length}
-                            className="cursor-pointer"
-                            onClick={() => toggleExpanded(item.title)}
+                                                        onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
                               name={item.icon as string}
@@ -723,13 +725,10 @@ function AppSidebar() {
                                 <SidebarMenuSubItem key={subItem.title}>
                                   <SidebarMenuSubButton
                                     isActive={subItem.isActive}
+                                    onClick={() => navigate(subItem.url)}
+                                    tabIndex={0}
                                   >
-                                    <button
-                                      onClick={() => navigate(subItem.url)}
-                                      className="w-full cursor-pointer text-left"
-                                    >
-                                      {subItem.title}
-                                    </button>
+                                    {subItem.title}
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
                               ))}
@@ -744,7 +743,7 @@ function AppSidebar() {
                                 <DropdownMenuTrigger asChild>
                                   <SidebarMenuButton
                                     isActive={hasActiveChild(item)}
-                                    className="cursor-pointer w-full justify-center"
+                                    className="cursor-pointer w-full hover:!bg-[var(--color-background-neutral-subtle-hovered)]"
                                   >
                                     <Icon
                                       name={item.icon as string}
@@ -793,8 +792,7 @@ function AppSidebar() {
                           <TooltipTrigger asChild>
                             <SidebarMenuButton
                               isActive={item.isActive}
-                              className="cursor-pointer"
-                              onClick={() => navigate(item.url)}
+                                                            onClick={() => navigate(item.url)}
                             >
                               <Icon
                                 name={item.icon as string}
@@ -842,8 +840,7 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className="cursor-pointer"
-                          onClick={() => navigate(item.url)}
+                                                    onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
@@ -877,7 +874,7 @@ function AppSidebar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-4 w-4 p-0 text-[var(--color-text-tertiary)] hover:bg-[var(--color-background-neutral-subtle-hovered)] hover:text-[var(--color-text-secondary)]"
+                className="h-4 w-4 p-0 text-[var(--color-text-tertiary)] hover:!bg-[var(--color-background-neutral-subtle-hovered)] hover:text-[var(--color-text-secondary)]"
                 onClick={() => setNewBoardModalOpen(true)}
               >
                 <Icon name="plus" size="sm" className="text-[var(--color-text-tertiary)]" />
@@ -898,8 +895,7 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className="cursor-pointer"
-                          onClick={() => navigate(item.url)}
+                                                    onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
@@ -919,30 +915,27 @@ function AppSidebar() {
                     {/* Board Actions Menu - Only show in expanded state */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <SidebarMenuAction showOnHover>
+                        <SidebarMenuAction showOnHover className="group-data-[collapsible=icon]:hidden">
                           <Icon name="more-horizontal" size="sm" />
                         </SidebarMenuAction>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuContent side="right" align="start" className="w-48">
                         <DropdownMenuItem
                           icon="eye"
                           onClick={() => navigate(item.url)}
-                          className="cursor-pointer"
-                        >
+                                                  >
                           View
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           icon="pin-off"
                           onClick={() => handleUnpinBoard(item)}
-                          className="cursor-pointer"
-                        >
+                                                  >
                           Unpin
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           icon="edit"
                           onClick={() => handleRenameBoard(item)}
-                          className="cursor-pointer"
-                        >
+                                                  >
                           Rename
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -963,8 +956,7 @@ function AppSidebar() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <SidebarMenuButton
-                        className="cursor-pointer"
-                        onClick={() => navigate("/boards")}
+                                                onClick={() => navigate("/boards")}
                       >
                         <Icon name="more-horizontal" size="sm" />
                         <span>Show all</span>
@@ -992,8 +984,7 @@ function AppSidebar() {
                       <TooltipTrigger asChild>
                         <SidebarMenuButton
                           isActive={item.isActive}
-                          className="cursor-pointer"
-                          onClick={() => navigate(item.url)}
+                                                    onClick={() => navigate(item.url)}
                         >
                           <Icon
                             name={item.icon as string}
@@ -1142,52 +1133,50 @@ function AppSidebar() {
       </CommandDialog>
 
       {/* New Board Modal */}
-      {newBoardModalOpen && (
-        <CreateBoardModal
-          onClose={() => {
-            setNewBoardModalOpen(false);
-            setNewBoardTitle("");
-          }}
-          onCreate={handleCreateBoard}
-          title={newBoardTitle}
-          setTitle={setNewBoardTitle}
-          isCreating={isCreatingBoard}
-        />
-      )}
+      <CreateBoardModal
+        isOpen={newBoardModalOpen}
+        onClose={() => {
+          setNewBoardModalOpen(false);
+          setNewBoardTitle("");
+        }}
+        onCreate={handleCreateBoard}
+        title={newBoardTitle}
+        setTitle={setNewBoardTitle}
+        isCreating={isCreatingBoard}
+      />
 
       {/* Rename Board Modal */}
-      {renameBoardModalOpen && (
-        <RenameBoardModal
-          onClose={() => {
-            setRenameBoardModalOpen(false);
-            setRenameBoardTitle("");
-            setSelectedBoard(null);
-          }}
-          onRename={handleRenameBoardSubmit}
-          title={renameBoardTitle}
-          setTitle={setRenameBoardTitle}
-          isRenaming={isUpdatingBoard}
-        />
-      )}
+      <RenameBoardModal
+        isOpen={renameBoardModalOpen}
+        onClose={() => {
+          setRenameBoardModalOpen(false);
+          setRenameBoardTitle("");
+          setSelectedBoard(null);
+        }}
+        onRename={handleRenameBoardSubmit}
+        title={renameBoardTitle}
+        setTitle={setRenameBoardTitle}
+        isRenaming={isUpdatingBoard}
+      />
 
       {/* Delete Board Modal */}
-      {deleteBoardModalOpen && (
-        <DeleteBoardModal
-          onClose={() => {
-            setDeleteBoardModalOpen(false);
-            setSelectedBoard(null);
-          }}
-          onDelete={handleDeleteBoardSubmit}
-          boardTitle={selectedBoard?.title || ""}
-          isDeleting={isDeletingBoard}
-        />
-      )}
+      <DeleteBoardModal
+        isOpen={deleteBoardModalOpen}
+        onClose={() => {
+          setDeleteBoardModalOpen(false);
+          setSelectedBoard(null);
+        }}
+        onDelete={handleDeleteBoardSubmit}
+        boardTitle={selectedBoard?.title || ""}
+        isDeleting={isDeletingBoard}
+      />
     </TooltipProvider>
   );
 }
 
-// Create Board Modal Component (same as in Boards.tsx)
+// Create Board Modal Component
 interface CreateBoardModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onCreate: (title: string) => Promise<void>;
   title: string;
@@ -1196,6 +1185,7 @@ interface CreateBoardModalProps {
 }
 
 function CreateBoardModal({
+  isOpen,
   onClose,
   onCreate,
   title,
@@ -1214,30 +1204,29 @@ function CreateBoardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50">
-      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
-        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
-          Create New Board
-        </h2>
-
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create New Board</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="text-body-md mb-2 block text-[var(--color-text-primary)]">
-              Board Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter board title..."
-              className="w-full rounded-md border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
-              disabled={isCreating}
-              autoFocus
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" onClick={onClose} disabled={isCreating}>
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-body-md block text-[var(--color-text-primary)]">
+                Board Title
+              </label>
+              <Input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter board title..."
+                disabled={isCreating}
+                autoFocus
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isCreating}>
               Cancel
             </Button>
             <Button
@@ -1247,15 +1236,16 @@ function CreateBoardModal({
             >
               {isCreating ? "Creating..." : "Create Board"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // Rename Board Modal Component
 interface RenameBoardModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onRename: (title: string) => Promise<void>;
   title: string;
@@ -1264,6 +1254,7 @@ interface RenameBoardModalProps {
 }
 
 function RenameBoardModal({
+  isOpen,
   onClose,
   onRename,
   title,
@@ -1282,30 +1273,29 @@ function RenameBoardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50">
-      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
-        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
-          Rename Board
-        </h2>
-
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rename Board</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="text-body-md mb-2 block text-[var(--color-text-primary)]">
-              Board Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter board title..."
-              className="w-full rounded-md border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
-              disabled={isRenaming}
-              autoFocus
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" onClick={onClose} disabled={isRenaming}>
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-body-md block text-[var(--color-text-primary)]">
+                Board Title
+              </label>
+              <Input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter board title..."
+                disabled={isRenaming}
+                autoFocus
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isRenaming}>
               Cancel
             </Button>
             <Button
@@ -1315,15 +1305,16 @@ function RenameBoardModal({
             >
               {isRenaming ? "Renaming..." : "Rename Board"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // Delete Board Modal Component
 interface DeleteBoardModalProps {
+  isOpen: boolean;
   onClose: () => void;
   onDelete: () => Promise<void>;
   boardTitle: string;
@@ -1331,6 +1322,7 @@ interface DeleteBoardModalProps {
 }
 
 function DeleteBoardModal({
+  isOpen,
   onClose,
   onDelete,
   boardTitle,
@@ -1346,21 +1338,19 @@ function DeleteBoardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50">
-      <div className="absolute left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-[var(--color-surface-primary)] p-6 shadow-lg mx-4">
-        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
-          Delete Board
-        </h2>
-
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Board</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="mb-6">
+          <DialogBody>
             <p className="text-body-md text-[var(--color-text-primary)]">
               Are you sure you want to delete <strong>'{boardTitle}'</strong>? This action cannot be undone.
             </p>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" onClick={onClose} disabled={isDeleting}>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isDeleting}>
               Cancel
             </Button>
             <Button
@@ -1370,10 +1360,10 @@ function DeleteBoardModal({
             >
               {isDeleting ? "Deleting..." : "Delete Board"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1402,7 +1392,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="h-auto min-h-[48px] w-full justify-start rounded-md p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:min-h-[32px] group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+            className="h-auto min-h-[48px] w-full justify-start rounded-md p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:min-h-[32px] group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:items-center  group-data-[collapsible=icon]:p-0"
           >
             {/* Expanded state - full layout */}
             <div className="flex w-full items-center gap-3 group-data-[collapsible=icon]:hidden">
@@ -1527,15 +1517,13 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuItem
             icon="user"
             onClick={() => navigate("/user-profile")}
-            className="cursor-pointer"
-          >
+                      >
             User profile
           </DropdownMenuItem>
           <DropdownMenuItem
             icon="settings"
             onClick={() => navigate("/organization-settings")}
-            className="cursor-pointer"
-          >
+                      >
             Organization settings
           </DropdownMenuItem>
 
@@ -1548,8 +1536,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               localStorage.removeItem("userEmail");
               navigate("/");
             }}
-            className="cursor-pointer"
-            destructive
+                        destructive
           >
             Sign out
           </DropdownMenuItem>
