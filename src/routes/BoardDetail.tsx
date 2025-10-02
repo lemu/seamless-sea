@@ -170,71 +170,6 @@ function BoardDetail() {
     setIsAddingWidget(false);
   };
 
-  const handleCleanupWidgets = async () => {
-    if (!board || !widgets || !layouts) return;
-
-    try {
-      // Define grid configuration (same as WidgetGrid)
-      const cols = { lg: 4, md: 2, sm: 1 };
-
-      // Get current viewport width to determine breakpoint
-      const currentBreakpoint =
-        window.innerWidth >= 1200
-          ? "lg"
-          : window.innerWidth >= 768
-            ? "md"
-            : "sm";
-      const currentCols = cols[currentBreakpoint as keyof typeof cols];
-
-      // Get existing layouts for current breakpoint
-      const currentLayouts = layouts[currentBreakpoint] || [];
-      const widgetMap = new Map(widgets.map((w) => [w._id, w]));
-
-      // Sort widgets by their current position (top-left first)
-      const sortedWidgets = currentLayouts
-        .filter((layout: any) => widgetMap.has(layout.i))
-        .sort((a: any, b: any) => {
-          if (a.y !== b.y) return a.y - b.y; // Sort by row first
-          return a.x - b.x; // Then by column
-        });
-
-      // Create compact layout
-      const compactLayout = [];
-      let currentX = 0;
-      let currentY = 0;
-
-      for (const layout of sortedWidgets) {
-        // Check if widget fits in current row
-        if (currentX + layout.w > currentCols) {
-          // Move to next row
-          currentX = 0;
-          currentY++;
-        }
-
-        // Place widget at current position
-        compactLayout.push({
-          i: layout.i,
-          x: currentX,
-          y: currentY,
-          w: layout.w,
-          h: layout.h,
-        });
-
-        // Update position for next widget
-        currentX += layout.w;
-      }
-
-      // Update layout for current breakpoint
-      await updateBoardLayout({
-        boardId: board._id,
-        breakpoint: currentBreakpoint,
-        layout: compactLayout,
-      });
-    } catch (error) {
-      console.error("Failed to cleanup widgets:", error);
-      alert("Failed to cleanup widgets");
-    }
-  };
 
   if (!user) {
     return (
@@ -328,14 +263,6 @@ function BoardDetail() {
                   <Button icon="more-horizontal" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    icon="layout"
-                    onClick={handleCleanupWidgets}
-                    className="cursor-pointer"
-                  >
-                    Cleanup widgets
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     icon="trash-2"
                     onClick={handleDeleteBoard}

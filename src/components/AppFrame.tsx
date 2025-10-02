@@ -153,7 +153,7 @@ const getSidebarData = (
           isActive: currentPath === "/home",
         },
       ],
-      management: [
+      operations: [
         {
           title: "Freight planner",
           icon: "ship",
@@ -165,29 +165,35 @@ const getSidebarData = (
           title: "Trade desk",
           icon: "trending-up",
           url: "/trade-desk",
-          isActive:
-            currentPath === "/trade-desk" ||
-            currentPath === "/trade-desk/new-order" ||
-            currentPath === "/trade-desk/mailing-list",
-          items: [
-            {
-              title: "New order",
-              url: "/trade-desk/new-order",
-              isActive: currentPath === "/trade-desk/new-order",
-            },
-            {
-              title: "Mailing list",
-              url: "/trade-desk/mailing-list",
-              isActive: currentPath === "/trade-desk/mailing-list",
-            },
-          ],
+          isActive: currentPath === "/trade-desk",
+          items: [],
         },
         {
-          title: "Contracts",
+          title: "Agreements",
           icon: "scroll-text",
-          url: "/contracts",
-          isActive: currentPath === "/contracts",
-          items: [],
+          url: "/agreements",
+          isActive:
+            currentPath === "/agreements" ||
+            currentPath === "/agreements/recaps" ||
+            currentPath === "/agreements/contracts" ||
+            currentPath === "/agreements/clause-library",
+          items: [
+            {
+              title: "Recaps",
+              url: "/agreements/recaps",
+              isActive: currentPath === "/agreements/recaps",
+            },
+            {
+              title: "Contracts",
+              url: "/agreements/contracts",
+              isActive: currentPath === "/agreements/contracts",
+            },
+            {
+              title: "Clause library",
+              url: "/agreements/clause-library",
+              isActive: currentPath === "/agreements/clause-library",
+            },
+          ],
         },
         {
           title: "Compliance",
@@ -679,19 +685,19 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Separator between Main and Management in collapsed state */}
+          {/* Separator between Main and Operations in collapsed state */}
           <div className="my-2 hidden justify-center px-2 group-data-[collapsible=icon]:flex">
             <Separator layout="vertical" />
           </div>
 
-          {/* Management Section */}
+          {/* Operations Section */}
           <SidebarGroup className="mt-1 p-[var(--space-sm)]">
             <SidebarGroupLabel className="py-1 pb-1.5 group-data-[collapsible=icon]:hidden">
-              Management
+              Operations
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {sidebarData.navigation.management.map((item: MenuItem) => (
+                {sidebarData.navigation.operations.map((item: MenuItem) => (
                   <SidebarMenuItem key={item.title}>
                     {item.items && item.items.length > 0 ? (
                       <>
@@ -699,7 +705,7 @@ function AppSidebar() {
                         <div className="group-data-[collapsible=icon]:hidden">
                           <SidebarMenuButton
                             isActive={item.isActive && !item.items?.length}
-                                                        onClick={() => toggleExpanded(item.title)}
+                            onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
                               name={item.icon as string}
@@ -726,7 +732,6 @@ function AppSidebar() {
                                   <SidebarMenuSubButton
                                     isActive={subItem.isActive}
                                     onClick={() => navigate(subItem.url)}
-                                    tabIndex={0}
                                   >
                                     {subItem.title}
                                   </SidebarMenuSubButton>
@@ -792,7 +797,7 @@ function AppSidebar() {
                           <TooltipTrigger asChild>
                             <SidebarMenuButton
                               isActive={item.isActive}
-                                                            onClick={() => navigate(item.url)}
+                              onClick={() => navigate(item.url)}
                             >
                               <Icon
                                 name={item.icon as string}
@@ -822,7 +827,7 @@ function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Separator between Management and Intelligence in collapsed state */}
+          {/* Separator between Operations and Intelligence in collapsed state */}
           <div className="my-2 hidden justify-center px-2 group-data-[collapsible=icon]:flex">
             <Separator layout="vertical" />
           </div>
@@ -1063,7 +1068,7 @@ function AppSidebar() {
                 <span>{item.title}</span>
               </CommandItem>
             ))}
-            {sidebarData.navigation.management.map((item: MenuItem) => (
+            {sidebarData.navigation.operations.map((item: MenuItem) => (
               <CommandItem
                 key={item.title}
                 onSelect={() => {

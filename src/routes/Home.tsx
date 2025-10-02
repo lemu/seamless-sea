@@ -6,7 +6,7 @@ function Home() {
     <div className="space-y-6 p-4">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-heading-2xlg text-[var(--color-text-primary)]">
+          <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)]">
             Seamless Sea
           </h1>
           <p className="text-body-lg text-[var(--color-text-secondary)]">

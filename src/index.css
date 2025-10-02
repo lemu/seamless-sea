@@ -3,6 +3,17 @@
 @import "@rafal.lemieszewski/tide-ui/styles";
 @import "tailwindcss";
 
+/* CSS Variables for responsive design */
+:root {
+  --page-padding: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --page-padding: 1rem;
+  }
+}
+
 /* React Grid Layout Styles */
 @import "react-grid-layout/css/styles.css";
 @import "react-resizable/css/styles.css";
@@ -98,6 +109,7 @@ body.resize-active * {
   user-select: none !important;
 }
 
+
 /* Cursor grabbing state during drag - React Grid Layout applies .react-draggable-dragging */
 .react-grid-item.react-draggable-dragging .widget-drag-handle {
   cursor: grabbing;
@@ -113,3 +125,5 @@ body.resize-active * {
 .react-grid-item.react-resizable-resizing > .react-resizable-handle {
   z-index: 13 !important;
 }
+
+/* Note: DataTable responsive styles are now built into Tide UI v0.18.0+ */

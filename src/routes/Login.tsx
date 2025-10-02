@@ -30,7 +30,7 @@ function Login() {
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-heading-2xlg text-[var(--color-text-primary)]">
+          <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)]">
             Login
           </h1>
           <p className="text-body-md mt-2 text-[var(--color-text-secondary)]">

@@ -8,9 +8,9 @@ import Login from "./routes/Login.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
-import NewOrder from "./routes/NewOrder.tsx";
-import MailingList from "./routes/MailingList.tsx";
-import Contracts from "./routes/Contracts.tsx";
+import Recaps from "./routes/Recaps.tsx";
+import AgreementContracts from "./routes/AgreementContracts.tsx";
+import ClauseLibrary from "./routes/ClauseLibrary.tsx";
 import Compliance from "./routes/Compliance.tsx";
 import GlobalMarket from "./routes/GlobalMarket.tsx";
 import Assets from "./routes/Assets.tsx";
@@ -52,36 +52,38 @@ const router = createBrowserRouter([
         path: "trade-desk",
         element: <TradeDesk />,
         handle: {
-          crumb: () => "Trade desk",
-          redirectOnly: true // Mark this as a redirect-only route
-        },
+          crumb: () => "Trade desk"
+        }
+      },
+      {
+        path: "agreements",
         children: [
           {
             index: true,
-            element: <Navigate to="new-order" replace />
+            element: <Navigate to="/agreements/recaps" replace />,
           },
           {
-            path: "new-order",
-            element: <NewOrder />,
+            path: "recaps",
+            element: <Recaps />,
             handle: {
-              crumb: () => "New order"
+              crumb: () => "Recaps"
             }
           },
           {
-            path: "mailing-list",
-            element: <MailingList />,
+            path: "contracts",
+            element: <AgreementContracts />,
             handle: {
-              crumb: () => "Mailing list"
+              crumb: () => "Contracts"
+            }
+          },
+          {
+            path: "clause-library",
+            element: <ClauseLibrary />,
+            handle: {
+              crumb: () => "Clause library"
             }
           }
         ]
-      },
-      {
-        path: "contracts",
-        element: <Contracts />,
-        handle: {
-          crumb: () => "Contracts"
-        }
       },
       {
         path: "compliance",
