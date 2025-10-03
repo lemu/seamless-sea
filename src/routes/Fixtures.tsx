@@ -64,8 +64,9 @@ const generateFixtureData = (): FixtureData[] => {
 
   // Generate 150 fixtures
   for (let i = 0; i < 150; i++) {
-    const hasOrder = Math.random() > 0.5; // 50% have orders
     const hasMultipleContracts = Math.random() > 0.6; // 40% have multiple contracts
+    // Multiple contracts always require an order, single contracts may not have one
+    const hasOrder = hasMultipleContracts ? true : Math.random() > 0.5;
 
     if (hasMultipleContracts) {
       // Create fixture with multiple contracts
@@ -73,7 +74,7 @@ const generateFixtureData = (): FixtureData[] => {
       const children: FixtureData[] = [];
 
       const fixtureId = generateId('FIX');
-      const orderId = hasOrder ? generateId('ORD') : undefined;
+      const orderId = generateId('ORD'); // Always have order ID for multiple contracts
 
       for (let j = 0; j < numContracts; j++) {
         children.push({
@@ -324,6 +325,11 @@ function Fixtures() {
       accessorKey: 'orderId',
       header: 'Order ID',
       cell: ({ row }: any) => {
+        // Don't show Order ID on 2nd level (nested rows)
+        if (row.depth === 1) {
+          return null;
+        }
+
         const value = row.getValue('orderId') as string | undefined;
         if (!value) {
           return <div className="text-body-sm text-[var(--color-text-secondary)]">-</div>;
@@ -456,8 +462,14 @@ function Fixtures() {
   return (
     <>
       <style>{`
-        .fixtures-table tr[data-depth="1"] {
-          background-color: var(--blue-50);
+        /* Target the entire row that contains a cell with extra padding-left */
+        .fixtures-table tbody tr:has(td[style*="padding-left: calc"]) {
+          background-color: var(--blue-50) !important;
+        }
+
+        /* Make sure all cells in the nested row get the background */
+        .fixtures-table tbody tr:has(td[style*="padding-left: calc"]) td {
+          background-color: var(--blue-50) !important;
         }
       `}</style>
 
