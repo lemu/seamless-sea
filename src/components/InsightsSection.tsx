@@ -333,7 +333,8 @@ export function InsightsSection() {
         .insights-chart-header {
           margin-bottom: 24px;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
+          gap: 8px;
         }
 
         /* Chart body with dynamic height */
@@ -355,7 +356,7 @@ export function InsightsSection() {
         <div className="insights-grid">
         {/* Freight Rate */}
         <div className="insights-chart">
-          <div className="insights-chart-header !flex-row !items-center gap-2 min-w-0">
+          <div className="insights-chart-header">
             <h3 className="text-heading-xsm text-[var(--color-text-primary)] whitespace-nowrap">
               Freight rate
             </h3>
@@ -365,7 +366,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[200px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -392,7 +393,7 @@ export function InsightsSection() {
 
         {/* Bunker Pricing */}
         <div className="insights-chart">
-          <div className="insights-chart-header !flex-row !items-center gap-2 min-w-0">
+          <div className="insights-chart-header">
             <h3 className="text-heading-xsm text-[var(--color-text-primary)] whitespace-nowrap">
               Bunker pricing
             </h3>
@@ -402,7 +403,7 @@ export function InsightsSection() {
               placeholder="Select port"
               searchPlaceholder="Search ports..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[120px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -413,7 +414,7 @@ export function InsightsSection() {
               placeholder="Select fuel"
               searchPlaceholder="Search fuel types..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="min-w-0 max-w-[100px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="min-w-0 max-w-[90px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -443,7 +444,7 @@ export function InsightsSection() {
 
         {/* Supply and Demand */}
         <div className="insights-chart">
-          <div className="insights-chart-header !flex-row !items-center gap-2 min-w-0">
+          <div className="insights-chart-header">
             <h3 className="text-heading-xsm text-[var(--color-text-primary)] whitespace-nowrap">
               Supply and demand
             </h3>
@@ -453,7 +454,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[180px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -481,7 +482,7 @@ export function InsightsSection() {
 
         {/* Congestion in Port */}
         <div className="insights-chart">
-          <div className="insights-chart-header !flex-row !items-center gap-2 min-w-0">
+          <div className="insights-chart-header">
             <h3 className="text-heading-xsm text-[var(--color-text-primary)] whitespace-nowrap">
               Congestion in port
             </h3>
@@ -491,7 +492,7 @@ export function InsightsSection() {
               placeholder="Select port"
               searchPlaceholder="Search ports..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[120px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
