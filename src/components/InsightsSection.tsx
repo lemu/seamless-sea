@@ -297,6 +297,7 @@ export function InsightsSection() {
           grid-template-columns: 1fr;
           gap: 0;
           align-items: stretch;
+          overflow: none;
         }
 
         /* Tablet layout: 2x2 grid when container is 780px+ */
