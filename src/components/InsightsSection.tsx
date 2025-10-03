@@ -309,8 +309,8 @@ export function InsightsSection() {
           .divider-tablet-h { display: block !important; }
         }
 
-        /* Desktop layout: 1x4 grid when container is 1280px+ */
-        @container (min-width: 1280px) {
+        /* Desktop layout: 1x4 grid when container is 1380px+ */
+        @container (min-width: 1380px) {
           .insights-grid {
             grid-template-columns: 1fr 1fr 1fr 1fr;
           }
