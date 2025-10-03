@@ -126,23 +126,18 @@ function Boards() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-heading-2xlg text-[var(--color-text-primary)]">
-            Boards
-          </h1>
-          <p className="text-body-lg text-[var(--color-text-secondary)]">
-            Manage your dashboard boards
-          </p>
-        </div>
+    <div className="space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
+      {/* Header with Title */}
+      <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
+        <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
+          Boards
+        </h1>
         <Button
           variant="primary"
           icon="plus"
           iconPosition="left"
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 shrink-0"
         >
           New Board
         </Button>

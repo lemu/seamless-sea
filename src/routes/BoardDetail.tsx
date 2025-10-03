@@ -233,11 +233,11 @@ function BoardDetail() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
+    <div className="space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
+      {/* Header with Title */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="mb-2">
+        <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
+          <div className="mb-2 min-w-0 flex-1">
             {board && (
               <BoardTitle
                 boardId={board._id}
@@ -248,7 +248,7 @@ function BoardDetail() {
           </div>
 
           {isOwner && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="secondary"
                 icon="plus"

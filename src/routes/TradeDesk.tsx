@@ -386,36 +386,34 @@ function TradeDesk() {
       )}
 
       {/* Filter Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <Button variant="secondary" icon="filter" iconPosition="left">
-            Filters
-          </Button>
-          <Button className="whitespace-nowrap">
-            <span className="hidden sm:inline">All negotiations</span>
-            <span className="sm:hidden">All</span>
-            <Icon name="chevron-down" size="sm" className="ml-1" />
-          </Button>
-          <Button>
-            Stage
-            <Icon name="chevron-down" size="sm" className="ml-1" />
-          </Button>
-          <Button>
-            Validity
-            <Icon name="chevron-down" size="sm" className="ml-1" />
-          </Button>
-          <Button className="whitespace-nowrap">
-            <Icon name="calendar" size="sm" className="mr-2" />
-            <span className="hidden xl:inline">Jan 20, 2025 - Nov 30, 2025</span>
-            <span className="hidden lg:inline xl:hidden">Jan 20 - Nov 30</span>
-            <span className="hidden md:inline lg:hidden">2025</span>
-            <span className="md:hidden">Date</span>
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" icon="filter" iconPosition="left" className="shrink-0">
+          Filters
+        </Button>
+        <Button className="whitespace-nowrap shrink-0">
+          <span className="hidden sm:inline">All negotiations</span>
+          <span className="sm:hidden">All</span>
+          <Icon name="chevron-down" size="sm" className="ml-1" />
+        </Button>
+        <Button className="shrink-0">
+          Stage
+          <Icon name="chevron-down" size="sm" className="ml-1" />
+        </Button>
+        <Button className="shrink-0">
+          Validity
+          <Icon name="chevron-down" size="sm" className="ml-1" />
+        </Button>
+        <Button className="whitespace-nowrap shrink-0">
+          <Icon name="calendar" size="sm" className="mr-2" />
+          <span className="hidden xl:inline">Jan 20, 2025 - Nov 30, 2025</span>
+          <span className="hidden lg:inline xl:hidden">Jan 20 - Nov 30</span>
+          <span className="hidden md:inline lg:hidden">2025</span>
+          <span className="md:hidden">Date</span>
+        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="md" icon="more-horizontal" />
+            <Button size="md" icon="more-horizontal" className="shrink-0 ml-auto" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 max-w-[90vw]">
             <div className="p-3">
@@ -488,9 +486,9 @@ function TradeDesk() {
         columns={orderColumns}
         enableExpanding={true}
         getSubRows={(row) => row.children}
-        title="Shipping Orders"
         borderStyle="horizontal"
         autoExpandChildren={true}
+        headerless={true}
         initialState={{
           expanded: initialExpanded
         }}

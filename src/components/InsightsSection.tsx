@@ -7,10 +7,10 @@ export function InsightsSection() {
     const months = ["Mar 25", "Apr 25", "May 25", "Jun 25", "Jul 25", "Aug 25", "Sep 25", "Oct 25", "Nov 25", "Dec 25", "Jan 26", "Feb 26"];
     const data: Array<{
       name: string;
-      rate: number | null;
-      prediction: number | null;
-      index: number | null;
-      counterpartyRange: [number, number] | null;
+      rate?: number;
+      prediction?: number;
+      index?: number;
+      counterpartyRange?: [number, number];
     }> = [];
 
     // Past 6 months with actual data
@@ -39,12 +39,15 @@ export function InsightsSection() {
         // Create connection point: first future month (Sep 25, index 6) has both rate and prediction
         const isTransitionPoint = monthIndex === 6;
 
+        // Add week number to make each data point unique for hover
+        const weekLabel = i === 0 ? month : `${month} W${i + 1}`;
+
         data.push({
-          name: month,
-          rate: (isPast || isTransitionPoint) ? rateValue : null,
-          prediction: (!isPast || isTransitionPoint) ? rateValue : null,
-          index: (isPast || isTransitionPoint) ? Number((baseIndex + indexVariation).toFixed(1)) : null,
-          counterpartyRange: (isPast || isTransitionPoint) ? [minCounterparty, maxCounterparty] : null
+          name: weekLabel,
+          rate: (isPast || isTransitionPoint) ? rateValue : undefined,
+          prediction: (!isPast || isTransitionPoint) ? rateValue : undefined,
+          index: (isPast || isTransitionPoint) ? Number((baseIndex + indexVariation).toFixed(1)) : undefined,
+          counterpartyRange: (isPast || isTransitionPoint) ? [minCounterparty, maxCounterparty] : undefined
         });
       }
     });
@@ -54,20 +57,52 @@ export function InsightsSection() {
 
   const freightRateData = generateMonthlyData();
 
-  const cargoDemandData = [
-    { name: "Mar 25", demand: 280 },
-    { name: "Apr 25", demand: 320 },
-    { name: "May 25", demand: 295 },
-    { name: "Jun 25", demand: 340 },
-    { name: "Jul 25", demand: 310 },
-    { name: "Aug 25", demand: 360 },
-    { name: "Sep 25", demand: 330 },
-    { name: "Oct 25", demand: 315 },
-    { name: "Nov 25", demand: 298 },
-    { name: "Dec 25", demand: 345 },
-    { name: "Jan 26", demand: 372 },
-    { name: "Feb 26", demand: 355 },
-  ];
+  // Generate weekly supply and demand data (12 months × 4 weeks = 48 data points)
+  const generateSupplyDemandData = () => {
+    const months = ["Mar 25", "Apr 25", "May 25", "Jun 25", "Jul 25", "Aug 25", "Sep 25", "Oct 25", "Nov 25", "Dec 25", "Jan 26", "Feb 26"];
+    const data: Array<{
+      name: string;
+      ladenPercent?: number;
+      ladenPercentAvg?: number;
+      vesselsCount?: number;
+    }> = [];
+
+    // Base values for Laden % and Vessels count
+    const baseLadenPercent = [55, 50, 45, 42, 40, 38, 40, 35, 30, 25, 22, 25];
+    const baseVesselsCount = [65, 70, 68, 72, 65, 70, 75, 68, 60, 55, 58, 60];
+
+    months.forEach((month, monthIndex) => {
+      const baseLaden = baseLadenPercent[monthIndex];
+      const baseVessels = baseVesselsCount[monthIndex];
+
+      // Generate 4 data points per month with variation
+      for (let i = 0; i < 4; i++) {
+        const ladenVariation = (Math.random() - 0.5) * 20;
+        const vesselsVariation = (Math.random() - 0.5) * 15;
+
+        const ladenValue = Math.max(10, Math.min(90, baseLaden + ladenVariation));
+        const vesselsValue = Math.max(20, Math.min(100, baseVessels + vesselsVariation));
+
+        data.push({
+          name: month,
+          ladenPercent: Number(ladenValue.toFixed(1)),
+          vesselsCount: Math.round(vesselsValue),
+        });
+      }
+    });
+
+    // Calculate 4-week rolling average for Laden %
+    data.forEach((point, index) => {
+      if (index >= 3) {
+        const sum = data.slice(index - 3, index + 1).reduce((acc, p) => acc + (p.ladenPercent || 0), 0);
+        point.ladenPercentAvg = Number((sum / 4).toFixed(1));
+      }
+    });
+
+    return data;
+  };
+
+  const cargoDemandData = generateSupplyDemandData();
 
   const bunkerPricingData = [
     { name: "Mar 25", spotBunkerRate: 580, spotFreightRate: 15 },
@@ -84,20 +119,45 @@ export function InsightsSection() {
     { name: "Feb 26", spotBunkerRate: 655, spotFreightRate: 16 },
   ];
 
-  const vesselSupplyData = [
-    { name: "Mar 25", available: 45, utilization: 84 },
-    { name: "Apr 25", available: 48, utilization: 88 },
-    { name: "May 25", available: 46, utilization: 85 },
-    { name: "Jun 25", available: 50, utilization: 90 },
-    { name: "Jul 25", available: 52, utilization: 85 },
-    { name: "Aug 25", available: 55, utilization: 87 },
-    { name: "Sep 25", available: 53, utilization: 87 },
-    { name: "Oct 25", available: 51, utilization: 84 },
-    { name: "Nov 25", available: 49, utilization: 82 },
-    { name: "Dec 25", available: 54, utilization: 89 },
-    { name: "Jan 26", available: 58, utilization: 91 },
-    { name: "Feb 26", available: 56, utilization: 88 },
-  ];
+  // Generate weekly congestion in port data (12 months × 4 weeks = 48 data points)
+  const generateCongestionData = () => {
+    const months = ["Mar 25", "Apr 25", "May 25", "Jun 25", "Jul 25", "Aug 25", "Sep 25", "Oct 25", "Nov 25", "Dec 25", "Jan 26", "Feb 26"];
+    const data: Array<{
+      name: string;
+      vesselsInPort?: number;
+      avgDuration?: number;
+    }> = [];
+
+    // Base values for Vessels in port and Average duration
+    const baseVesselsInPort = [55, 60, 65, 70, 60, 55, 50, 45, 50, 60, 65, 70];
+    const baseAvgDuration = [2.8, 2.6, 2.4, 1.8, 2.6, 2.4, 2.0, 2.8, 3.0, 2.6, 2.2, 1.8];
+
+    months.forEach((month, monthIndex) => {
+      const baseVessels = baseVesselsInPort[monthIndex];
+      const baseDuration = baseAvgDuration[monthIndex];
+
+      // Generate 4 data points per month with variation
+      for (let i = 0; i < 4; i++) {
+        const vesselsVariation = (Math.random() - 0.5) * 20;
+        const durationVariation = (Math.random() - 0.5) * 1.0;
+
+        const vesselsValue = Math.max(20, Math.min(100, baseVessels + vesselsVariation));
+        const durationValue = Math.max(1.0, Math.min(6.0, baseDuration + durationVariation));
+
+        const weekLabel = i === 0 ? month : `${month} W${i + 1}`;
+
+        data.push({
+          name: weekLabel,
+          vesselsInPort: Math.round(vesselsValue),
+          avgDuration: Number(durationValue.toFixed(1)),
+        });
+      }
+    });
+
+    return data;
+  };
+
+  const vesselSupplyData = generateCongestionData();
 
   const freightRateConfig = createChartConfig({
     rate: {
@@ -145,23 +205,38 @@ export function InsightsSection() {
   });
 
   const cargoDemandConfig = createChartConfig({
-    demand: {
-      label: "Demand (MT)",
-      color: "var(--color-chart-bar-1)",
+    ladenPercent: {
+      label: "Laden %",
+      color: "var(--color-chart-line-1)",
+      type: "line",
+      showDots: false,
+    },
+    ladenPercentAvg: {
+      label: "Laden % (4 week avg.)",
+      color: "var(--color-chart-line-4)",
+      type: "line",
+      showDots: false,
+    },
+    vesselsCount: {
+      label: "Vessels count",
+      type: "bar",
+      color: "#e5eff3",
+      yAxisId: "right",
     },
   });
 
   const vesselSupplyConfig = createChartConfig({
-    available: {
-      label: "Available Vessels",
-      color: "var(--color-chart-bar-1)",
+    vesselsInPort: {
+      label: "Vessels in port",
       type: "bar",
+      color: "#e5eff3",
     },
-    utilization: {
-      label: "Utilization %",
-      color: "var(--color-chart-line-1)",
+    avgDuration: {
+      label: "Avg. duration (days)",
+      color: "var(--color-chart-line-4)",
       type: "line",
       showDots: false,
+      yAxisId: "right",
     },
   });
 
@@ -305,8 +380,9 @@ export function InsightsSection() {
               responsive={true}
               maintainAspectRatio={false}
               yAxisWidth={30}
-              tooltipMaxWidth="max-w-48"
-              yAxisTickCount={5}
+              tooltipMaxWidth="max-w-72"
+              tooltipAllowEscapeViewBox={{ x: true, y: true }}
+              yAxisTickCount={3}
               showLegend={true}
               legendOrder={["rate", "prediction", "index", "counterpartyRange"]}
             />
@@ -352,7 +428,12 @@ export function InsightsSection() {
               responsive={true}
               maintainAspectRatio={false}
               yAxisWidth={30}
-              yAxisTickCount={5}
+              yAxisTickCount={3}
+              yAxisDomain={[0, 800]}
+              showRightYAxis={true}
+              rightYAxisTickCount={3}
+              rightYAxisDomain={[0, 20]}
+              tooltipAllowEscapeViewBox={{ x: true, y: true }}
               showLegend={true}
               legendOrder={["spotBunkerRate", "spotFreightRate"]}
             />
@@ -371,7 +452,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[200px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[180px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -379,7 +460,7 @@ export function InsightsSection() {
           </div>
           <div className="insights-chart-body">
             <Chart
-              type="bar"
+              type="composed"
               data={cargoDemandData}
               config={cargoDemandConfig}
               height={200}
@@ -387,7 +468,12 @@ export function InsightsSection() {
               responsive={true}
               maintainAspectRatio={false}
               yAxisWidth={30}
-              yAxisTickCount={5}
+              yAxisTickCount={3}
+              yAxisDomain={[0, 100]}
+              showRightYAxis={true}
+              rightYAxisTickCount={3}
+              rightYAxisDomain={[0, 80]}
+              tooltipAllowEscapeViewBox={{ x: true, y: true }}
             />
           </div>
         </div>
@@ -420,7 +506,12 @@ export function InsightsSection() {
               responsive={true}
               maintainAspectRatio={false}
               yAxisWidth={30}
-              yAxisTickCount={5}
+              yAxisTickCount={3}
+              yAxisDomain={[0, 100]}
+              showRightYAxis={true}
+              rightYAxisTickCount={3}
+              rightYAxisDomain={[0, 6]}
+              tooltipAllowEscapeViewBox={{ x: true, y: true }}
             />
           </div>
         </div>
