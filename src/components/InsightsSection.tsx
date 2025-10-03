@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Chart, createChartConfig, Combobox, Button } from "@rafal.lemieszewski/tide-ui";
 
 export function InsightsSection() {
@@ -55,7 +56,7 @@ export function InsightsSection() {
     return data;
   };
 
-  const freightRateData = generateMonthlyData();
+  const freightRateData = useMemo(() => generateMonthlyData(), []);
 
   // Generate weekly supply and demand data (12 months × 4 weeks = 48 data points)
   const generateSupplyDemandData = () => {
@@ -102,7 +103,7 @@ export function InsightsSection() {
     return data;
   };
 
-  const cargoDemandData = generateSupplyDemandData();
+  const cargoDemandData = useMemo(() => generateSupplyDemandData(), []);
 
   const bunkerPricingData = [
     { name: "Mar 25", spotBunkerRate: 580, spotFreightRate: 15 },
@@ -157,9 +158,9 @@ export function InsightsSection() {
     return data;
   };
 
-  const vesselSupplyData = generateCongestionData();
+  const vesselSupplyData = useMemo(() => generateCongestionData(), []);
 
-  const freightRateConfig = createChartConfig({
+  const freightRateConfig = useMemo(() => createChartConfig({
     rate: {
       label: "Freight rate ($/mt)",
       color: "var(--color-chart-line-1)",
@@ -186,9 +187,9 @@ export function InsightsSection() {
       stroke: "none",
       fill: "#C8D8E1",
     },
-  });
+  }), []);
 
-  const bunkerPricingConfig = createChartConfig({
+  const bunkerPricingConfig = useMemo(() => createChartConfig({
     spotBunkerRate: {
       label: "Spot bunker rate ($/mt)",
       color: "var(--color-chart-line-1)",
@@ -202,9 +203,9 @@ export function InsightsSection() {
       showDots: false,
       yAxisId: "right",
     },
-  });
+  }), []);
 
-  const cargoDemandConfig = createChartConfig({
+  const cargoDemandConfig = useMemo(() => createChartConfig({
     ladenPercent: {
       label: "Laden %",
       color: "var(--color-chart-line-1)",
@@ -223,9 +224,9 @@ export function InsightsSection() {
       color: "#e5eff3",
       yAxisId: "right",
     },
-  });
+  }), []);
 
-  const vesselSupplyConfig = createChartConfig({
+  const vesselSupplyConfig = useMemo(() => createChartConfig({
     vesselsInPort: {
       label: "Vessels in port",
       type: "bar",
@@ -238,7 +239,7 @@ export function InsightsSection() {
       showDots: false,
       yAxisId: "right",
     },
-  });
+  }), []);
 
   // Maritime routes for the combobox
   const maritimeRoutes = [

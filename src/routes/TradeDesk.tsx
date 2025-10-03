@@ -180,13 +180,6 @@ function TradeDesk() {
   // Memoize trade data to prevent regenerating on every render
   const tradeData = useMemo(() => generateMultiLevelOrderData(), []);
 
-  // Set initial expanded state - expand first order and all its broker groups
-  const initialExpanded = useMemo(() => ({
-    '0': true,
-    '0.0': true,
-    '0.1': true,
-  }), []);
-
   // Memoize columns to prevent unnecessary re-renders
   const orderColumns: ColumnDef<OrderData>[] = useMemo(() => [
     {
@@ -471,9 +464,7 @@ function TradeDesk() {
         getSubRows={(row) => row.children}
         borderStyle="horizontal"
         autoExpandChildren={true}
-        initialState={{
-          expanded: initialExpanded
-        }}
+        showHeader={false}
         renderSectionHeaderRow={(row) => {
           // Check if this row is a broker group (Level 2)
           if (row.original.isBrokerGroup) {
