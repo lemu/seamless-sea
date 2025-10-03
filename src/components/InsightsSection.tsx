@@ -366,7 +366,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[160px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -403,7 +403,7 @@ export function InsightsSection() {
               placeholder="Select port"
               searchPlaceholder="Search ports..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[120px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="min-w-0 max-w-[150px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -414,7 +414,7 @@ export function InsightsSection() {
               placeholder="Select fuel"
               searchPlaceholder="Search fuel types..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="min-w-0 max-w-[90px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="min-w-0 max-w-[110px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -454,7 +454,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[140px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[160px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -492,7 +492,7 @@ export function InsightsSection() {
               placeholder="Select port"
               searchPlaceholder="Search ports..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[120px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[150px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
