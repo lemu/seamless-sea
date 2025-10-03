@@ -8,7 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
   Editable,
   EditablePreview,
   EditableInput,
@@ -110,18 +109,6 @@ function BoardDetail() {
   );
 
   const deleteBoard = useMutation(api.boards.deleteBoard);
-  const updateBoardLayout = useMutation(api.widgets.updateBoardLayout);
-
-
-  // Get widgets for cleanup functionality
-  const widgets = useQuery(
-    api.widgets.getWidgetsByBoard,
-    id ? { boardId: id as Id<"boards"> } : "skip",
-  );
-  const layouts = useQuery(
-    api.widgets.getBoardLayouts,
-    id ? { boardId: id as Id<"boards"> } : "skip",
-  );
 
 
   const handleDeleteBoard = () => {

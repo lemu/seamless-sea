@@ -78,7 +78,7 @@ const generateMultiLevelOrderData = (): OrderData[] => {
   };
 
   // Level 3: Individual Offer
-  const generateIndividualOffer = (counterparty: string, broker: string, index: number): OrderData => {
+  const generateIndividualOffer = (counterparty: string, broker: string): OrderData => {
     const wsBase = 85 + Math.floor(Math.random() * 20);
     return {
       id: '',
@@ -111,7 +111,7 @@ const generateMultiLevelOrderData = (): OrderData[] => {
     tce: '',
     validity: '',
     isBrokerGroup: true,
-    children: counterpartiesList.map((cp, i) => generateIndividualOffer(cp, broker, i))
+    children: counterpartiesList.map((cp) => generateIndividualOffer(cp, broker))
   });
 
   // Level 1: Order (top-level aggregation)
@@ -172,23 +172,6 @@ const generateMultiLevelOrderData = (): OrderData[] => {
   }
 
   return orders;
-};
-
-const getStageBadgeColor = (stage: string) => {
-  switch (stage.toLowerCase()) {
-    case "active":
-      return "success";
-    case "withdrawn":
-      return "warning";
-    case "closed":
-      return "neutral";
-    case "pending":
-      return "warning";
-    case "negotiating":
-      return "info";
-    default:
-      return "neutral";
-  }
 };
 
 function TradeDesk() {
@@ -488,7 +471,6 @@ function TradeDesk() {
         getSubRows={(row) => row.children}
         borderStyle="horizontal"
         autoExpandChildren={true}
-        headerless={true}
         initialState={{
           expanded: initialExpanded
         }}
