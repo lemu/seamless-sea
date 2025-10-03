@@ -300,6 +300,11 @@ export function InsightsSection() {
           overflow: none;
         }
 
+        /* Mobile horizontal dividers */
+        .divider-mobile-1 { display: block !important; }
+        .divider-mobile-2 { display: block !important; }
+        .divider-mobile-3 { display: block !important; }
+
         /* Tablet layout: 2x2 grid when container is 780px+ */
         @container (min-width: 780px) {
           .insights-grid {
@@ -307,10 +312,13 @@ export function InsightsSection() {
           }
           .divider-tablet-v { display: block !important; }
           .divider-tablet-h { display: block !important; }
+          .divider-mobile-1 { display: none !important; }
+          .divider-mobile-2 { display: none !important; }
+          .divider-mobile-3 { display: none !important; }
         }
 
-        /* Desktop layout: 1x4 grid when container is 1380px+ */
-        @container (min-width: 1380px) {
+        /* Desktop layout: 1x4 grid when container is 1280px+ */
+        @container (min-width: 1280px) {
           .insights-grid {
             grid-template-columns: 1fr 1fr 1fr 1fr;
           }
@@ -319,6 +327,9 @@ export function InsightsSection() {
           .divider-desktop-3 { display: block !important; }
           .divider-tablet-v { display: none !important; }
           .divider-tablet-h { display: none !important; }
+          .divider-mobile-1 { display: none !important; }
+          .divider-mobile-2 { display: none !important; }
+          .divider-mobile-3 { display: none !important; }
         }
 
         /* Chart box styles */
@@ -344,14 +355,19 @@ export function InsightsSection() {
       `}</style>
 
       <div className="insights-container rounded-lg border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] relative overflow-hidden">
-        {/* Desktop dividers (1328px+) */}
+        {/* Desktop dividers (1280px+) - vertical */}
         <div className="divider-desktop-1 hidden absolute top-0 bottom-0 left-1/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
         <div className="divider-desktop-2 hidden absolute top-0 bottom-0 left-2/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
         <div className="divider-desktop-3 hidden absolute top-0 bottom-0 left-3/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
 
-        {/* Tablet dividers (600px-1327px) */}
+        {/* Tablet dividers (780px-1279px) */}
         <div className="divider-tablet-v hidden absolute top-0 bottom-0 left-2/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
         <div className="divider-tablet-h hidden absolute left-0 right-0 top-2/4 h-px bg-[var(--color-border-primary-subtle)]"></div>
+
+        {/* Mobile dividers (<780px) - horizontal */}
+        <div className="divider-mobile-1 hidden absolute left-0 right-0 top-[25%] h-px bg-[var(--color-border-primary-subtle)]"></div>
+        <div className="divider-mobile-2 hidden absolute left-0 right-0 top-[50%] h-px bg-[var(--color-border-primary-subtle)]"></div>
+        <div className="divider-mobile-3 hidden absolute left-0 right-0 top-[75%] h-px bg-[var(--color-border-primary-subtle)]"></div>
 
         <div className="insights-grid">
         {/* Freight Rate */}
