@@ -413,28 +413,30 @@ export function InsightsSection() {
             <h3 className="text-heading-xsm text-[var(--color-text-primary)] whitespace-nowrap">
               Bunker pricing
             </h3>
-            <Combobox
-              options={ports}
-              value="singapore-sg"
-              placeholder="Select port"
-              searchPlaceholder="Search ports..."
-              trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="min-w-0 max-w-[150px] justify-between" dropdown>
-                  <span className="truncate">{selectedOption?.label || placeholder}</span>
-                </Button>
-              )}
-            />
-            <Combobox
-              options={fuelTypes}
-              value="vlsfo"
-              placeholder="Select fuel"
-              searchPlaceholder="Search fuel types..."
-              trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="min-w-0 max-w-[110px] justify-between" dropdown>
-                  <span className="truncate">{selectedOption?.label || placeholder}</span>
-                </Button>
-              )}
-            />
+            <div className="flex items-center gap-2">
+              <Combobox
+                options={ports}
+                value="singapore-sg"
+                placeholder="Select port"
+                searchPlaceholder="Search ports..."
+                trigger={({ selectedOption, placeholder }) => (
+                  <Button size="sm" variant="default" className="min-w-0 max-w-[150px] justify-between" dropdown>
+                    <span className="truncate">{selectedOption?.label || placeholder}</span>
+                  </Button>
+                )}
+              />
+              <Combobox
+                options={fuelTypes}
+                value="vlsfo"
+                placeholder="Select fuel"
+                searchPlaceholder="Search fuel types..."
+                trigger={({ selectedOption, placeholder }) => (
+                  <Button size="sm" variant="default" className="min-w-0 max-w-[110px] justify-between" dropdown>
+                    <span className="truncate">{selectedOption?.label || placeholder}</span>
+                  </Button>
+                )}
+              />
+            </div>
           </div>
           <div className="insights-chart-body">
             <Chart
