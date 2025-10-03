@@ -355,15 +355,15 @@ export function InsightsSection() {
 
         /* Responsive ComboBox widths */
         .combobox-route {
-          max-width: 220px;
+          max-width: 280px;
         }
 
         .combobox-port {
-          max-width: 150px;
+          max-width: 180px;
         }
 
         .combobox-fuel {
-          max-width: 110px;
+          max-width: 130px;
         }
 
         /* Smaller widths for 1x4 desktop layout */
