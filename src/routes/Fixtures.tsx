@@ -1,10 +1,9 @@
 import { useState, useMemo } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
-  type ColumnDef,
   DataTable,
   Badge,
   Button,
-  Icon,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -303,7 +302,7 @@ function Fixtures() {
     {
       accessorKey: 'fixtureId',
       header: 'Fixture ID',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         // Don't show Fixture ID on 2nd level (nested rows)
         if (row.depth === 1) {
           return null;
@@ -324,7 +323,7 @@ function Fixtures() {
     {
       accessorKey: 'orderId',
       header: 'Order ID',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const value = row.getValue('orderId') as string | undefined;
         if (!value) {
           return <div className="text-body-sm text-[var(--color-text-secondary)]">-</div>;
@@ -345,7 +344,7 @@ function Fixtures() {
     {
       accessorKey: 'cpId',
       header: 'CP ID',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const cpId = row.getValue('cpId') as string;
         const isContractCount = cpId?.includes('contracts');
 
@@ -373,7 +372,7 @@ function Fixtures() {
     {
       accessorKey: 'stage',
       header: 'Stage',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('stage')}
         </div>
@@ -382,7 +381,7 @@ function Fixtures() {
     {
       accessorKey: 'typeOfContract',
       header: 'Type of contract',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('typeOfContract')}
         </div>
@@ -391,7 +390,7 @@ function Fixtures() {
     {
       accessorKey: 'vessels',
       header: 'Vessel(s)',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const vessels = row.getValue('vessels') as string;
         const isMultiple = vessels?.includes('contracts');
         return (
@@ -407,7 +406,7 @@ function Fixtures() {
     {
       accessorKey: 'personInCharge',
       header: 'Person in charge',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('personInCharge')}
         </div>
@@ -416,7 +415,7 @@ function Fixtures() {
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => {
+      cell: ({ row }: any) => {
         const status = row.getValue('status') as string;
         return (
           <Badge variant="default" className="text-caption-sm">
@@ -428,7 +427,7 @@ function Fixtures() {
     {
       accessorKey: 'owner',
       header: 'Owner',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('owner')}
         </div>
@@ -437,7 +436,7 @@ function Fixtures() {
     {
       accessorKey: 'broker',
       header: 'Broker',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('broker')}
         </div>
@@ -446,7 +445,7 @@ function Fixtures() {
     {
       accessorKey: 'lastUpdated',
       header: 'Last updated',
-      cell: ({ row }) => (
+      cell: ({ row }: any) => (
         <div className="text-body-sm text-[var(--color-text-primary)]">
           {row.getValue('lastUpdated')}
         </div>
@@ -455,45 +454,42 @@ function Fixtures() {
   ], [setSelectedFixture]);
 
   return (
-    <div className="space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
-      {/* Header with Title */}
-      <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
-        <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
-          Fixtures
-        </h1>
+    <>
+      <style>{`
+        .fixtures-table tr[data-depth="1"] {
+          background-color: var(--blue-50);
+        }
+      `}</style>
+
+      <div className="space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
+        {/* Header with Title */}
+        <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
+          <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
+            Fixtures
+          </h1>
+        </div>
+
+        {/* Data Table */}
+        <div className="fixtures-table">
+          <DataTable
+            data={fixtureData}
+            columns={fixtureColumns}
+            enableExpanding={true}
+            getSubRows={(row: FixtureData) => row.children}
+            borderStyle="horizontal"
+            showHeader={false}
+          />
+        </div>
+
+        {/* Sidebar */}
+        {selectedFixture && (
+          <FixtureSidebar
+            fixture={selectedFixture}
+            onClose={() => setSelectedFixture(null)}
+          />
+        )}
       </div>
-
-      {/* Data Table */}
-      <DataTable
-        data={fixtureData}
-        columns={fixtureColumns}
-        enableExpanding={true}
-        getSubRows={(row) => row.children}
-        borderStyle="horizontal"
-        showHeader={false}
-        onRowClick={(row) => {
-          // Only handle clicks on level 1 rows (fixtures, not child contracts)
-          if (row.depth === 0) {
-            setSelectedFixture(row.original);
-          }
-        }}
-        getRowClassName={(row) => {
-          // Add blue background to 2nd level (nested contract rows)
-          if (row.depth === 1) {
-            return 'bg-[var(--blue-50)]';
-          }
-          return '';
-        }}
-      />
-
-      {/* Sidebar */}
-      {selectedFixture && (
-        <FixtureSidebar
-          fixture={selectedFixture}
-          onClose={() => setSelectedFixture(null)}
-        />
-      )}
-    </div>
+    </>
   );
 }
 
