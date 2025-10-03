@@ -382,7 +382,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[160px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[220px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -472,7 +472,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[160px] justify-between" dropdown>
+                <Button size="sm" variant="default" className="flex-1 min-w-0 max-w-[220px] justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
