@@ -8,8 +8,11 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
+  Filters,
+  Icon,
   cn,
 } from "@rafal.lemieszewski/tide-ui";
+import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 
 // Define types for fixture structure
 interface FixtureData {
@@ -26,6 +29,7 @@ interface FixtureData {
   approvalStatus: string;
   owner: string;
   broker: string;
+  charterer: string;
   lastUpdated: string;
   children?: FixtureData[];
 }
@@ -38,6 +42,9 @@ const generateFixtureData = (): FixtureData[] => {
   const people = ['John Doe', 'Martin Leake'];
   const statuses = ['Final', 'On Subs', 'Firm bid', 'Working Copy', 'Draft', 'Firm offer', 'Firm bxd', 'Indicative offer'];
   const approvalStatuses = ['Signed', 'Not started', 'Pending approval', 'Pending signature', 'Approved'];
+  const owners = ['Owning Company A', 'Owning Company B', 'Owning Company C'];
+  const brokers = ['Broking Company A', 'Broking Company B', 'Broking Company C'];
+  const charterers = ['Chartering Company A', 'Chartering Company B', 'Chartering Company C', 'Chartering Company D'];
 
   const generateId = (prefix: string) => {
     const num = Math.floor(Math.random() * 100000);
@@ -89,8 +96,9 @@ const generateFixtureData = (): FixtureData[] => {
           personInCharge: people[Math.floor(Math.random() * people.length)],
           status: statuses[Math.floor(Math.random() * statuses.length)],
           approvalStatus: approvalStatuses[Math.floor(Math.random() * approvalStatuses.length)],
-          owner: 'Owning Company',
-          broker: 'Broking Company',
+          owner: owners[Math.floor(Math.random() * owners.length)],
+          broker: brokers[Math.floor(Math.random() * brokers.length)],
+          charterer: charterers[Math.floor(Math.random() * charterers.length)],
           lastUpdated: generateDate(),
         });
       }
@@ -107,8 +115,9 @@ const generateFixtureData = (): FixtureData[] => {
         personInCharge: people[Math.floor(Math.random() * people.length)],
         status: statuses[Math.floor(Math.random() * statuses.length)],
         approvalStatus: approvalStatuses[Math.floor(Math.random() * approvalStatuses.length)],
-        owner: 'Owning Company',
-        broker: 'Broking Company',
+        owner: owners[Math.floor(Math.random() * owners.length)],
+        broker: brokers[Math.floor(Math.random() * brokers.length)],
+        charterer: charterers[Math.floor(Math.random() * charterers.length)],
         lastUpdated: generateDate(),
         children,
       });
@@ -126,8 +135,9 @@ const generateFixtureData = (): FixtureData[] => {
         personInCharge: people[Math.floor(Math.random() * people.length)],
         status: statuses[Math.floor(Math.random() * statuses.length)],
         approvalStatus: approvalStatuses[Math.floor(Math.random() * approvalStatuses.length)],
-        owner: 'Owning Company',
-        broker: 'Broking Company',
+        owner: owners[Math.floor(Math.random() * owners.length)],
+        broker: brokers[Math.floor(Math.random() * brokers.length)],
+        charterer: charterers[Math.floor(Math.random() * charterers.length)],
         lastUpdated: generateDate(),
       });
     }
@@ -273,6 +283,12 @@ function FixtureSidebar({
                       {fixture.broker}
                     </span>
                   </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-body-sm text-[var(--color-text-secondary)]">Charterer</span>
+                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                      {fixture.charterer}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -297,6 +313,210 @@ function Fixtures() {
 
   // Memoize fixture data
   const fixtureData = useMemo(() => generateFixtureData(), []);
+
+  // Filter state
+  const [pinnedFilters, setPinnedFilters] = useState<string[]>(['vessels', 'status']);
+  const [activeFilters, setActiveFilters] = useState<Record<string, FilterValue>>({});
+
+  // Extract unique values for filters
+  const uniqueVessels = useMemo(() => {
+    const vessels = new Set<string>();
+    fixtureData.forEach(fixture => {
+      if (!fixture.vessels.includes('contracts')) {
+        vessels.add(fixture.vessels);
+      }
+      fixture.children?.forEach(child => {
+        if (!child.vessels.includes('contracts')) {
+          vessels.add(child.vessels);
+        }
+      });
+    });
+    return Array.from(vessels).sort().map(v => ({ value: v, label: v }));
+  }, [fixtureData]);
+
+  const uniqueStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    fixtureData.forEach(fixture => {
+      statuses.add(fixture.status);
+      fixture.children?.forEach(child => statuses.add(child.status));
+    });
+    return Array.from(statuses).sort().map(s => ({ value: s, label: s }));
+  }, [fixtureData]);
+
+  const uniqueOwners = useMemo(() => {
+    const owners = new Set<string>();
+    fixtureData.forEach(fixture => {
+      owners.add(fixture.owner);
+      fixture.children?.forEach(child => owners.add(child.owner));
+    });
+    return Array.from(owners).sort().map(o => ({ value: o, label: o }));
+  }, [fixtureData]);
+
+  const uniqueBrokers = useMemo(() => {
+    const brokers = new Set<string>();
+    fixtureData.forEach(fixture => {
+      brokers.add(fixture.broker);
+      fixture.children?.forEach(child => brokers.add(child.broker));
+    });
+    return Array.from(brokers).sort().map(b => ({ value: b, label: b }));
+  }, [fixtureData]);
+
+  const uniqueCharterers = useMemo(() => {
+    const charterers = new Set<string>();
+    fixtureData.forEach(fixture => {
+      charterers.add(fixture.charterer);
+      fixture.children?.forEach(child => charterers.add(child.charterer));
+    });
+    return Array.from(charterers).sort().map(c => ({ value: c, label: c }));
+  }, [fixtureData]);
+
+
+  // Define filter definitions
+  const filterDefinitions: FilterDefinition[] = useMemo(() => [
+    {
+      id: 'vessels',
+      label: 'Vessel',
+      icon: ({ className }) => <Icon name="ship" className={className} />,
+      type: 'multiselect',
+      options: uniqueVessels,
+      searchPlaceholder: 'Search vessels...',
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      icon: ({ className }) => <Icon name="file-text" className={className} />,
+      type: 'multiselect',
+      options: uniqueStatuses,
+      searchPlaceholder: 'Search statuses...',
+    },
+    {
+      id: 'owner',
+      label: 'Owner',
+      icon: ({ className }) => <Icon name="building" className={className} />,
+      type: 'multiselect',
+      options: uniqueOwners,
+      searchPlaceholder: 'Search owners...',
+    },
+    {
+      id: 'broker',
+      label: 'Broker',
+      icon: ({ className }) => <Icon name="briefcase" className={className} />,
+      type: 'multiselect',
+      options: uniqueBrokers,
+      searchPlaceholder: 'Search brokers...',
+    },
+    {
+      id: 'charterer',
+      label: 'Charterer',
+      icon: ({ className }) => <Icon name="user" className={className} />,
+      type: 'multiselect',
+      options: uniqueCharterers,
+      searchPlaceholder: 'Search charterers...',
+    },
+  ], [uniqueVessels, uniqueStatuses, uniqueOwners, uniqueBrokers, uniqueCharterers]);
+
+  // Calculate date range based on filter
+  const getDateRange = (filter: string): { from: Date; to: Date } | null => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (filter) {
+      case "today":
+        return { from: today, to: now };
+      case "last7days":
+        return { from: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+      case "last30days":
+        return { from: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
+      case "last90days":
+        return { from: new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000), to: now };
+      default:
+        return null;
+    }
+  };
+
+  // Filter data based on active filters
+  const filteredData = useMemo(() => {
+    return fixtureData.filter(fixture => {
+      // Check each active filter
+      for (const [filterId, filterValue] of Object.entries(activeFilters)) {
+        if (!filterValue) continue;
+
+        const values = Array.isArray(filterValue) ? filterValue : [filterValue];
+        if (values.length === 0) continue;
+
+        // Map filter ID to data property
+        let itemValue: string;
+        switch (filterId) {
+          case 'vessels':
+            itemValue = fixture.vessels;
+            break;
+          case 'status':
+            itemValue = fixture.status;
+            break;
+          case 'owner':
+            itemValue = fixture.owner;
+            break;
+          case 'broker':
+            itemValue = fixture.broker;
+            break;
+          case 'charterer':
+            itemValue = fixture.charterer;
+            break;
+          default:
+            continue;
+        }
+
+        // Check if fixture or any of its children match
+        const hasMatch = values.includes(String(itemValue)) ||
+          fixture.children?.some(child => {
+            let childValue: string;
+            switch (filterId) {
+              case 'vessels':
+                childValue = child.vessels;
+                break;
+              case 'status':
+                childValue = child.status;
+                break;
+              case 'owner':
+                childValue = child.owner;
+                break;
+              case 'broker':
+                childValue = child.broker;
+                break;
+              case 'charterer':
+                childValue = child.charterer;
+                break;
+              default:
+                return false;
+            }
+            return values.includes(String(childValue));
+          });
+
+        if (!hasMatch) return false;
+      }
+
+      return true;
+    });
+  }, [fixtureData, activeFilters]);
+
+  const handleFilterChange = (filterId: string, value: FilterValue) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [filterId]: value,
+    }));
+  };
+
+  const handleFilterClear = (filterId: string) => {
+    setActiveFilters(prev => {
+      const newFilters = { ...prev };
+      delete newFilters[filterId];
+      return newFilters;
+    });
+  };
+
+  const handleFilterReset = () => {
+    setActiveFilters({});
+  };
 
   // Memoize columns
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(() => [
@@ -449,6 +669,15 @@ function Fixtures() {
       ),
     },
     {
+      accessorKey: 'charterer',
+      header: 'Charterer',
+      cell: ({ row }: any) => (
+        <div className="text-body-sm text-[var(--color-text-primary)]">
+          {row.getValue('charterer')}
+        </div>
+      ),
+    },
+    {
       accessorKey: 'lastUpdated',
       header: 'Last updated',
       cell: ({ row }: any) => (
@@ -481,10 +710,21 @@ function Fixtures() {
           </h1>
         </div>
 
+        {/* Filters */}
+        <Filters
+          filters={filterDefinitions}
+          pinnedFilters={pinnedFilters}
+          activeFilters={activeFilters}
+          onPinnedFiltersChange={setPinnedFilters}
+          onFilterChange={handleFilterChange}
+          onFilterClear={handleFilterClear}
+          onFilterReset={handleFilterReset}
+        />
+
         {/* Data Table */}
         <div className="fixtures-table">
           <DataTable
-            data={fixtureData}
+            data={filteredData}
             columns={fixtureColumns}
             enableExpanding={true}
             getSubRows={(row: FixtureData) => row.children}
