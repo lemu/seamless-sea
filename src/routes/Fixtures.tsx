@@ -415,25 +415,6 @@ function Fixtures() {
     },
   ], [uniqueVessels, uniqueStatuses, uniqueOwners, uniqueBrokers, uniqueCharterers]);
 
-  // Calculate date range based on filter
-  const getDateRange = (filter: string): { from: Date; to: Date } | null => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    switch (filter) {
-      case "today":
-        return { from: today, to: now };
-      case "last7days":
-        return { from: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
-      case "last30days":
-        return { from: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000), to: now };
-      case "last90days":
-        return { from: new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000), to: now };
-      default:
-        return null;
-    }
-  };
-
   // Filter data based on active filters
   const filteredData = useMemo(() => {
     return fixtureData.filter(fixture => {
