@@ -109,7 +109,6 @@ body.resize-active * {
   user-select: none !important;
 }
 
-
 /* Cursor grabbing state during drag - React Grid Layout applies .react-draggable-dragging */
 .react-grid-item.react-draggable-dragging .widget-drag-handle {
   cursor: grabbing;

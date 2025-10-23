@@ -18,8 +18,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Filters,
   cn,
 } from "@rafal.lemieszewski/tide-ui";
+import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 import { InsightsSection } from "../components/InsightsSection";
 
 // Define types for multi-level order structure
@@ -180,6 +182,130 @@ function TradeDesk() {
   // Memoize trade data to prevent regenerating on every render
   const tradeData = useMemo(() => generateMultiLevelOrderData(), []);
 
+  // Filter state
+  const [pinnedFilters, setPinnedFilters] = useState<string[]>(['stage', 'type']);
+  const [activeFilters, setActiveFilters] = useState<Record<string, FilterValue>>({});
+
+  // Extract unique values for filters from all levels
+  const uniqueCounterparties = useMemo(() => {
+    const counterparties = new Set<string>();
+    tradeData.forEach(order => {
+      order.children?.forEach(brokerGroup => {
+        brokerGroup.children?.forEach(offer => {
+          if (offer.counterparty) {
+            counterparties.add(offer.counterparty);
+          }
+        });
+      });
+    });
+    return Array.from(counterparties).sort().map(c => ({ value: c, label: c }));
+  }, [tradeData]);
+
+  const uniqueTypes = useMemo(() => {
+    const types = new Set<string>();
+    tradeData.forEach(order => {
+      if (order.type) types.add(order.type);
+    });
+    return Array.from(types).sort().map(t => ({ value: t, label: t }));
+  }, [tradeData]);
+
+  const uniqueStages = useMemo(() => {
+    const stages = new Set<string>();
+    tradeData.forEach(order => {
+      order.children?.forEach(brokerGroup => {
+        brokerGroup.children?.forEach(offer => {
+          if (offer.stage) stages.add(offer.stage);
+        });
+      });
+    });
+    return Array.from(stages).sort().map(s => ({ value: s, label: s }));
+  }, [tradeData]);
+
+  const uniqueVessels = useMemo(() => {
+    const vessels = new Set<string>();
+    tradeData.forEach(order => {
+      order.children?.forEach(brokerGroup => {
+        brokerGroup.children?.forEach(offer => {
+          if (offer.vessel && !offer.vessel.includes('options')) {
+            vessels.add(offer.vessel);
+          }
+        });
+      });
+    });
+    return Array.from(vessels).sort().map(v => ({ value: v, label: v }));
+  }, [tradeData]);
+
+  const uniqueBrokers = useMemo(() => {
+    const brokers = new Set<string>();
+    tradeData.forEach(order => {
+      order.children?.forEach(brokerGroup => {
+        if (brokerGroup.broker) brokers.add(brokerGroup.broker);
+      });
+    });
+    return Array.from(brokers).sort().map(b => ({ value: b, label: b }));
+  }, [tradeData]);
+
+  // Date range options
+  const dateRangeOptions = [
+    { value: 'last-week', label: 'Last week' },
+    { value: 'last-30-days', label: 'Last 30 days' },
+    { value: 'this-month', label: 'This month' },
+    { value: 'last-month', label: 'Last month' },
+    { value: 'this-year', label: 'This year' },
+    { value: 'last-year', label: 'Last year' },
+  ];
+
+  // Define filter definitions
+  const filterDefinitions: FilterDefinition[] = useMemo(() => [
+    {
+      id: 'counterparty',
+      label: 'Counterparty',
+      icon: ({ className }) => <Icon name="building" className={className} />,
+      type: 'multiselect',
+      options: uniqueCounterparties,
+      searchPlaceholder: 'Search counterparties...',
+    },
+    {
+      id: 'type',
+      label: 'Type',
+      icon: ({ className }) => <Icon name="tag" className={className} />,
+      type: 'multiselect',
+      options: uniqueTypes,
+      searchPlaceholder: 'Search types...',
+    },
+    {
+      id: 'stage',
+      label: 'Stage',
+      icon: ({ className }) => <Icon name="layers" className={className} />,
+      type: 'multiselect',
+      options: uniqueStages,
+      searchPlaceholder: 'Search stages...',
+    },
+    {
+      id: 'vessel',
+      label: 'Vessel',
+      icon: ({ className }) => <Icon name="ship" className={className} />,
+      type: 'multiselect',
+      options: uniqueVessels,
+      searchPlaceholder: 'Search vessels...',
+    },
+    {
+      id: 'broker',
+      label: 'Broker',
+      icon: ({ className }) => <Icon name="briefcase" className={className} />,
+      type: 'multiselect',
+      options: uniqueBrokers,
+      searchPlaceholder: 'Search brokers...',
+    },
+    {
+      id: 'laycan',
+      label: 'Laycan',
+      icon: ({ className }) => <Icon name="calendar" className={className} />,
+      type: 'select',
+      options: dateRangeOptions,
+    },
+  ], [uniqueCounterparties, uniqueTypes, uniqueStages, uniqueVessels, uniqueBrokers]);
+
   // Memoize columns to prevent unnecessary re-renders
   const orderColumns: ColumnDef<OrderData>[] = useMemo(() => [
     {
@@ -304,6 +430,147 @@ function TradeDesk() {
     },
   ], []);
 
+  // Helper function to parse laycan date and check if it's within range
+  const parseLaycanDate = (laycan: string): Date | null => {
+    try {
+      // Laycan format: "1 Jan 2025 — 6 Jan 2025"
+      const startDate = laycan.split('—')[0].trim();
+      const parts = startDate.split(' ');
+      const day = parseInt(parts[0]);
+      const monthName = parts[1];
+      const year = parseInt(parts[2]);
+      const monthMap: Record<string, number> = {
+        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+      };
+      return new Date(year, monthMap[monthName], day);
+    } catch {
+      return null;
+    }
+  };
+
+  const getDateRangeForFilter = (filterValue: string): { from: Date; to: Date } | null => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (filterValue) {
+      case 'last-week': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 7);
+        return { from, to: today };
+      }
+      case 'last-30-days': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 30);
+        return { from, to: today };
+      }
+      case 'this-month': {
+        const from = new Date(now.getFullYear(), now.getMonth(), 1);
+        return { from, to: today };
+      }
+      case 'last-month': {
+        const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const to = new Date(now.getFullYear(), now.getMonth(), 0);
+        return { from, to };
+      }
+      case 'this-year': {
+        const from = new Date(now.getFullYear(), 0, 1);
+        return { from, to: today };
+      }
+      case 'last-year': {
+        const from = new Date(now.getFullYear() - 1, 0, 1);
+        const to = new Date(now.getFullYear() - 1, 11, 31);
+        return { from, to };
+      }
+      default:
+        return null;
+    }
+  };
+
+  // Filter data based on active filters
+  const filteredData = useMemo(() => {
+    if (Object.keys(activeFilters).length === 0) {
+      return tradeData;
+    }
+
+    return tradeData.map(order => {
+      // Check if order or any of its children match the filters
+      let hasMatchingChildren = false;
+
+      const filteredBrokerGroups = order.children?.map(brokerGroup => {
+        const filteredOffers = brokerGroup.children?.filter(offer => {
+          // Check each active filter
+          for (const [filterId, filterValue] of Object.entries(activeFilters)) {
+            if (!filterValue) continue;
+
+            const values = Array.isArray(filterValue) ? filterValue : [filterValue];
+            if (values.length === 0) continue;
+
+            // Check filter matches
+            switch (filterId) {
+              case 'counterparty':
+                if (!values.includes(offer.counterparty)) return false;
+                break;
+              case 'type':
+                if (!values.includes(order.type)) return false;
+                break;
+              case 'stage':
+                if (!values.includes(offer.stage)) return false;
+                break;
+              case 'vessel':
+                if (!values.includes(offer.vessel)) return false;
+                break;
+              case 'broker':
+                if (!values.includes(brokerGroup.broker || '')) return false;
+                break;
+              case 'laycan': {
+                const range = getDateRangeForFilter(values[0] as string);
+                if (range) {
+                  const laycanDate = parseLaycanDate(offer.laycan);
+                  if (!laycanDate || laycanDate < range.from || laycanDate > range.to) {
+                    return false;
+                  }
+                }
+                break;
+              }
+            }
+          }
+          return true;
+        });
+
+        if (filteredOffers && filteredOffers.length > 0) {
+          hasMatchingChildren = true;
+          return { ...brokerGroup, children: filteredOffers };
+        }
+        return null;
+      }).filter(Boolean) as OrderData[];
+
+      if (hasMatchingChildren && filteredBrokerGroups.length > 0) {
+        return { ...order, children: filteredBrokerGroups };
+      }
+      return null;
+    }).filter(Boolean) as OrderData[];
+  }, [tradeData, activeFilters]);
+
+  const handleFilterChange = (filterId: string, value: FilterValue) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [filterId]: value,
+    }));
+  };
+
+  const handleFilterClear = (filterId: string) => {
+    setActiveFilters(prev => {
+      const newFilters = { ...prev };
+      delete newFilters[filterId];
+      return newFilters;
+    });
+  };
+
+  const handleFilterReset = () => {
+    setActiveFilters({});
+  };
+
   return (
     <>
       <style>{`
@@ -361,31 +628,17 @@ function TradeDesk() {
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Filters */}
       <div className="flex items-center gap-2">
-        <Button variant="secondary" icon="filter" iconPosition="left" className="shrink-0">
-          Filters
-        </Button>
-        <Button className="whitespace-nowrap shrink-0">
-          <span className="hidden sm:inline">All negotiations</span>
-          <span className="sm:hidden">All</span>
-          <Icon name="chevron-down" size="sm" className="ml-1" />
-        </Button>
-        <Button className="shrink-0">
-          Stage
-          <Icon name="chevron-down" size="sm" className="ml-1" />
-        </Button>
-        <Button className="shrink-0">
-          Validity
-          <Icon name="chevron-down" size="sm" className="ml-1" />
-        </Button>
-        <Button className="whitespace-nowrap shrink-0">
-          <Icon name="calendar" size="sm" className="mr-2" />
-          <span className="hidden xl:inline">Jan 20, 2025 - Nov 30, 2025</span>
-          <span className="hidden lg:inline xl:hidden">Jan 20 - Nov 30</span>
-          <span className="hidden md:inline lg:hidden">2025</span>
-          <span className="md:hidden">Date</span>
-        </Button>
+        <Filters
+          filters={filterDefinitions}
+          pinnedFilters={pinnedFilters}
+          activeFilters={activeFilters}
+          onPinnedFiltersChange={setPinnedFilters}
+          onFilterChange={handleFilterChange}
+          onFilterClear={handleFilterClear}
+          onFilterReset={handleFilterReset}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -458,7 +711,7 @@ function TradeDesk() {
 
       {/* Data Table */}
       <DataTable
-        data={tradeData}
+        data={filteredData}
         columns={orderColumns}
         enableExpanding={true}
         getSubRows={(row) => row.children}
