@@ -24,6 +24,22 @@ import {
 import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 import { InsightsSection } from "../components/InsightsSection";
 
+// Helper function for Badge variants
+const getStageBadgeVariant = (
+  stage: string
+): "default" | "secondary" | "outline" | "destructive" => {
+  if (stage === 'Active') {
+    return 'default';
+  } else if (stage === 'Negotiating') {
+    return 'outline';
+  } else if (stage === 'Offer') {
+    return 'outline';
+  } else if (stage === 'Pending') {
+    return 'secondary';
+  }
+  return 'secondary';
+};
+
 // Define types for multi-level order structure
 interface OrderData {
   id: string;
@@ -346,7 +362,7 @@ function TradeDesk() {
         const stage = row.getValue('stage') as string;
         if (!stage) return null;
         return (
-          <Badge variant={stage === 'Active' ? 'default' : 'secondary'} className="text-caption-sm">
+          <Badge variant={getStageBadgeVariant(stage)} className="text-caption-sm">
             {stage}
           </Badge>
         );
@@ -595,7 +611,7 @@ function TradeDesk() {
         }
       `}</style>
 
-      <div className="trade-desk-container space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
+      <div className="trade-desk-container m-6 space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
         {/* Header with Title and Buttons */}
         <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
           <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">

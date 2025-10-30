@@ -37,7 +37,7 @@ interface FixtureData {
   id: string;
   fixtureId: string;
   orderId?: string;
-  cpId: string;
+  cpId?: string;
   stage: string;
   typeOfContract: string;
   negotiationId: string;
@@ -54,24 +54,22 @@ interface FixtureData {
 // Helper functions for Badge variants
 const getStatusBadgeVariant = (
   status: string
-): "default" | "secondary" | "information" | "violet" | "magenta" => {
+): "default" | "secondary" | "outline" | "destructive" => {
   if (["Final", "Firm bid", "Firm offer", "Firm bxd"].includes(status)) {
     return "default";
   } else if (["On Subs", "Working Copy", "Draft"].includes(status)) {
     return "secondary";
-  } else if (status === "Indicative offer") {
-    return "information";
   }
   return "secondary";
 };
 
 const getApprovalStatusBadgeVariant = (
   approvalStatus: string
-): "default" | "secondary" | "information" | "violet" | "magenta" => {
+): "default" | "secondary" | "outline" | "destructive" => {
   if (["Signed", "Approved"].includes(approvalStatus)) {
     return "default";
   } else if (["Pending approval", "Pending signature"].includes(approvalStatus)) {
-    return "information";
+    return "outline";
   }
   return "secondary";
 };
@@ -307,7 +305,7 @@ function FixtureSidebar({
                     <span className="text-body-sm text-[var(--color-text-secondary)]">
                       Stage
                     </span>
-                    <Badge variant="violet" className="text-caption-sm">
+                    <Badge variant="outline" className="text-caption-sm">
                       {fixture.stage}
                     </Badge>
                   </div>
@@ -688,8 +686,8 @@ function Fixtures() {
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const negotiationIds = row.subRows.map((r: any) => r.original?.negotiationId).filter((id) => id && id !== "-");
-          const uniqueNegotiationIds = Array.from(new Set(negotiationIds));
+          const negotiationIds = row.subRows.map((r: any) => r.original?.negotiationId).filter((id: string) => id && id !== "-");
+          const uniqueNegotiationIds = Array.from(new Set(negotiationIds)) as string[];
 
           // No negotiation IDs - show em dash
           if (uniqueNegotiationIds.length === 0) {
@@ -704,7 +702,7 @@ function Fixtures() {
           if (uniqueNegotiationIds.length === 1) {
             return (
               <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-                {uniqueNegotiationIds[0]}
+                {String(uniqueNegotiationIds[0])}
               </div>
             );
           }
@@ -738,7 +736,7 @@ function Fixtures() {
         },
         aggregatedCell: ({ row }: any) => {
           const cpIds = row.subRows.map((r: any) => r.original?.cpId).filter(Boolean);
-          const uniqueCpIds = Array.from(new Set(cpIds));
+          const uniqueCpIds = Array.from(new Set(cpIds)) as string[];
 
           // No CP IDs - show em dash
           if (uniqueCpIds.length === 0) {
@@ -753,7 +751,7 @@ function Fixtures() {
           if (uniqueCpIds.length === 1) {
             return (
               <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-                {uniqueCpIds[0]}
+                {String(uniqueCpIds[0])}
               </div>
             );
           }
@@ -784,10 +782,10 @@ function Fixtures() {
 
           // If only one unique status, show the Badge
           if (uniqueStatuses.size === 1) {
-            const status = Array.from(uniqueStatuses)[0];
+            const status = Array.from(uniqueStatuses)[0] as string;
             return (
               <Badge variant={getStatusBadgeVariant(status)} className="text-caption-sm">
-                {status}
+                {String(status)}
               </Badge>
             );
           }
@@ -818,10 +816,10 @@ function Fixtures() {
 
           // If only one unique vessel, show the name
           if (uniqueVessels.size === 1) {
-            const vessel = Array.from(uniqueVessels)[0];
+            const vessel = Array.from(uniqueVessels)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {vessel}
+                {String(vessel)}
               </div>
             );
           }
@@ -849,10 +847,10 @@ function Fixtures() {
 
           // If only one unique owner, show the name
           if (uniqueOwners.size === 1) {
-            const owner = Array.from(uniqueOwners)[0];
+            const owner = Array.from(uniqueOwners)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {owner}
+                {String(owner)}
               </div>
             );
           }
@@ -880,10 +878,10 @@ function Fixtures() {
 
           // If only one unique broker, show the name
           if (uniqueBrokers.size === 1) {
-            const broker = Array.from(uniqueBrokers)[0];
+            const broker = Array.from(uniqueBrokers)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {broker}
+                {String(broker)}
               </div>
             );
           }
@@ -911,10 +909,10 @@ function Fixtures() {
 
           // If only one unique charterer, show the name
           if (uniqueCharterers.size === 1) {
-            const charterer = Array.from(uniqueCharterers)[0];
+            const charterer = Array.from(uniqueCharterers)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {charterer}
+                {String(charterer)}
               </div>
             );
           }
