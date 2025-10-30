@@ -1,6 +1,6 @@
 function OrganizationSettings() {
   return (
-    <div className="space-y-6 p-4">
+    <div className="m-6 space-y-6 p-4">
       <div className="mb-6">
         <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)]">
           Organization Settings

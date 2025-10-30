@@ -1,19 +1,7 @@
 /* Import Google Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-@import "@rafal.lemieszewski/tide-ui/styles";
 @import "tailwindcss";
-
-/* CSS Variables for responsive design */
-:root {
-  --page-padding: 1.5rem;
-}
-
-@media (max-width: 768px) {
-  :root {
-    --page-padding: 1rem;
-  }
-}
-
+@import "@rafal.lemieszewski/tide-ui/styles";
 /* React Grid Layout Styles */
 @import "react-grid-layout/css/styles.css";
 @import "react-resizable/css/styles.css";
@@ -126,3 +114,15 @@ body.resize-active * {
 }
 
 /* Note: DataTable responsive styles are now built into Tide UI v0.18.0+ */
+
+/* Fixtures table: Remove horizontal lines in sticky columns when using vertical borders */
+.fixtures-table [data-border-style="vertical"] [data-sticky-column="true"] {
+  border-top: none !important;
+  border-bottom: none !important;
+}
+
+/* Ensure sticky columns in vertical mode only show vertical borders */
+.fixtures-table [data-border-style="vertical"] [data-sticky-column="true"]::after {
+  border-top: none !important;
+  border-bottom: none !important;
+}

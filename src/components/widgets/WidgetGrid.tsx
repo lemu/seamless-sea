@@ -427,7 +427,6 @@ export function WidgetGrid({
           breakpoints={breakpoints}
           cols={cols}
           rowHeight={240}
-          width={1200}
           margin={[16, 16]}
           containerPadding={[0, 0]}
           isDraggable={isEditable}

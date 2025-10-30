@@ -1,6 +1,6 @@
 export default function Forecasting() {
   return (
-    <div className="space-y-6 p-6">
+    <div className="m-6 space-y-6 p-6">
       <div className="space-y-2">
         <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)]">
           Forecasting

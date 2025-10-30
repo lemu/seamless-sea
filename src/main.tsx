@@ -37,23 +37,23 @@ const router = createBrowserRouter([
         path: "home",
         element: <Home />,
         handle: {
-          crumb: () => "Home"
-        }
+          crumb: () => "Home",
+        },
       },
       // Management routes
       {
         path: "freight-planner",
         element: <FreightPlanner />,
         handle: {
-          crumb: () => "Freight planner"
-        }
+          crumb: () => "Freight planner",
+        },
       },
       {
         path: "trade-desk",
         element: <TradeDesk />,
         handle: {
-          crumb: () => "Trade desk"
-        }
+          crumb: () => "Trade desk",
+        },
       },
       {
         path: "agreements",
@@ -66,75 +66,75 @@ const router = createBrowserRouter([
             path: "recaps",
             element: <Recaps />,
             handle: {
-              crumb: () => "Recaps"
-            }
+              crumb: () => "Recaps",
+            },
           },
           {
             path: "contracts",
             element: <AgreementContracts />,
             handle: {
-              crumb: () => "Contracts"
-            }
+              crumb: () => "Contracts",
+            },
           },
           {
             path: "clause-library",
             element: <ClauseLibrary />,
             handle: {
-              crumb: () => "Clause library"
-            }
-          }
-        ]
+              crumb: () => "Clause library",
+            },
+          },
+        ],
       },
       {
         path: "compliance",
         element: <Compliance />,
         handle: {
-          crumb: () => "Compliance"
-        }
+          crumb: () => "Compliance",
+        },
       },
       // Intelligence routes
       {
         path: "global-market",
         element: <GlobalMarket />,
         handle: {
-          crumb: () => "Global market"
-        }
+          crumb: () => "Global market",
+        },
       },
       {
         path: "assets",
         element: <Assets />,
         handle: {
-          crumb: () => "Assets"
-        }
+          crumb: () => "Assets",
+        },
       },
       {
         path: "fixtures",
         element: <Fixtures />,
         handle: {
-          crumb: () => "Fixtures"
-        }
+          crumb: () => "Fixtures",
+        },
       },
       // Support routes
       {
         path: "notifications",
         element: <Notifications />,
         handle: {
-          crumb: () => "Notifications"
-        }
+          crumb: () => "Notifications",
+        },
       },
       {
         path: "help-support",
         element: <HelpSupport />,
         handle: {
-          crumb: () => "Help & support"
-        }
+          crumb: () => "Help & support",
+        },
       },
       // Boards routes
       {
         path: "boards",
         element: <Boards />,
         handle: {
-          crumb: () => "Boards"
+          crumb: () => "Boards",
         },
         children: [
           {
@@ -146,25 +146,25 @@ const router = createBrowserRouter([
                 const boardId = match.params?.id;
                 // For now, we'll handle dynamic loading in the breadcrumb component
                 return boardId ? `Board ${boardId}` : "Board";
-              }
-            }
-          }
-        ]
+              },
+            },
+          },
+        ],
       },
       // User routes
       {
         path: "user-profile",
         element: <UserProfile />,
         handle: {
-          crumb: () => "User Profile"
-        }
+          crumb: () => "User Profile",
+        },
       },
       {
         path: "organization-settings",
         element: <OrganizationSettings />,
         handle: {
-          crumb: () => "Organization Settings"
-        }
+          crumb: () => "Organization Settings",
+        },
       },
     ],
   },

@@ -1,6 +1,6 @@
 export default function NewsFeed() {
   return (
-    <div className="space-y-6 p-6">
+    <div className="m-6 space-y-6 p-6">
       <div className="space-y-2">
         <h1 className="text-heading-2xl font-bold text-[var(--color-text-primary)]">
           News Feed
