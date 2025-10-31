@@ -1708,6 +1708,7 @@ function Fixtures() {
             columnSizing={columnSizing}
             onColumnSizingChange={setColumnSizing}
             onRowClick={handleRowClick}
+            isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
           />
         </div>
 
