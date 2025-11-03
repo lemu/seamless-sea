@@ -27,6 +27,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  FixtureStatus,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
@@ -51,27 +52,27 @@ interface FixtureData {
   lastUpdated: number;
 }
 
-// Helper functions for Badge variants
-const getStatusBadgeVariant = (
+// Helper functions for Badge appearance
+const getStatusBadgeAppearance = (
   status: string
-): "default" | "secondary" | "outline" | "destructive" => {
+): "solid" | "subtle" | "outline" | undefined => {
   if (["Final", "Firm bid", "Firm offer", "Firm bxd"].includes(status)) {
-    return "default";
+    return "solid";
   } else if (["On Subs", "Working Copy", "Draft"].includes(status)) {
-    return "secondary";
+    return "subtle";
   }
-  return "secondary";
+  return "subtle";
 };
 
-const getApprovalStatusBadgeVariant = (
+const getApprovalStatusBadgeAppearance = (
   approvalStatus: string
-): "default" | "secondary" | "outline" | "destructive" => {
+): "solid" | "subtle" | "outline" | undefined => {
   if (["Signed", "Approved"].includes(approvalStatus)) {
-    return "default";
+    return "solid";
   } else if (["Pending approval", "Pending signature"].includes(approvalStatus)) {
     return "outline";
   }
-  return "secondary";
+  return "subtle";
 };
 
 // Generate mock fixture data based on Figma
@@ -96,14 +97,23 @@ const generateFixtureData = (): FixtureData[] => {
   ];
   const people = ["John Doe", "Martin Leake"];
   const statuses = [
-    "Final",
-    "On Subs",
-    "Firm bid",
-    "Working Copy",
-    "Draft",
-    "Firm offer",
-    "Firm bxd",
-    "Indicative offer",
+    "order-draft",
+    "order-distributed",
+    "order-withdrawn",
+    "negotiation-indicative-offer",
+    "negotiation-indicative-bid",
+    "negotiation-firm-offer",
+    "negotiation-firm-bid",
+    "negotiation-firm",
+    "negotiation-on-subs",
+    "negotiation-fixed",
+    "negotiation-withdrawn",
+    "contract-draft",
+    "contract-working-copy",
+    "contract-final",
+    "addenda-draft",
+    "addenda-working-copy",
+    "addenda-final",
   ];
   const approvalStatuses = [
     "Signed",
@@ -305,7 +315,7 @@ function FixtureSidebar({
                     <span className="text-body-sm text-[var(--color-text-secondary)]">
                       Stage
                     </span>
-                    <Badge variant="outline" className="text-caption-sm">
+                    <Badge appearance="outline" className="text-caption-sm">
                       {fixture.stage}
                     </Badge>
                   </div>
@@ -314,7 +324,7 @@ function FixtureSidebar({
                       Status
                     </span>
                     <Badge
-                      variant={getStatusBadgeVariant(fixture.status)}
+                      appearance={getStatusBadgeAppearance(fixture.status)}
                       className="text-caption-sm"
                     >
                       {fixture.status}
@@ -366,7 +376,7 @@ function FixtureSidebar({
                       Approval status
                     </span>
                     <Badge
-                      variant={getApprovalStatusBadgeVariant(fixture.approvalStatus)}
+                      appearance={getApprovalStatusBadgeAppearance(fixture.approvalStatus)}
                       className="text-caption-sm"
                     >
                       {fixture.approvalStatus}
@@ -433,6 +443,27 @@ function Fixtures() {
 
   // Memoize fixture data
   const fixtureData = useMemo(() => generateFixtureData(), []);
+
+  // Helper function to highlight search terms in text
+  const highlightSearchTerms = (text: string, terms: string[]) => {
+    if (!terms.length || !text) return text;
+
+    // Create regex pattern for all terms (escape special regex characters)
+    const pattern = terms
+      .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('|');
+
+    const regex = new RegExp(`(${pattern})`, 'gi');
+    const parts = text.split(regex);
+
+    return parts.map((part, i) => {
+      const testRegex = new RegExp(`^(${pattern})$`, 'i');
+      if (testRegex.test(part)) {
+        return <mark key={i} className="bg-[var(--yellow-200)] text-[var(--color-text-primary)] rounded-sm">{part}</mark>;
+      }
+      return part;
+    });
+  };
 
   // System bookmarks (read-only, configured via props)
   const systemBookmarks: Bookmark[] = [
@@ -539,6 +570,7 @@ function Fixtures() {
         meta: { label: "Fixture ID", align: "left" },
         enableGrouping: true,
         cell: ({ row }: any) => {
+          const value = row.getValue("fixtureId");
           return (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -549,7 +581,7 @@ function Fixtures() {
                     setSelectedFixture(row.original);
                   }}
                 >
-                  {row.getValue("fixtureId")}
+                  {highlightSearchTerms(value, globalSearchTerms)}
                 </button>
               </TooltipTrigger>
               <TooltipContent>View fixture details</TooltipContent>
@@ -641,7 +673,7 @@ function Fixtures() {
                 // Handle Order ID click if needed
               }}
             >
-              {value}
+              {highlightSearchTerms(value, globalSearchTerms)}
             </button>
           );
         },
@@ -730,7 +762,7 @@ function Fixtures() {
                 // Handle CP ID click if needed
               }}
             >
-              {cpId}
+              {highlightSearchTerms(cpId, globalSearchTerms)}
             </button>
           );
         },
@@ -772,28 +804,29 @@ function Fixtures() {
         cell: ({ row }: any) => {
           const status = row.getValue("status") as string;
           return (
-            <Badge variant={getStatusBadgeVariant(status)} className="text-caption-sm">
-              {status}
-            </Badge>
+            <div className="flex items-center overflow-visible">
+              <FixtureStatus value={status} className="overflow-visible" />
+            </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueStatuses = new Set(row.subRows?.map((r: any) => r.original.status) || []);
+          const uniqueStatuses = Array.from(new Set(row.subRows?.map((r: any) => r.original.status) || []));
 
-          // If only one unique status, show the Badge
-          if (uniqueStatuses.size === 1) {
-            const status = Array.from(uniqueStatuses)[0] as string;
+          // Single item group - show full status label without object prefix
+          if (row.subRows?.length === 1) {
             return (
-              <Badge variant={getStatusBadgeVariant(status)} className="text-caption-sm">
-                {String(status)}
-              </Badge>
+              <div className="flex items-center justify-start overflow-visible">
+                <FixtureStatus value={uniqueStatuses[0]} showObject={false} className="overflow-visible" />
+              </div>
             );
           }
 
-          // Multiple statuses - show count
+          // Multiple items - show all unique status icons
           return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueStatuses.size} statuses
+            <div className="flex items-center justify-start gap-1 overflow-visible">
+              {uniqueStatuses.map((status, index) => (
+                <FixtureStatus key={index} value={status} iconOnly className="overflow-visible" />
+              ))}
             </div>
           );
         },
@@ -807,7 +840,7 @@ function Fixtures() {
           const vessels = row.getValue("vessels") as string;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
-              {vessels}
+              {highlightSearchTerms(vessels, globalSearchTerms)}
             </div>
           );
         },
@@ -837,11 +870,14 @@ function Fixtures() {
         header: "Owner",
         meta: { label: "Owner", align: "left" },
         enableGrouping: true,
-        cell: ({ row }: any) => (
-          <div className="text-body-sm text-[var(--color-text-primary)]">
-            {row.getValue("owner")}
-          </div>
-        ),
+        cell: ({ row }: any) => {
+          const owner = row.getValue("owner") as string;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {highlightSearchTerms(owner, globalSearchTerms)}
+            </div>
+          );
+        },
         aggregatedCell: ({ row }: any) => {
           const uniqueOwners = new Set(row.subRows?.map((r: any) => r.original.owner) || []);
 
@@ -868,11 +904,14 @@ function Fixtures() {
         header: "Broker",
         meta: { label: "Broker", align: "left" },
         enableGrouping: true,
-        cell: ({ row }: any) => (
-          <div className="text-body-sm text-[var(--color-text-primary)]">
-            {row.getValue("broker")}
-          </div>
-        ),
+        cell: ({ row }: any) => {
+          const broker = row.getValue("broker") as string;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {highlightSearchTerms(broker, globalSearchTerms)}
+            </div>
+          );
+        },
         aggregatedCell: ({ row }: any) => {
           const uniqueBrokers = new Set(row.subRows?.map((r: any) => r.original.broker) || []);
 
@@ -899,11 +938,14 @@ function Fixtures() {
         header: "Charterer",
         meta: { label: "Charterer", align: "left" },
         enableGrouping: true,
-        cell: ({ row }: any) => (
-          <div className="text-body-sm text-[var(--color-text-primary)]">
-            {row.getValue("charterer")}
-          </div>
-        ),
+        cell: ({ row }: any) => {
+          const charterer = row.getValue("charterer") as string;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {highlightSearchTerms(charterer, globalSearchTerms)}
+            </div>
+          );
+        },
         aggregatedCell: ({ row }: any) => {
           const uniqueCharterers = new Set(row.subRows?.map((r: any) => r.original.charterer) || []);
 
@@ -1349,25 +1391,8 @@ function Fixtures() {
         }
       }
 
-      // Apply global search
-      if (globalSearchTerms.length > 0) {
-        const searchableText = [
-          fixture.fixtureId,
-          fixture.orderId,
-          fixture.cpId,
-          fixture.vessels,
-          fixture.personInCharge,
-          fixture.owner,
-          fixture.broker,
-          fixture.charterer,
-        ]
-          .join(" ")
-          .toLowerCase();
-        const allTermsMatch = globalSearchTerms.every((term) =>
-          searchableText.includes(term.toLowerCase()),
-        );
-        if (!allTermsMatch) return false;
-      }
+      // Note: Global search is now handled by DataTable's enableGlobalFilter
+      // This allows for group-preserving search where parent groups remain visible
 
       return true;
     });
@@ -1671,12 +1696,6 @@ function Fixtures() {
           </Bookmarks.Settings>
         </Bookmarks>
 
-        {/* Data Summary */}
-        <div className="text-body-sm text-[var(--color-text-secondary)]">
-          Showing <strong>{filteredData.length}</strong> of{" "}
-          <strong>{fixtureData.length}</strong> fixtures
-        </div>
-
         {/* Data Table */}
         <div className="fixtures-table">
           <DataTable
@@ -1689,6 +1708,13 @@ function Fixtures() {
             showHeader={false}
             groupedColumnMode="reorder"
             stickyHeader
+            // Group-preserving search
+            enableGlobalFilter={true}
+            globalFilterValue={globalSearchTerms.join(' ')}
+            getColumnCanGlobalFilter={(column) => {
+              // Enable search on specific columns
+              return ['fixtureId', 'orderId', 'cpId', 'vessels', 'owner', 'broker', 'charterer'].includes(column.id);
+            }}
             // Controlled state
             sorting={sorting}
             onSortingChange={setSorting}
@@ -1709,6 +1735,12 @@ function Fixtures() {
             onColumnSizingChange={setColumnSizing}
             onRowClick={handleRowClick}
             isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
+            footerLabel={
+              <span className="text-body-sm text-[var(--color-text-secondary)]">
+                Showing <strong className="text-[var(--color-text-primary)]">{filteredData.length}</strong> of{" "}
+                <strong className="text-[var(--color-text-primary)]">{fixtureData.length}</strong> fixtures
+              </span>
+            }
           />
         </div>
 
