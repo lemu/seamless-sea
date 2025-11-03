@@ -24,20 +24,20 @@ import {
 import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 import { InsightsSection } from "../components/InsightsSection";
 
-// Helper function for Badge variants
-const getStageBadgeVariant = (
+// Helper function for Badge appearance
+const getStageBadgeProps = (
   stage: string
-): "default" | "secondary" | "outline" | "destructive" => {
+): { intent?: "neutral" | "brand" | "success" | "warning" | "destructive" | "information" | "violet" | "magenta"; appearance?: "solid" | "subtle" | "outline" } => {
   if (stage === 'Active') {
-    return 'default';
+    return { intent: 'brand', appearance: 'subtle' };
   } else if (stage === 'Negotiating') {
-    return 'outline';
+    return { appearance: 'outline' };
   } else if (stage === 'Offer') {
-    return 'outline';
+    return { appearance: 'outline' };
   } else if (stage === 'Pending') {
-    return 'secondary';
+    return { intent: 'neutral', appearance: 'subtle' };
   }
-  return 'secondary';
+  return { intent: 'neutral', appearance: 'subtle' };
 };
 
 // Define types for multi-level order structure
@@ -332,6 +332,34 @@ function TradeDesk() {
           {row.getValue('id')}
         </div>
       ),
+      sectionHeaderCell: ({ row }) => {
+        // Check if this row is a broker group (Level 2)
+        if (row.original.isBrokerGroup) {
+          const broker = row.original.counterparty;
+          const canExpand = row.getCanExpand();
+          const isExpanded = row.getIsExpanded();
+
+          return (
+            <div className="flex items-center gap-[var(--space-sm)] h-7 px-[var(--space-md)] pl-[var(--space-xlg)]">
+              {canExpand && (
+                <button
+                  onClick={row.getToggleExpandedHandler()}
+                  className="flex h-[var(--size-sm)] w-[var(--size-sm)] items-center justify-center rounded-sm text-[var(--color-text-secondary)] hover:bg-[var(--blue-100)] hover:text-[var(--color-text-primary)]"
+                >
+                  <Icon
+                    name={isExpanded ? "chevron-down" : "chevron-right"}
+                    className="h-3 w-3"
+                  />
+                </button>
+              )}
+              <span className="text-body-strong-sm text-[var(--color-text-secondary)]">
+                {broker}
+              </span>
+            </div>
+          );
+        }
+        return null;
+      },
     },
     {
       accessorKey: 'counterparty',
@@ -361,8 +389,9 @@ function TradeDesk() {
       cell: ({ row }) => {
         const stage = row.getValue('stage') as string;
         if (!stage) return null;
+        const badgeProps = getStageBadgeProps(stage);
         return (
-          <Badge variant={getStageBadgeVariant(stage)} className="text-caption-sm">
+          <Badge {...badgeProps} className="text-caption-sm">
             {stage}
           </Badge>
         );
@@ -734,34 +763,6 @@ function TradeDesk() {
         borderStyle="horizontal"
         autoExpandChildren={true}
         showHeader={false}
-        renderSectionHeaderRow={(row) => {
-          // Check if this row is a broker group (Level 2)
-          if (row.original.isBrokerGroup) {
-            const broker = row.original.counterparty;
-            const canExpand = row.getCanExpand();
-            const isExpanded = row.getIsExpanded();
-
-            return (
-              <div className="flex items-center gap-[var(--space-sm)] h-7 px-[var(--space-md)] pl-[var(--space-xlg)]">
-                {canExpand && (
-                  <button
-                    onClick={row.getToggleExpandedHandler()}
-                    className="flex h-[var(--size-sm)] w-[var(--size-sm)] items-center justify-center rounded-sm text-[var(--color-text-secondary)] hover:bg-[var(--blue-100)] hover:text-[var(--color-text-primary)]"
-                  >
-                    <Icon
-                      name={isExpanded ? "chevron-down" : "chevron-right"}
-                      className="h-3 w-3"
-                    />
-                  </button>
-                )}
-                <span className="text-body-strong-sm text-[var(--color-text-secondary)]">
-                  {broker}
-                </span>
-              </div>
-            );
-          }
-          return null;
-        }}
       />
       </div>
     </>
