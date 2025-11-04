@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   type ColumnDef,
   type SortingState,
   type VisibilityState,
   type GroupingState,
   type ColumnOrderState,
+  type ExpandedState,
 } from "@tanstack/react-table";
 import {
   DataTable,
@@ -465,7 +466,6 @@ function Fixtures() {
     });
   };
 
-
   // System bookmarks (read-only, configured via props)
   const systemBookmarks: Bookmark[] = [
     {
@@ -555,15 +555,13 @@ function Fixtures() {
   ]);
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
 
-  // Table instance ref
-  const tableRef = useRef<any>(null);
-
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [grouping, setGrouping] = useState<GroupingState>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
+  const [expanded, setExpanded] = useState<ExpandedState>({});
 
   // Memoize columns
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(
@@ -1372,33 +1370,55 @@ function Fixtures() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  // Sync global search terms with DataTable's global filter
+  // Sync global search terms to expand groups when searching
   useEffect(() => {
-    if (tableRef.current) {
-      const searchValue = globalSearchTerms.join(' ');
-      console.log('[Fixtures Debug] Setting global filter to:', searchValue);
-      tableRef.current.setGlobalFilter(searchValue);
+    if (globalSearchTerms.length > 0) {
+      setExpanded(true); // Auto-expand all groups when searching
     }
   }, [globalSearchTerms]);
 
-  // Data filtering
+  // Helper function to check if a fixture matches global search terms
+  const matchesGlobalSearch = (fixture: FixtureData): boolean => {
+    if (globalSearchTerms.length === 0) return true;
+
+    // Searchable fields
+    const searchableText = [
+      fixture.fixtureId,
+      fixture.orderId,
+      fixture.cpId,
+      fixture.vessels,
+      fixture.owner,
+      fixture.broker,
+      fixture.charterer,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    // Check if ALL search terms are present (AND logic)
+    return globalSearchTerms.every(term =>
+      searchableText.includes(term.toLowerCase())
+    );
+  };
+
+  // Data filtering with group-preserving search logic
   const filteredData = useMemo(() => {
     return fixtureData.filter((fixture) => {
-      // Special filter for Negotiations bookmark: exclude fixtures without negotiation IDs
+      // Special filter for Negotiations bookmark
       if (activeBookmarkId === "system-negotiations") {
         if (!fixture.negotiationId || fixture.negotiationId === "-") {
           return false;
         }
       }
 
-      // Special filter for Contracts bookmark: exclude fixtures without CP IDs
+      // Special filter for Contracts bookmark
       if (activeBookmarkId === "system-contracts") {
         if (!fixture.cpId) {
           return false;
         }
       }
 
-      // Apply active filters
+      // Apply active filters (from Filters sidebar)
       for (const [filterId, filterValue] of Object.entries(activeFilters)) {
         if (Array.isArray(filterValue) && filterValue.length > 0) {
           const fixtureValue = String(
@@ -1411,12 +1431,12 @@ function Fixtures() {
         }
       }
 
-      // Note: Global search is now handled by DataTable's enableGlobalFilter
-      // This allows for group-preserving search where parent groups remain visible
+      // Apply global search filter
+      if (!matchesGlobalSearch(fixture)) return false;
 
       return true;
     });
-  }, [fixtureData, activeFilters, globalSearchTerms, activeBookmarkId]);
+  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms]);
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
@@ -1728,13 +1748,8 @@ function Fixtures() {
             showHeader={false}
             groupedColumnMode="reorder"
             stickyHeader
-            // Group-preserving search with highlighting (controlled from Filters sidebar)
+            // Group-preserving search handled via manual filtering and auto-expansion
             enableGlobalSearch={false}
-            groupPreservingSearch={true}
-            enableGlobalFaceting={true}
-            onTableReady={(table) => {
-              tableRef.current = table;
-            }}
             // Controlled state
             sorting={sorting}
             onSortingChange={setSorting}
@@ -1742,6 +1757,10 @@ function Fixtures() {
             onColumnVisibilityChange={setColumnVisibility}
             grouping={grouping}
             onGroupingChange={setGrouping}
+            initialState={{
+              expanded,
+            }}
+            autoExpandChildren={globalSearchTerms.length > 0}
             groupDisplayColumn={
               grouping[0] === "fixtureId" && columnVisibility.fixtureId === false
                 ? "orderId"
