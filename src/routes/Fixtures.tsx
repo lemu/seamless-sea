@@ -1206,8 +1206,8 @@ function Fixtures() {
   const calculateBookmarkCount = (bookmark: Bookmark): number => {
     if (!bookmark.filtersState) return fixtureData.length;
 
-    // First, filter fixtures based on bookmark's filter criteria
-    const filteredFixtures = fixtureData.filter((fixture) => {
+    // Step 1: Apply bookmark and field filters (non-search filters)
+    let data = fixtureData.filter((fixture) => {
       // Special filter for Negotiations bookmark: exclude fixtures without negotiation IDs
       if (bookmark.id === "system-negotiations") {
         if (!fixture.negotiationId || fixture.negotiationId === "-") {
@@ -1215,7 +1215,7 @@ function Fixtures() {
         }
       }
 
-      // Apply active filters
+      // Apply active filters from bookmark
       if (bookmark.filtersState) {
         for (const [filterId, filterValue] of Object.entries(
           bookmark.filtersState.activeFilters,
@@ -1230,45 +1230,87 @@ function Fixtures() {
             if (!match) return false;
           }
         }
-
-        // Apply global search
-        if (
-          bookmark.filtersState.globalSearchTerms &&
-          bookmark.filtersState.globalSearchTerms.length > 0
-        ) {
-          const searchableText = [
-            fixture.fixtureId,
-            fixture.orderId,
-            fixture.cpId,
-            fixture.vessels,
-            fixture.personInCharge,
-            fixture.owner,
-            fixture.broker,
-            fixture.charterer,
-          ]
-            .join(" ")
-            .toLowerCase();
-          const allTermsMatch = bookmark.filtersState.globalSearchTerms.every(
-            (term) => searchableText.includes(term.toLowerCase()),
-          );
-          if (!allTermsMatch) return false;
-        }
       }
 
       return true;
     });
 
-    // If grouping is enabled, count unique groups instead of fixtures
-    if (bookmark.tableState?.grouping && bookmark.tableState.grouping.length > 0) {
-      const groupingColumn = bookmark.tableState.grouping[0] as keyof FixtureData;
+    // Step 2: Apply group-preserving global search (if grouping is enabled)
+    const searchTerms = bookmark.filtersState.globalSearchTerms || [];
+    const groupingColumn = bookmark.tableState?.grouping?.[0] as keyof FixtureData | undefined;
+
+    if (searchTerms.length > 0 && groupingColumn) {
+      // Group fixtures by their grouping column
+      const fixturesByGroup = new Map<string, FixtureData[]>();
+      data.forEach(fixture => {
+        const groupKey = String(fixture[groupingColumn]);
+        if (!fixturesByGroup.has(groupKey)) {
+          fixturesByGroup.set(groupKey, []);
+        }
+        fixturesByGroup.get(groupKey)!.push(fixture);
+      });
+
+      // Find groups where ALL search terms exist somewhere in the group
+      const matchingGroupKeys = new Set<string>();
+      fixturesByGroup.forEach((fixtures, groupKey) => {
+        // Combine searchable text from ALL fixtures in this group
+        const groupSearchableText = fixtures
+          .map(fixture => [
+            fixture.fixtureId,
+            fixture.orderId,
+            fixture.cpId,
+            fixture.vessels,
+            fixture.owner,
+            fixture.broker,
+            fixture.charterer,
+          ].filter(Boolean).join(' '))
+          .join(' ')
+          .toLowerCase();
+
+        // Check if ALL search terms exist in the group's combined text (AND logic)
+        const groupMatches = searchTerms.every(term =>
+          groupSearchableText.includes(term.toLowerCase())
+        );
+
+        if (groupMatches) {
+          matchingGroupKeys.add(groupKey);
+        }
+      });
+
+      // Return count of matching groups
+      return matchingGroupKeys.size;
+    }
+
+    // Step 3: Apply fixture-level search (if no grouping but search terms exist)
+    if (searchTerms.length > 0) {
+      data = data.filter((fixture) => {
+        const searchableText = [
+          fixture.fixtureId,
+          fixture.orderId,
+          fixture.cpId,
+          fixture.vessels,
+          fixture.personInCharge,
+          fixture.owner,
+          fixture.broker,
+          fixture.charterer,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return searchTerms.every((term) =>
+          searchableText.includes(term.toLowerCase())
+        );
+      });
+    }
+
+    // Step 4: Return count (groups if grouping enabled, fixtures otherwise)
+    if (groupingColumn) {
       const uniqueGroups = new Set(
-        filteredFixtures.map(fixture => fixture[groupingColumn])
+        data.map(fixture => fixture[groupingColumn])
       );
       return uniqueGroups.size;
     }
 
-    // No grouping, return fixture count
-    return filteredFixtures.length;
+    return data.length;
   };
 
   // Dynamically calculate counts for all bookmarks
