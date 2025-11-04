@@ -460,7 +460,19 @@ function Fixtures() {
     return parts.map((part, i) => {
       const testRegex = new RegExp(`^(${pattern})$`, 'i');
       if (testRegex.test(part)) {
-        return <mark key={i} className="bg-[var(--yellow-200)] text-[var(--color-text-primary)] rounded-sm">{part}</mark>;
+        return (
+          <mark
+            key={i}
+            style={{
+              backgroundColor: 'var(--yellow-200, #fef08a)',
+              color: 'var(--color-text-primary, inherit)',
+              borderRadius: '2px',
+              padding: '0 2px'
+            }}
+          >
+            {part}
+          </mark>
+        );
       }
       return part;
     });
