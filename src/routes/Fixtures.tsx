@@ -1840,10 +1840,29 @@ function Fixtures() {
             onRowClick={handleRowClick}
             isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
             footerLabel={
-              <span className="text-body-sm text-[var(--color-text-secondary)]">
-                Showing <strong className="text-[var(--color-text-primary)]">{filteredData.length}</strong> of{" "}
-                <strong className="text-[var(--color-text-primary)]">{fixtureData.length}</strong> fixtures
-              </span>
+              (() => {
+                // When grouping is active, count groups instead of individual fixtures
+                if (grouping.length > 0) {
+                  const groupingColumn = grouping[0] as keyof FixtureData;
+                  const uniqueGroups = new Set(
+                    filteredData.map(fixture => fixture[groupingColumn])
+                  );
+                  return (
+                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                      Showing <strong className="text-[var(--color-text-primary)]">{uniqueGroups.size}</strong> groups of{" "}
+                      <strong className="text-[var(--color-text-primary)]">{fixtureData.length}</strong> fixtures
+                    </span>
+                  );
+                }
+
+                // When no grouping, show fixture count
+                return (
+                  <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    Showing <strong className="text-[var(--color-text-primary)]">{filteredData.length}</strong> of{" "}
+                    <strong className="text-[var(--color-text-primary)]">{fixtureData.length}</strong> fixtures
+                  </span>
+                );
+              })()
             }
           />
         </div>
