@@ -1403,7 +1403,8 @@ function Fixtures() {
 
   // Data filtering with group-preserving search logic
   const filteredData = useMemo(() => {
-    return fixtureData.filter((fixture) => {
+    // Step 1: Apply bookmark and field filters (non-search filters)
+    let data = fixtureData.filter((fixture) => {
       // Special filter for Negotiations bookmark
       if (activeBookmarkId === "system-negotiations") {
         if (!fixture.negotiationId || fixture.negotiationId === "-") {
@@ -1431,12 +1432,35 @@ function Fixtures() {
         }
       }
 
-      // Apply global search filter
-      if (!matchesGlobalSearch(fixture)) return false;
-
       return true;
     });
-  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms]);
+
+    // Step 2: Apply group-preserving global search
+    if (globalSearchTerms.length > 0) {
+      // Get the active grouping column (fixtureId, negotiationId, or cpId)
+      const groupingColumn = grouping[0] as keyof FixtureData | undefined;
+
+      if (groupingColumn) {
+        // Find all fixtures that match the search
+        const matchingFixtures = data.filter(matchesGlobalSearch);
+
+        // Get all unique group keys from matching fixtures
+        const matchingGroupKeys = new Set(
+          matchingFixtures.map(f => f[groupingColumn])
+        );
+
+        // Include ALL fixtures that belong to matching groups
+        data = data.filter(fixture =>
+          matchingGroupKeys.has(fixture[groupingColumn])
+        );
+      } else {
+        // No grouping active, filter normally
+        data = data.filter(matchesGlobalSearch);
+      }
+    }
+
+    return data;
+  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping]);
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
