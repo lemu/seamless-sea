@@ -1206,7 +1206,8 @@ function Fixtures() {
   const calculateBookmarkCount = (bookmark: Bookmark): number => {
     if (!bookmark.filtersState) return fixtureData.length;
 
-    return fixtureData.filter((fixture) => {
+    // First, filter fixtures based on bookmark's filter criteria
+    const filteredFixtures = fixtureData.filter((fixture) => {
       // Special filter for Negotiations bookmark: exclude fixtures without negotiation IDs
       if (bookmark.id === "system-negotiations") {
         if (!fixture.negotiationId || fixture.negotiationId === "-") {
@@ -1255,7 +1256,19 @@ function Fixtures() {
       }
 
       return true;
-    }).length;
+    });
+
+    // If grouping is enabled, count unique groups instead of fixtures
+    if (bookmark.tableState?.grouping && bookmark.tableState.grouping.length > 0) {
+      const groupingColumn = bookmark.tableState.grouping[0] as keyof FixtureData;
+      const uniqueGroups = new Set(
+        filteredFixtures.map(fixture => fixture[groupingColumn])
+      );
+      return uniqueGroups.size;
+    }
+
+    // No grouping, return fixture count
+    return filteredFixtures.length;
   };
 
   // Dynamically calculate counts for all bookmarks
