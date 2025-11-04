@@ -569,6 +569,7 @@ function Fixtures() {
         header: "Fixture ID",
         meta: { label: "Fixture ID", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const value = row.getValue("fixtureId");
           return (
@@ -621,6 +622,7 @@ function Fixtures() {
         header: "Order ID",
         meta: { label: "Order ID", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row, table }: any) => {
           // Grouped row (has subRows): Only show special display when grouped by fixtureId with it hidden
           if (row.subRows?.length > 0) {
@@ -752,6 +754,7 @@ function Fixtures() {
         header: "CP ID",
         meta: { label: "CP ID", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const cpId = row.getValue("cpId") as string;
           return (
@@ -836,6 +839,7 @@ function Fixtures() {
         header: "Vessel Name",
         meta: { label: "Vessel Name", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const vessels = row.getValue("vessels") as string;
           return (
@@ -870,6 +874,7 @@ function Fixtures() {
         header: "Owner",
         meta: { label: "Owner", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const owner = row.getValue("owner") as string;
           return (
@@ -904,6 +909,7 @@ function Fixtures() {
         header: "Broker",
         meta: { label: "Broker", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const broker = row.getValue("broker") as string;
           return (
@@ -938,6 +944,7 @@ function Fixtures() {
         header: "Charterer",
         meta: { label: "Charterer", align: "left" },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const charterer = row.getValue("charterer") as string;
           return (
@@ -1711,10 +1718,6 @@ function Fixtures() {
             // Group-preserving search
             enableGlobalFilter={true}
             globalFilterValue={globalSearchTerms.join(' ')}
-            getColumnCanGlobalFilter={(column) => {
-              // Enable search on specific columns
-              return ['fixtureId', 'orderId', 'cpId', 'vessels', 'owner', 'broker', 'charterer'].includes(column.id);
-            }}
             // Controlled state
             sorting={sorting}
             onSortingChange={setSorting}
