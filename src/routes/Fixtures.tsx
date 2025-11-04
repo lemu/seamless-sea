@@ -1453,17 +1453,46 @@ function Fixtures() {
       const groupingColumn = grouping[0] as keyof FixtureData | undefined;
 
       if (groupingColumn) {
-        // Find all fixtures that match the search
-        const matchingFixtures = data.filter(matchesGlobalSearch);
+        // Group fixtures by their grouping column
+        const fixturesByGroup = new Map<string, FixtureData[]>();
+        data.forEach(fixture => {
+          const groupKey = String(fixture[groupingColumn]);
+          if (!fixturesByGroup.has(groupKey)) {
+            fixturesByGroup.set(groupKey, []);
+          }
+          fixturesByGroup.get(groupKey)!.push(fixture);
+        });
 
-        // Get all unique group keys from matching fixtures
-        const matchingGroupKeys = new Set(
-          matchingFixtures.map(f => f[groupingColumn])
-        );
+        // Find groups where ALL search terms exist somewhere in the group
+        const matchingGroupKeys = new Set<string>();
+        fixturesByGroup.forEach((fixtures, groupKey) => {
+          // Combine searchable text from ALL fixtures in this group
+          const groupSearchableText = fixtures
+            .map(fixture => [
+              fixture.fixtureId,
+              fixture.orderId,
+              fixture.cpId,
+              fixture.vessels,
+              fixture.owner,
+              fixture.broker,
+              fixture.charterer,
+            ].filter(Boolean).join(' '))
+            .join(' ')
+            .toLowerCase();
+
+          // Check if ALL search terms exist in the group's combined text (AND logic)
+          const groupMatches = globalSearchTerms.every(term =>
+            groupSearchableText.includes(term.toLowerCase())
+          );
+
+          if (groupMatches) {
+            matchingGroupKeys.add(groupKey);
+          }
+        });
 
         // Include ALL fixtures that belong to matching groups
         data = data.filter(fixture =>
-          matchingGroupKeys.has(fixture[groupingColumn])
+          matchingGroupKeys.has(String(fixture[groupingColumn]))
         );
       } else {
         // No grouping active, filter normally
