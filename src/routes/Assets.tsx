@@ -1,11 +1,8 @@
 function Assets() {
   return (
-    <div
-      className="m-6 max-w-full min-w-0 space-y-6 overflow-x-hidden"
-      style={{ padding: "var(--page-padding)" }}
-    >
+    <div className="m-6 flex flex-col gap-[var(--space-lg)]">
       {/* Header with Title */}
-      <div className="flex min-w-0 items-center justify-between gap-4 overflow-hidden">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-heading-lg shrink-0 font-bold text-[var(--color-text-primary)]">
           Assets
         </h1>

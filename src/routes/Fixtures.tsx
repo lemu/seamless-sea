@@ -22,8 +22,6 @@ import {
   Icon,
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
   SheetClose,
   Tooltip,
   TooltipContent,
@@ -251,55 +249,92 @@ function FixtureSidebar({
 }) {
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-[480px]">
-        <SheetHeader>
-          <SheetTitle>Fixture {fixture.cpId}</SheetTitle>
-          <SheetClose />
-        </SheetHeader>
+      <SheetContent side="right" className="w-[640px] p-0">
+        {/* Header */}
+        <div className="flex flex-col gap-6 border-b border-[var(--gray-200)] bg-white px-6 pb-6 pt-6">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              {/* Main title line with fixture ID and companies */}
+              <div className="flex items-center gap-2 text-[20px] font-semibold leading-6 tracking-[-0.2px] text-[var(--color-text-primary)]">
+                <span>FX-2024-002</span>
+                <span>•</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Icon name="building" size="sm" />
+                    <span className="text-[12px] font-medium">ShipCo</span>
+                  </div>
+                  <span className="text-[12px]">×</span>
+                  <div className="flex items-center gap-1">
+                    <Icon name="building" size="sm" />
+                    <span className="text-[12px] font-medium">Acme</span>
+                  </div>
+                </div>
+              </div>
 
-        {/* Tabs */}
-        <Tabs
-          defaultValue="details"
-          className="flex flex-1 flex-col overflow-hidden"
-        >
-          <TabsList className="my-4 px-6 py-4">
-            <TabsTrigger value="details">Fixture details</TabsTrigger>
-            <TabsTrigger value="activity">Activity log</TabsTrigger>
-          </TabsList>
+              {/* Metadata line with route and cargo */}
+              <div className="flex items-center gap-1 text-[10px] leading-[14px] text-[var(--color-text-secondary)]">
+                <span className="font-semibold">🇧🇷</span>
+                <span>Tubarao, BR</span>
+                <Icon name="arrow-right" size="sm" />
+                <span className="font-semibold">🇨🇳</span>
+                <span>Qingdao, CN</span>
+                <span>•</span>
+                <span>240,000 mt coal</span>
+                <span>•</span>
+                <span>June 12 – Aug 26 2025</span>
+              </div>
+            </div>
+            <SheetClose />
+          </div>
 
-          {/* Fixture Details Tab */}
+          {/* Tabs */}
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="w-full border-b border-[var(--gray-200)]">
+              <TabsTrigger value="overview" className="flex-1">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="flex-1">
+                Activity Log
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Content */}
+        <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+          {/* Overview Tab */}
           <TabsContent
-            value="details"
-            className="mt-6 flex-1 overflow-y-auto px-6 pb-6"
+            value="overview"
+            className="flex-1 overflow-y-auto bg-[#f6f7f8] px-6 py-8"
           >
             <div className="space-y-6">
               {/* Order Section */}
               <div className="space-y-3">
-                <h3 className="text-heading-sm font-semibold text-[var(--color-text-primary)]">
+                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
                   Order
                 </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Order ID
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.orderId || "-"}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Negotiation ID
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.negotiationId}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Person in charge
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.personInCharge}
                     </span>
                   </div>
@@ -308,42 +343,42 @@ function FixtureSidebar({
 
               {/* Recap Section */}
               <div className="space-y-3">
-                <h3 className="text-heading-sm font-semibold text-[var(--color-text-primary)]">
+                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
                   Recap
                 </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Stage
                     </span>
-                    <Badge appearance="outline" className="text-caption-sm">
+                    <Badge appearance="outline" className="text-[12px]">
                       {fixture.stage}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Status
                     </span>
                     <Badge
                       appearance={getStatusBadgeAppearance(fixture.status)}
-                      className="text-caption-sm"
+                      className="text-[12px]"
                     >
                       {fixture.status}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Vessel(s)
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.vessels}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Last updated
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {formatTimestamp(fixture.lastUpdated)}
                     </span>
                   </div>
@@ -352,58 +387,58 @@ function FixtureSidebar({
 
               {/* Contract Section */}
               <div className="space-y-3">
-                <h3 className="text-heading-sm font-semibold text-[var(--color-text-primary)]">
+                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
                   Contract
                 </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       CP ID
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.cpId}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Type of contract
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.typeOfContract}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Approval status
                     </span>
                     <Badge
                       appearance={getApprovalStatusBadgeAppearance(fixture.approvalStatus)}
-                      className="text-caption-sm"
+                      className="text-[12px]"
                     >
                       {fixture.approvalStatus}
                     </Badge>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Owner
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.owner}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Broker
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.broker}
                     </span>
                   </div>
                   <div className="flex justify-between py-2">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    <span className="text-[14px] text-[var(--color-text-secondary)]">
                       Charterer
                     </span>
-                    <span className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
                       {fixture.charterer}
                     </span>
                   </div>
@@ -415,19 +450,42 @@ function FixtureSidebar({
           {/* Activity Log Tab */}
           <TabsContent
             value="activity"
-            className="mt-6 flex-1 overflow-y-auto px-6 pb-6"
+            className="flex-1 overflow-y-auto bg-[#f6f7f8] px-6 py-8"
           >
-            <div className="flex h-full flex-col items-center justify-center gap-3 py-12">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--gray-100)]">
-                <Icon name="clock" size="lg" className="text-[var(--color-text-tertiary)]" />
+            <div className="flex flex-col gap-4">
+              {/* Toolbar */}
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" size="sm" className="h-6 text-[12px]">
+                  Show all changes
+                </Button>
+                <span className="text-[var(--color-text-secondary)]">•</span>
+                <span className="text-[12px] font-medium text-[var(--color-text-primary)]">
+                  Sorting
+                </span>
+                <Button variant="secondary" size="sm" className="h-6 text-[12px]">
+                  Oldest last
+                  <Icon name="chevron-down" size="sm" />
+                </Button>
               </div>
-              <div className="text-center">
-                <p className="text-body-md font-medium text-[var(--color-text-primary)]">
-                  No activity yet
-                </p>
-                <p className="text-body-sm text-[var(--color-text-secondary)]">
-                  Chronological events will appear here
-                </p>
+
+              {/* Order Card */}
+              <div className="rounded-lg border border-[var(--gray-200)] bg-white p-6">
+                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
+                  Order
+                </h3>
+                <div className="mt-6 flex min-h-[200px] items-center justify-center text-[var(--color-text-secondary)]">
+                  {/* Timeline placeholder */}
+                </div>
+              </div>
+
+              {/* Contract Card */}
+              <div className="rounded-lg border border-[var(--gray-200)] bg-white p-6">
+                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
+                  Contract
+                </h3>
+                <div className="mt-6 flex min-h-[250px] items-center justify-center text-[var(--color-text-secondary)]">
+                  {/* Timeline placeholder */}
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -822,18 +880,18 @@ function Fixtures() {
           const status = row.getValue("status") as string;
           return (
             <div className="flex items-center overflow-visible">
-              <FixtureStatus value={status} className="overflow-visible" />
+              <FixtureStatus value={status as any} className="overflow-visible" />
             </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueStatuses = Array.from(new Set(row.subRows?.map((r: any) => r.original.status) || []));
+          const uniqueStatuses = Array.from(new Set(row.subRows?.map((r: any) => r.original.status) || [])) as string[];
 
           // Single item group - show full status label without object prefix
           if (row.subRows?.length === 1) {
             return (
               <div className="flex items-center justify-start overflow-visible">
-                <FixtureStatus value={uniqueStatuses[0]} showObject={false} className="overflow-visible" />
+                <FixtureStatus value={uniqueStatuses[0] as any} showObject={false} className="overflow-visible" />
               </div>
             );
           }
@@ -842,7 +900,7 @@ function Fixtures() {
           return (
             <div className="flex items-center justify-start gap-1 overflow-visible">
               {uniqueStatuses.map((status, index) => (
-                <FixtureStatus key={index} value={status} iconOnly className="overflow-visible" />
+                <FixtureStatus key={index} value={status as any} iconOnly className="overflow-visible" />
               ))}
             </div>
           );
@@ -1695,10 +1753,7 @@ function Fixtures() {
 
   return (
     <>
-      <div
-        className="m-6 flex flex-col gap-[var(--space-lg)]"
-        style={{ padding: "var(--page-padding)" }}
-      >
+      <div className="m-6 flex flex-col gap-[var(--space-lg)]">
         {/* Page Header */}
         <div className="flex flex-col gap-[var(--space-sm)]">
           <h1 className="text-heading-lg">Fixtures</h1>

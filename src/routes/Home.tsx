@@ -3,9 +3,9 @@ import { Button } from "@rafal.lemieszewski/tide-ui";
 
 function Home() {
   return (
-    <div className="m-6 space-y-6 overflow-x-hidden max-w-full min-w-0" style={{ padding: 'var(--page-padding)' }}>
+    <div className="m-6 flex flex-col gap-[var(--space-lg)]">
       {/* Header with Title */}
-      <div className="flex items-center justify-between gap-4 min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
           Seamless Sea
         </h1>

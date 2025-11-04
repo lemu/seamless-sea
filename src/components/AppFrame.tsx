@@ -1124,7 +1124,7 @@ function AppSidebar() {
                 key={team.name}
                 onSelect={() => setCommandOpen(false)}
               >
-                <Avatar size="sm" shape="rounded" className="mr-2">
+                <Avatar size="sm" className="mr-2">
                     <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
                     <AvatarFallback>
                       {getTeamInitials(team.name || "")}
@@ -1403,7 +1403,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
             <div className="flex w-full items-center gap-3 group-data-[collapsible=icon]:hidden">
               {/* Team/Company Avatar */}
               <div className="relative">
-                <Avatar size="md" shape="rounded">
+                <Avatar size="md">
                   <AvatarImage
                     src={activeTeam?.avatarUrl || undefined}
                     alt={activeTeam?.name}
@@ -1414,7 +1414,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                 </Avatar>
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
-                  <Avatar size="xs" shape="circle">
+                  <Avatar size="xs">
                     <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                     <AvatarFallback>
                       {getUserInitials(user.name)}
@@ -1439,7 +1439,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
 
             {/* Collapsed state - just avatars */}
             <div className="relative hidden group-data-[collapsible=icon]:block">
-              <Avatar size="sm" shape="rounded">
+              <Avatar size="sm">
                 <AvatarImage
                   src={activeTeam?.avatarUrl || undefined}
                   alt={activeTeam?.name}
@@ -1450,7 +1450,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               </Avatar>
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
-                <Avatar size="xs" shape="circle">
+                <Avatar size="xs">
                   <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                   <AvatarFallback>
                     {getUserInitials(user.name)}
@@ -1469,7 +1469,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           {/* User Section */}
           <DropdownMenuLabel className="p-0 font-normal">
             <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar size="sm" shape="circle">
+              <Avatar size="sm">
                 <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                 <AvatarFallback>
                   {getUserInitials(user.name)}
@@ -1498,7 +1498,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               onClick={() => setActiveTeam(team)}
               className="mx-1 mb-1 h-10 cursor-pointer gap-2 px-1 pr-2 pl-1"
             >
-              <Avatar size="sm" shape="rounded">
+              <Avatar size="sm">
                 <AvatarImage src={team.avatarUrl || undefined} alt={team.name} />
                 <AvatarFallback>
                   {getTeamInitials(team.name || "")}
