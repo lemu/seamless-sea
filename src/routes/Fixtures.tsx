@@ -853,12 +853,12 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const uniqueVessels = new Set(row.subRows?.map((r: any) => r.original.vessels) || []);
 
-          // If only one unique vessel, show the name
+          // If only one unique vessel, show the name with highlighting
           if (uniqueVessels.size === 1) {
             const vessel = Array.from(uniqueVessels)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {String(vessel)}
+                {highlightSearchTerms(vessel, globalSearchTerms)}
               </div>
             );
           }
@@ -888,12 +888,12 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const uniqueOwners = new Set(row.subRows?.map((r: any) => r.original.owner) || []);
 
-          // If only one unique owner, show the name
+          // If only one unique owner, show the name with highlighting
           if (uniqueOwners.size === 1) {
             const owner = Array.from(uniqueOwners)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {String(owner)}
+                {highlightSearchTerms(owner, globalSearchTerms)}
               </div>
             );
           }
@@ -923,12 +923,12 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const uniqueBrokers = new Set(row.subRows?.map((r: any) => r.original.broker) || []);
 
-          // If only one unique broker, show the name
+          // If only one unique broker, show the name with highlighting
           if (uniqueBrokers.size === 1) {
             const broker = Array.from(uniqueBrokers)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {String(broker)}
+                {highlightSearchTerms(broker, globalSearchTerms)}
               </div>
             );
           }
@@ -958,12 +958,12 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const uniqueCharterers = new Set(row.subRows?.map((r: any) => r.original.charterer) || []);
 
-          // If only one unique charterer, show the name
+          // If only one unique charterer, show the name with highlighting
           if (uniqueCharterers.size === 1) {
             const charterer = Array.from(uniqueCharterers)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
-                {String(charterer)}
+                {highlightSearchTerms(charterer, globalSearchTerms)}
               </div>
             );
           }
