@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   type ColumnDef,
   type SortingState,
@@ -465,23 +465,6 @@ function Fixtures() {
     });
   };
 
-  // Custom global filter function for multi-term search
-  const customGlobalFilterFn = (row: any, columnId: string, filterValue: string) => {
-    // Get the search terms from the filter value
-    const searchTerms = filterValue.trim().split(/\s+/).filter(Boolean);
-    if (searchTerms.length === 0) return true;
-
-    // Get the cell value
-    const cellValue = row.getValue(columnId);
-    if (!cellValue) return false;
-
-    const cellText = String(cellValue).toLowerCase();
-
-    // Check if ALL search terms are found in this cell
-    return searchTerms.every(term =>
-      cellText.includes(term.toLowerCase())
-    );
-  };
 
   // System bookmarks (read-only, configured via props)
   const systemBookmarks: Bookmark[] = [
@@ -571,6 +554,9 @@ function Fixtures() {
     "status",
   ]);
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
+
+  // Table instance ref
+  const tableRef = useRef<any>(null);
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -1386,10 +1372,13 @@ function Fixtures() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  // Debug: Log when globalSearchTerms changes
+  // Sync global search terms with DataTable's global filter
   useEffect(() => {
-    console.log('[Fixtures Debug] globalSearchTerms changed:', globalSearchTerms);
-    console.log('[Fixtures Debug] joined value:', globalSearchTerms.join(' '));
+    if (tableRef.current) {
+      const searchValue = globalSearchTerms.join(' ');
+      console.log('[Fixtures Debug] Setting global filter to:', searchValue);
+      tableRef.current.setGlobalFilter(searchValue);
+    }
   }, [globalSearchTerms]);
 
   // Data filtering
@@ -1739,10 +1728,13 @@ function Fixtures() {
             showHeader={false}
             groupedColumnMode="reorder"
             stickyHeader
-            // Group-preserving search
-            enableGlobalFilter={true}
-            globalFilterValue={globalSearchTerms.join(' ')}
-            globalFilterFn={customGlobalFilterFn}
+            // Group-preserving search with highlighting (controlled from Filters sidebar)
+            enableGlobalSearch={false}
+            groupPreservingSearch={true}
+            enableGlobalFaceting={true}
+            onTableReady={(table) => {
+              tableRef.current = table;
+            }}
             // Controlled state
             sorting={sorting}
             onSortingChange={setSorting}
