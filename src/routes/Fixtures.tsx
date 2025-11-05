@@ -9,7 +9,6 @@ import {
 } from "@tanstack/react-table";
 import {
   DataTable,
-  Badge,
   Button,
   Tabs,
   TabsList,
@@ -23,10 +22,34 @@ import {
   Sheet,
   SheetContent,
   SheetClose,
+  SheetTitle,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
   FixtureStatus,
+  Card,
+  AttributesList,
+  AttributesGroup,
+  AttributesItem,
+  AttributesRow,
+  AttributesLabel,
+  AttributesValue,
+  AttributesSeparator,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  AttributesContent,
+  AttributesChevron,
+  ActivityLog,
+  ActivityLogItem,
+  ActivityLogTime,
+  ActivityLogHeader,
+  ActivityLogDescription,
+  ActivityLogValue,
+  Avatar,
+  AvatarFallback,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
@@ -51,27 +74,327 @@ interface FixtureData {
   lastUpdated: number;
 }
 
-// Helper functions for Badge appearance
-const getStatusBadgeAppearance = (
-  status: string
-): "solid" | "subtle" | "outline" | undefined => {
-  if (["Final", "Firm bid", "Firm offer", "Firm bxd"].includes(status)) {
-    return "solid";
-  } else if (["On Subs", "Working Copy", "Draft"].includes(status)) {
-    return "subtle";
-  }
-  return "subtle";
+// Define types for change history
+interface ChangeHistoryEntry {
+  timestamp: string;  // e.g., "Jul 27, 2025 at 15:01"
+  user: {
+    name: string;
+    avatar?: string;
+  };
+  action: 'created' | 'updated';
+  status: {
+    value: string;  // e.g., "order-draft", "contract-working-copy"
+    label: string;  // e.g., "order draft", "contract working copy"
+  };
+  value: string;  // The new value
+}
+
+// Define types for activity log
+interface ActivityLogEntry {
+  timestamp: string;
+  user: {
+    name: string;
+    avatar?: string;
+  };
+  action: string;
+  description: string;
+  status?: {
+    value: string;
+    label: string;
+  };
+  expandable?: {
+    title: string;
+    content: string;
+  };
+  icon?: string;
+}
+
+// Mock change history data for fixture fields
+const mockChangeHistory: Record<string, ChangeHistoryEntry[]> = {
+  charterer: [
+    {
+      timestamp: "Jul 27, 2025 at 15:01",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "ShipCo"
+    },
+    {
+      timestamp: "Jul 14, 2025 at 9:37",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-draft", label: "contract draft" },
+      value: "ShipCo Corporation"
+    },
+    {
+      timestamp: "Jul 4, 2025 at 12:37",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "ShipCo Ltd."
+    }
+  ],
+  broker: [
+    {
+      timestamp: "Jul 20, 2025 at 10:15",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "Simpson Spence Young"
+    },
+    {
+      timestamp: "Jul 8, 2025 at 14:22",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "Clarksons"
+    }
+  ],
+  owner: [
+    {
+      timestamp: "Jul 26, 2025 at 16:45",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "Acme Shipping"
+    },
+    {
+      timestamp: "Jul 10, 2025 at 11:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "Acme Ltd."
+    }
+  ],
+  cargo: [
+    {
+      timestamp: "Jul 25, 2025 at 13:20",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "Iron Ore • 150,000 mt"
+    },
+    {
+      timestamp: "Jul 18, 2025 at 09:15",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-draft", label: "contract draft" },
+      value: "Iron Ore • 155,000 mt"
+    },
+    {
+      timestamp: "Jul 6, 2025 at 15:45",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "Iron Ore • 160,000 mt"
+    }
+  ],
+  freightRate: [
+    {
+      timestamp: "Jul 24, 2025 at 14:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "22.50 $/mt"
+    },
+    {
+      timestamp: "Jul 16, 2025 at 10:20",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-draft", label: "contract draft" },
+      value: "24.00 $/mt"
+    },
+    {
+      timestamp: "Jul 5, 2025 at 16:10",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "25.12 $/mt"
+    }
+  ],
+  laycan: [
+    {
+      timestamp: "Jul 23, 2025 at 11:40",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "25th October, 2025 – 28th October, 2025"
+    },
+    {
+      timestamp: "Jul 7, 2025 at 13:55",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "27th October, 2025 (0001 hrs) – 30th October, 2025 (2359 hrs)"
+    }
+  ],
+  loadPort: [
+    {
+      timestamp: "Jul 22, 2025 at 09:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "Rio de Janeiro, BR"
+    },
+    {
+      timestamp: "Jul 9, 2025 at 14:15",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "Tubarao, BR"
+    }
+  ],
+  dischargePort: [
+    {
+      timestamp: "Jul 21, 2025 at 10:45",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      status: { value: "order-draft", label: "order draft" },
+      value: "Shanghai, CN"
+    },
+    {
+      timestamp: "Jul 11, 2025 at 15:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      status: { value: "contract-working-copy", label: "contract working copy" },
+      value: "Qingdao or Tianjin, CN"
+    }
+  ]
 };
 
-const getApprovalStatusBadgeAppearance = (
-  approvalStatus: string
-): "solid" | "subtle" | "outline" | undefined => {
-  if (["Signed", "Approved"].includes(approvalStatus)) {
-    return "solid";
-  } else if (["Pending approval", "Pending signature"].includes(approvalStatus)) {
-    return "outline";
-  }
-  return "subtle";
+// Mock activity log data
+const mockActivityLog: { order: ActivityLogEntry[], contract: ActivityLogEntry[] } = {
+  order: [
+    {
+      timestamp: "Jul 4, 2025 at 12:37",
+      user: { name: "Rafał Lemieszewski" },
+      action: "created",
+      description: "created",
+      status: { value: "order-draft", label: "order draft" }
+    },
+    {
+      timestamp: "Jul 5, 2025 at 9:15",
+      user: { name: "Rafał Lemieszewski" },
+      action: "distributed",
+      description: "distributed the order to the market",
+      status: { value: "order-distributed", label: "order distributed" }
+    },
+    {
+      timestamp: "Jul 6, 2025 at 13:36",
+      user: { name: "Ivy Chu" },
+      action: "sent",
+      description: "sent",
+      status: { value: "negotiation-indicative-bid", label: "indicative bid" }
+    },
+    {
+      timestamp: "Jul 7, 2025 at 10:22",
+      user: { name: "Rafał Lemieszewski" },
+      action: "answered",
+      description: "answered with",
+      status: { value: "negotiation-indicative-offer", label: "indicative offer" }
+    },
+    {
+      timestamp: "Jul 8, 2025 at 14:05",
+      user: { name: "Ivy Chu" },
+      action: "sent",
+      description: "sent",
+      status: { value: "negotiation-firm-bid", label: "firm bid" }
+    },
+    {
+      timestamp: "Jul 9, 2025 at 7:53",
+      user: { name: "Rafał Lemieszewski" },
+      action: "accepted",
+      description: "accepted firm bid. Offer is now",
+      status: { value: "negotiation-firm", label: "firm" }
+    },
+    {
+      timestamp: "Jul 9, 2025 at 15:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "went",
+      description: "went",
+      status: { value: "negotiation-on-subs", label: "on subs" }
+    },
+    {
+      timestamp: "Jul 11, 2025 at 14:28",
+      user: { name: "System" },
+      action: "compliance",
+      description: "Compliance check has finished with the result: compliant",
+      icon: "check-circle"
+    },
+    {
+      timestamp: "Jul 13, 2025 at 7:02",
+      user: { name: "Rafał Lemieszewski" },
+      action: "set",
+      description: "set negotiation as",
+      status: { value: "negotiation-fixed", label: "fixed" }
+    }
+  ],
+  contract: [
+    {
+      timestamp: "Jul 12, 2025 at 7:02",
+      user: { name: "System" },
+      action: "created",
+      description: "Contract was created",
+      status: { value: "contract-draft", label: "draft" },
+      icon: "file-text"
+    },
+    {
+      timestamp: "Jul 12, 2025 at 14:30",
+      user: { name: "Rafał Lemieszewski" },
+      action: "updated",
+      description: "made changes to contract",
+      status: { value: "contract-draft", label: "draft" }
+    },
+    {
+      timestamp: "Jul 12, 2025 at 18:15",
+      user: { name: "Rafał Lemieszewski" },
+      action: "changed",
+      description: "changed contract status to",
+      status: { value: "contract-working-copy", label: "working copy" }
+    },
+    {
+      timestamp: "Jul 13, 2025 at 8:00",
+      user: { name: "Rafał Lemieszewski" },
+      action: "added",
+      description: "added Ivy Chu • Acme as approver from Owner side"
+    },
+    {
+      timestamp: "Jul 13, 2025 at 11:22",
+      user: { name: "Rafał Lemieszewski" },
+      action: "added",
+      description: "added himself as approver from Charterer side"
+    },
+    {
+      timestamp: "Jul 15, 2025 at 10:37",
+      user: { name: "Ivy Chu • Acme" },
+      action: "rejected",
+      description: "rejected the contract with the following reason",
+      expandable: {
+        title: "Rejection reason",
+        content: 'Please change clause §34: "Lorem ipsum dolor sit amet."'
+      }
+    },
+    {
+      timestamp: "Jul 16, 2025 at 16:00",
+      user: { name: "Ivy Chu • Acme" },
+      action: "approved",
+      description: "approved contract"
+    },
+    {
+      timestamp: "Jul 18, 2025 at 8:04",
+      user: { name: "Rafał Lemieszewski" },
+      action: "approved",
+      description: "approved contract"
+    },
+    {
+      timestamp: "Jul 18, 2025 at 14:30",
+      user: { name: "System" },
+      action: "changed",
+      description: "Contract changed status to",
+      status: { value: "contract-final", label: "final" },
+      icon: "check-circle-2"
+    }
+  ]
 };
 
 // Generate mock fixture data based on Figma
@@ -249,244 +572,699 @@ function FixtureSidebar({
 }) {
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-[640px] p-0">
-        {/* Header */}
-        <div className="flex flex-col gap-6 border-b border-[var(--gray-200)] bg-white px-6 pb-6 pt-6">
-          <div className="flex items-start justify-between">
-            <div className="flex flex-col gap-1">
-              {/* Main title line with fixture ID and companies */}
-              <div className="flex items-center gap-2 text-[20px] font-semibold leading-6 tracking-[-0.2px] text-[var(--color-text-primary)]">
-                <span>FX-2024-002</span>
-                <span>•</span>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <Icon name="building" size="sm" />
-                    <span className="text-[12px] font-medium">ShipCo</span>
-                  </div>
-                  <span className="text-[12px]">×</span>
-                  <div className="flex items-center gap-1">
-                    <Icon name="building" size="sm" />
-                    <span className="text-[12px] font-medium">Acme</span>
+      <SheetContent side="right" className="flex flex-col gap-0 bg-[var(--color-surface-base)] p-0" style={{ width: '640px', maxWidth: '640px' }}>
+        <SheetTitle className="sr-only">Fixture {fixture.id}</SheetTitle>
+
+        <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex-shrink-0 bg-[var(--color-surface-primary)]">
+            <div className="flex items-start justify-between px-6 pb-6 pt-6">
+              <div className="flex flex-col gap-1">
+                {/* Main title line with fixture ID and companies */}
+                <div className="flex items-center gap-2 text-[20px] font-semibold leading-6 tracking-[-0.2px] text-[var(--color-text-primary)]">
+                  <span>
+                    {fixture.orderId && fixture.negotiationId
+                      ? `${fixture.orderId} • ${fixture.negotiationId}`
+                      : fixture.cpId || fixture.fixtureId}
+                  </span>
+                  <span>•</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <Icon name="building" size="sm" />
+                      <span className="text-body-sm font-medium">ShipCo</span>
+                    </div>
+                    <span className="text-body-sm">×</span>
+                    <div className="flex items-center gap-1">
+                      <Icon name="building" size="sm" />
+                      <span className="text-body-sm font-medium">Acme</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Metadata line with route and cargo */}
-              <div className="flex items-center gap-1 text-[10px] leading-[14px] text-[var(--color-text-secondary)]">
-                <span className="font-semibold">🇧🇷</span>
-                <span>Tubarao, BR</span>
-                <Icon name="arrow-right" size="sm" />
-                <span className="font-semibold">🇨🇳</span>
-                <span>Qingdao, CN</span>
-                <span>•</span>
-                <span>240,000 mt coal</span>
-                <span>•</span>
-                <span>June 12 – Aug 26 2025</span>
+                {/* Metadata line with route and cargo */}
+                <div className="flex items-center gap-1 text-body-xsm text-[var(--color-text-secondary)]">
+                  <span className="font-semibold">🇧🇷</span>
+                  <span>Tubarao, BR</span>
+                  <Icon name="arrow-right" size="sm" />
+                  <span className="font-semibold">🇨🇳</span>
+                  <span>Qingdao, CN</span>
+                  <span>•</span>
+                  <span>240,000 mt coal</span>
+                  <span>•</span>
+                  <span>June 12 – Aug 26 2025</span>
+                </div>
               </div>
+              <SheetClose />
             </div>
-            <SheetClose />
-          </div>
 
-          {/* Tabs */}
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="w-full border-b border-[var(--gray-200)]">
-              <TabsTrigger value="overview" className="flex-1">
+            {/* Tab Navigation */}
+            <TabsList variant="line" fullWidth>
+              <TabsTrigger variant="line" fullWidth value="overview">
                 Overview
               </TabsTrigger>
-              <TabsTrigger value="activity" className="flex-1">
+              <TabsTrigger variant="line" fullWidth value="activity">
                 Activity Log
               </TabsTrigger>
             </TabsList>
-          </Tabs>
-        </div>
+          </div>
 
-        {/* Content */}
-        <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+          {/* Tab Content */}
           {/* Overview Tab */}
           <TabsContent
             value="overview"
-            className="flex-1 overflow-y-auto bg-[#f6f7f8] px-6 py-8"
+            className="mt-0 flex-1 overflow-y-auto bg-[var(--color-surface-base)]"
           >
-            <div className="space-y-6">
-              {/* Order Section */}
-              <div className="space-y-3">
-                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
-                  Order
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Order ID
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.orderId || "-"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Negotiation ID
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.negotiationId}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Person in charge
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.personInCharge}
-                    </span>
-                  </div>
-                </div>
+            <div className="flex flex-col gap-4 px-6 py-6">
+              {/* Sorting Toolbar */}
+              <div className="flex items-center justify-end gap-2">
+                <span className="text-body-sm text-[var(--color-text-secondary)]">Sorting</span>
+                <Select defaultValue="newest-first">
+                  <SelectTrigger className="w-[120px]" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest-first">Newest first</SelectItem>
+                    <SelectItem value="oldest-first">Oldest first</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Recap Section */}
-              <div className="space-y-3">
-                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
-                  Recap
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Stage
-                    </span>
-                    <Badge appearance="outline" className="text-[12px]">
-                      {fixture.stage}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Status
-                    </span>
-                    <Badge
-                      appearance={getStatusBadgeAppearance(fixture.status)}
-                      className="text-[12px]"
-                    >
-                      {fixture.status}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Vessel(s)
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.vessels}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Last updated
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {formatTimestamp(fixture.lastUpdated)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              {/* Status Card */}
+              <Card className="p-6">
+                <h3 className="mb-4 text-body-lg font-semibold text-[var(--color-text-primary)]">Status</h3>
+                <AttributesList style={{ gridTemplateColumns: 'minmax(140px, auto) 1fr auto' }}>
+                  <AttributesGroup label="Deal with Acme">
+                      <AttributesItem>
+                        <AttributesRow externalLink={{
+                          href: "/negotiation",
+                          label: "Go to negotiation"
+                        }}>
+                          <AttributesLabel>Negotiation</AttributesLabel>
+                          <AttributesValue>
+                            <FixtureStatus value="negotiation-fixed" size="xsm" />
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
 
-              {/* Contract Section */}
-              <div className="space-y-3">
-                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
-                  Contract
-                </h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      CP ID
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.cpId}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Type of contract
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.typeOfContract}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Approval status
-                    </span>
-                    <Badge
-                      appearance={getApprovalStatusBadgeAppearance(fixture.approvalStatus)}
-                      className="text-[12px]"
-                    >
-                      {fixture.approvalStatus}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Owner
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.owner}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Broker
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.broker}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span className="text-[14px] text-[var(--color-text-secondary)]">
-                      Charterer
-                    </span>
-                    <span className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {fixture.charterer}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                      <AttributesItem>
+                        <AttributesRow externalLink={{
+                          href: "/contract",
+                          label: "Go to contract"
+                        }}>
+                          <AttributesLabel>Contract</AttributesLabel>
+                          <AttributesValue>
+                            <FixtureStatus value="contract-working-copy" size="xsm" />
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+
+                      <AttributesItem>
+                        <AttributesRow>
+                          <AttributesLabel>Approval</AttributesLabel>
+                          <AttributesValue>1/2 approved</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    </AttributesGroup>
+                </AttributesList>
+              </Card>
+
+              {/* Fixture Specification Card */}
+              <Card className="p-6">
+                <h3 className="mb-4 text-body-lg font-semibold text-[var(--color-text-primary)]">Fixture specification</h3>
+                <AttributesList style={{ gridTemplateColumns: 'minmax(140px, auto) 1fr' }}>
+                  <AttributesGroup label="Involved Parties">
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Charterer</AttributesLabel>
+                        <AttributesValue>
+                          <Icon name="building" size="sm" />
+                          ShipCo Ltd.
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.charterer.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Broker</AttributesLabel>
+                        <AttributesValue>
+                          <Icon name="building" size="sm" />
+                          Clarksons
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.broker.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Owner</AttributesLabel>
+                        <AttributesValue>
+                          <Icon name="building" size="sm" />
+                          Acme Ltd.
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.owner.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+                  </AttributesGroup>
+
+                  <AttributesSeparator />
+
+                  <AttributesGroup label="Vessel" showHiddenLabel="More details" hideLabel="Less details">
+                    <AttributesItem>
+                      <AttributesRow>
+                        <AttributesLabel>Vessel name</AttributesLabel>
+                        <AttributesValue>Ever Given</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem>
+                      <AttributesRow>
+                        <AttributesLabel>IMO Number</AttributesLabel>
+                        <AttributesValue>9811000</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Callsign</AttributesLabel>
+                        <AttributesValue>H3RC</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Built date</AttributesLabel>
+                        <AttributesValue>25th September, 2018</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>GRT</AttributesLabel>
+                        <AttributesValue>220,940 mt</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Flag</AttributesLabel>
+                        <AttributesValue>Panama</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Class</AttributesLabel>
+                        <AttributesValue>G class</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>DWT</AttributesLabel>
+                        <AttributesValue>99,155 mt</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Draft</AttributesLabel>
+                        <AttributesValue>14.5 m</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>LOA/Beam</AttributesLabel>
+                        <AttributesValue>400 m • 59 m</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Max height</AttributesLabel>
+                        <AttributesValue>60 m</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Speed & Consumption</AttributesLabel>
+                        <AttributesValue>13.5 knots • 200,000 l/day</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Full CP chain</AttributesLabel>
+                        <AttributesValue>Lorem Ipsum, Dolor Sit, Amet Consequeur</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Full itinerary</AttributesLabel>
+                        <AttributesValue>Lorem Ipsum, Dolor Sit, Amet Consequeur</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+                  </AttributesGroup>
+
+                  <AttributesSeparator />
+
+                  <AttributesGroup label="Voyage">
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Load Port</AttributesLabel>
+                        <AttributesValue>
+                          <span className="font-semibold">🇧🇷</span>
+                          Tubarao, BR
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.loadPort.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Discharge Port</AttributesLabel>
+                        <AttributesValue>
+                          <span className="font-semibold">🇨🇳</span>
+                          Qingdao or Tianjin, CN
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.dischargePort.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Cargo</AttributesLabel>
+                        <AttributesValue>
+                          Iron Ore • 160,000 mt
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.cargo.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Laycan</AttributesLabel>
+                        <AttributesValue>
+                          27th October, 2025 (0001 hrs) – 30th October, 2025 (2359 hrs)
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.laycan.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+                  </AttributesGroup>
+
+                  <AttributesSeparator />
+
+                  <AttributesGroup label="Financials" showHiddenLabel="More details" hideLabel="Less details">
+                    <AttributesItem>
+                      <AttributesRow>
+                        <AttributesLabel>Fixture type</AttributesLabel>
+                        <AttributesValue>Voyage charter (Spot)</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem collapsible defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger>
+                        <AttributesLabel>Freight Rate</AttributesLabel>
+                        <AttributesValue>
+                          25.12 $/mt
+                          <AttributesChevron />
+                        </AttributesValue>
+                      </AttributesRow>
+                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                          <ActivityLog>
+                            {mockChangeHistory.freightRate.map((entry, index, arr) => {
+                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                              return (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
+                                      {entry.action === 'updated' && previousValue && (
+                                        <>
+                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                    </ActivityLogDescription>
+                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              );
+                            })}
+                          </ActivityLog>
+                        </div>
+                      </AttributesContent>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Demurrage / Despatch</AttributesLabel>
+                        <AttributesValue>20,000 $/m/day</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Address commission</AttributesLabel>
+                        <AttributesValue>3.75%</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+
+                    <AttributesItem hidden>
+                      <AttributesRow>
+                        <AttributesLabel>Broker commission</AttributesLabel>
+                        <AttributesValue>1.25%</AttributesValue>
+                      </AttributesRow>
+                    </AttributesItem>
+                  </AttributesGroup>
+
+                  <AttributesSeparator />
+
+                  <AttributesGroup label="Order notes">
+                    <p className="text-body-xsm text-[var(--color-text-secondary)]">
+                      Lorem ipsum dolor sit amet
+                    </p>
+                  </AttributesGroup>
+                </AttributesList>
+              </Card>
             </div>
           </TabsContent>
 
           {/* Activity Log Tab */}
           <TabsContent
             value="activity"
-            className="flex-1 overflow-y-auto bg-[#f6f7f8] px-6 py-8"
+            className="mt-0 flex-1 overflow-y-auto bg-[var(--color-surface-base)]"
           >
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 px-6 py-6">
               {/* Toolbar */}
               <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm" className="h-6 text-[12px]">
+                <Button variant="ghost" size="sm">
                   Show all changes
                 </Button>
-                <span className="text-[var(--color-text-secondary)]">•</span>
-                <span className="text-[12px] font-medium text-[var(--color-text-primary)]">
+                <span className="text-body-sm text-[var(--color-text-secondary)]">•</span>
+                <span className="text-body-sm text-[var(--color-text-primary)]">
                   Sorting
                 </span>
-                <Button variant="secondary" size="sm" className="h-6 text-[12px]">
-                  Oldest last
-                  <Icon name="chevron-down" size="sm" />
-                </Button>
+                <Select defaultValue="oldest-last">
+                  <SelectTrigger className="w-[120px]" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="oldest-last">Oldest last</SelectItem>
+                    <SelectItem value="oldest-first">Oldest first</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Order Card */}
-              <div className="rounded-lg border border-[var(--gray-200)] bg-white p-6">
-                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
-                  Order
+              {/* Negotiation Card */}
+              <Card className="p-6">
+                <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
+                  Negotiation
                 </h3>
-                <div className="mt-6 flex min-h-[200px] items-center justify-center text-[var(--color-text-secondary)]">
-                  {/* Timeline placeholder */}
-                </div>
-              </div>
+                <ActivityLog>
+                  {mockActivityLog.order.map((entry, index) => {
+                    const initials = entry.user.name === "System"
+                      ? "S"
+                      : entry.user.name.split(' ').map(n => n[0]).join('');
+
+                    return (
+                      <ActivityLogItem key={index}>
+                        <ActivityLogHeader>
+                          <Avatar size="xxs">
+                            <AvatarFallback size="xxs">{initials}</AvatarFallback>
+                          </Avatar>
+                          <ActivityLogDescription>
+                            <span className="text-body-medium-sm">{entry.user.name}</span>
+                            <span>{entry.description}</span>
+                            {entry.status && (
+                              <FixtureStatus value={entry.status.value as any} size="sm" />
+                            )}
+                          </ActivityLogDescription>
+                          <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                        </ActivityLogHeader>
+                      </ActivityLogItem>
+                    );
+                  })}
+                </ActivityLog>
+              </Card>
 
               {/* Contract Card */}
-              <div className="rounded-lg border border-[var(--gray-200)] bg-white p-6">
-                <h3 className="text-[16px] font-semibold leading-5 tracking-[-0.2px] text-[var(--color-text-primary)]">
+              <Card className="p-6">
+                <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
                   Contract
                 </h3>
-                <div className="mt-6 flex min-h-[250px] items-center justify-center text-[var(--color-text-secondary)]">
-                  {/* Timeline placeholder */}
-                </div>
-              </div>
+                <ActivityLog>
+                  {mockActivityLog.contract.map((entry, index) => {
+                    const initials = entry.user.name === "System"
+                      ? "S"
+                      : entry.user.name.split(' ').map(n => n[0]).join('');
+
+                    return (
+                      <ActivityLogItem key={index} collapsible={!!entry.expandable}>
+                        <ActivityLogHeader>
+                          <Avatar size="xxs">
+                            <AvatarFallback size="xxs">{initials}</AvatarFallback>
+                          </Avatar>
+                          <ActivityLogDescription>
+                            <span className="text-body-medium-sm">{entry.user.name}</span>
+                            <span>{entry.description}</span>
+                            {entry.status && (
+                              <FixtureStatus value={entry.status.value as any} size="sm" />
+                            )}
+                          </ActivityLogDescription>
+                          <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                        </ActivityLogHeader>
+                        {entry.expandable && (
+                          <div className="mt-4 rounded bg-[var(--color-surface-sunken)] p-3">
+                            <p className="text-body-sm text-[var(--color-text-secondary)]">
+                              {entry.expandable.content}
+                            </p>
+                          </div>
+                        )}
+                      </ActivityLogItem>
+                    );
+                  })}
+                </ActivityLog>
+              </Card>
             </div>
           </TabsContent>
         </Tabs>
