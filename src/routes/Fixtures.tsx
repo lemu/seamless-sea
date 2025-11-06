@@ -48,8 +48,11 @@ import {
   ActivityLogHeader,
   ActivityLogDescription,
   ActivityLogValue,
+  ActivityLogChevron,
+  ActivityLogContent,
   Avatar,
   AvatarFallback,
+  AvatarGroup,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
@@ -91,7 +94,7 @@ interface ChangeHistoryEntry {
 
 // Define types for activity log
 interface ActivityLogEntry {
-  timestamp: string;
+  timestamp: string | Date;
   user: {
     name: string;
     avatar?: string;
@@ -103,8 +106,8 @@ interface ActivityLogEntry {
     label: string;
   };
   expandable?: {
-    title: string;
-    content: string;
+    data?: Array<{ label: string; value: string }>;
+    content?: string;
   };
   icon?: string;
 }
@@ -266,133 +269,255 @@ const mockChangeHistory: Record<string, ChangeHistoryEntry[]> = {
 const mockActivityLog: { order: ActivityLogEntry[], contract: ActivityLogEntry[] } = {
   order: [
     {
-      timestamp: "Jul 4, 2025 at 12:37",
+      timestamp: new Date('2025-07-04T12:37:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "created",
       description: "created",
-      status: { value: "order-draft", label: "order draft" }
+      status: { value: "order-draft", label: "order draft" },
+      expandable: {
+        data: [
+          { label: "Order type", value: "Spot" },
+          { label: "Cargo type", value: "Coal" },
+          { label: "Quantity", value: "60,000 mt" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 5, 2025 at 9:15",
+      timestamp: new Date('2025-07-05T09:15:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "distributed",
-      description: "distributed the order to the market",
-      status: { value: "order-distributed", label: "order distributed" }
+      description: "the order to the market",
+      status: { value: "order-distributed", label: "order distributed" },
+      expandable: {
+        data: [
+          { label: "Recipients", value: "12 counterparties" },
+          { label: "Response deadline", value: "Jul 6, 2025 at 18:00" },
+          { label: "Distribution channel", value: "Email + Platform" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 6, 2025 at 13:36",
+      timestamp: new Date('2025-07-06T13:36:00'),
       user: { name: "Ivy Chu" },
       action: "sent",
       description: "sent",
-      status: { value: "negotiation-indicative-bid", label: "indicative bid" }
+      status: { value: "negotiation-indicative-bid", label: "indicative bid" },
+      expandable: {
+        data: [
+          { label: "Freight rate", value: "$14.08 mt" },
+          { label: "Laycan", value: "Oct 25-28, 2025" },
+          { label: "Demurrage", value: "$12,500/day" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 7, 2025 at 10:22",
+      timestamp: new Date('2025-07-07T10:22:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "answered",
       description: "answered with",
-      status: { value: "negotiation-indicative-offer", label: "indicative offer" }
+      status: { value: "negotiation-indicative-offer", label: "indicative offer" },
+      expandable: {
+        data: [
+          { label: "Freight rate", value: "$14.90 mt" },
+          { label: "Laycan", value: "Oct 25-28, 2025" },
+          { label: "Demurrage", value: "$12,500/day" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 8, 2025 at 14:05",
+      timestamp: new Date('2025-07-08T14:05:00'),
       user: { name: "Ivy Chu" },
       action: "sent",
       description: "sent",
-      status: { value: "negotiation-firm-bid", label: "firm bid" }
+      status: { value: "negotiation-firm-bid", label: "firm bid" },
+      expandable: {
+        data: [
+          { label: "Freight rate", value: "$43.50 mt" },
+          { label: "Alternative rate", value: "$37.50 mt" },
+          { label: "Laycan", value: "Oct 27-30, 2025" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 9, 2025 at 7:53",
+      timestamp: new Date('2025-07-09T07:53:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "accepted",
       description: "accepted firm bid. Offer is now",
-      status: { value: "negotiation-firm", label: "firm" }
+      status: { value: "negotiation-firm", label: "firm" },
+      expandable: {
+        data: [
+          { label: "Freight rate", value: "$43.50 mt" },
+          { label: "Laycan", value: "Oct 27-30, 2025" },
+          { label: "Demurrage", value: "$12,500/day" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 9, 2025 at 15:30",
+      timestamp: new Date('2025-07-09T15:30:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "went",
       description: "went",
-      status: { value: "negotiation-on-subs", label: "on subs" }
+      status: { value: "negotiation-on-subs", label: "on subs" },
+      expandable: {
+        data: [
+          { label: "Subject 1", value: "Owner's final approval" },
+          { label: "Subject 2", value: "Vessel inspection" },
+          { label: "Deadline", value: "Jul 11, 2025 at 12:00" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 11, 2025 at 14:28",
+      timestamp: new Date('2025-07-11T14:28:00'),
       user: { name: "System" },
       action: "compliance",
       description: "Compliance check has finished with the result: compliant",
-      icon: "check-circle"
+      icon: "check-circle",
+      expandable: {
+        data: [
+          { label: "Sanctions check", value: "Passed" },
+          { label: "KYC verification", value: "Verified" },
+          { label: "Risk level", value: "Low" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 13, 2025 at 7:02",
+      timestamp: new Date('2025-07-13T07:02:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "set",
       description: "set negotiation as",
-      status: { value: "negotiation-fixed", label: "fixed" }
+      status: { value: "negotiation-fixed", label: "fixed" },
+      expandable: {
+        data: [
+          { label: "Final freight rate", value: "$43.50 mt" },
+          { label: "All subjects", value: "Lifted" },
+          { label: "Status", value: "Ready for signing" }
+        ]
+      }
     }
   ],
   contract: [
     {
-      timestamp: "Jul 12, 2025 at 7:02",
+      timestamp: new Date('2025-07-12T07:02:00'),
       user: { name: "System" },
       action: "created",
       description: "Contract was created",
       status: { value: "contract-draft", label: "draft" },
-      icon: "file-text"
+      icon: "file-text",
+      expandable: {
+        data: [
+          { label: "Source", value: "Fixed negotiation" },
+          { label: "Template", value: "NYPE 2015" },
+          { label: "Version", value: "1.0" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 12, 2025 at 14:30",
+      timestamp: new Date('2025-07-12T14:30:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "updated",
       description: "made changes to contract",
-      status: { value: "contract-draft", label: "draft" }
+      status: { value: "contract-draft", label: "draft" },
+      expandable: {
+        data: [
+          { label: "Modified clause §12", value: "Payment terms" },
+          { label: "Modified clause §23", value: "Arbitration" },
+          { label: "Added", value: "Additional insurance requirements" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 12, 2025 at 18:15",
+      timestamp: new Date('2025-07-12T18:15:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "changed",
       description: "changed contract status to",
-      status: { value: "contract-working-copy", label: "working copy" }
+      status: { value: "contract-working-copy", label: "working copy" },
+      expandable: {
+        data: [
+          { label: "Draft status", value: "Finalized" },
+          { label: "Next step", value: "Approval process" },
+          { label: "Notification", value: "All parties notified" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 13, 2025 at 8:00",
+      timestamp: new Date('2025-07-13T08:00:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "added",
-      description: "added Ivy Chu • Acme as approver from Owner side"
+      description: "added Ivy Chu • Acme as approver from Owner side",
+      expandable: {
+        data: [
+          { label: "Role", value: "Owner representative" },
+          { label: "Approval rights", value: "Full authority" },
+          { label: "Notification", value: "Sent" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 13, 2025 at 11:22",
+      timestamp: new Date('2025-07-13T11:22:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "added",
-      description: "added himself as approver from Charterer side"
+      description: "added himself as approver from Charterer side",
+      expandable: {
+        data: [
+          { label: "Role", value: "Charterer representative" },
+          { label: "Approval rights", value: "Full authority" },
+          { label: "Status", value: "Active" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 15, 2025 at 10:37",
+      timestamp: new Date('2025-07-15T10:37:00'),
       user: { name: "Ivy Chu • Acme" },
       action: "rejected",
       description: "rejected the contract with the following reason",
       expandable: {
-        title: "Rejection reason",
-        content: 'Please change clause §34: "Lorem ipsum dolor sit amet."'
+        data: [
+          { label: "Clause", value: "§34" },
+          { label: "Reason", value: "Please change clause §34: \"Lorem ipsum dolor sit amet.\"" },
+          { label: "Action required", value: "Revision needed" }
+        ]
       }
     },
     {
-      timestamp: "Jul 16, 2025 at 16:00",
+      timestamp: new Date('2025-07-16T16:00:00'),
       user: { name: "Ivy Chu • Acme" },
       action: "approved",
-      description: "approved contract"
+      description: "approved contract",
+      expandable: {
+        data: [
+          { label: "Side", value: "Owner" },
+          { label: "Digital signature", value: "Applied" },
+          { label: "Progress", value: "1/2 approvals received" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 18, 2025 at 8:04",
+      timestamp: new Date('2025-07-18T08:04:00'),
       user: { name: "Rafał Lemieszewski" },
       action: "approved",
-      description: "approved contract"
+      description: "approved contract",
+      expandable: {
+        data: [
+          { label: "Side", value: "Charterer" },
+          { label: "Digital signature", value: "Applied" },
+          { label: "Progress", value: "2/2 approvals received" }
+        ]
+      }
     },
     {
-      timestamp: "Jul 18, 2025 at 14:30",
+      timestamp: new Date('2025-07-18T14:30:00'),
       user: { name: "System" },
       action: "changed",
       description: "Contract changed status to",
       status: { value: "contract-final", label: "final" },
-      icon: "check-circle-2"
+      icon: "check-circle-2",
+      expandable: {
+        data: [
+          { label: "Execution", value: "Fully executed" },
+          { label: "Signatures", value: "All complete" },
+          { label: "Status", value: "Binding and effective" }
+        ]
+      }
     }
   ]
 };
@@ -661,7 +786,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Negotiation</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="negotiation-fixed" size="xsm" />
+                            <FixtureStatus value="negotiation-fixed" size="sm" />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -673,7 +798,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Contract</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="contract-working-copy" size="xsm" />
+                            <FixtureStatus value="contract-working-copy" size="sm" />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1160,7 +1285,7 @@ function FixtureSidebar({
                   <AttributesSeparator />
 
                   <AttributesGroup label="Order notes">
-                    <p className="text-body-xsm text-[var(--color-text-secondary)]">
+                    <p className="text-body-sm text-[var(--color-text-secondary)]">
                       Lorem ipsum dolor sit amet
                     </p>
                   </AttributesGroup>
@@ -1200,27 +1325,73 @@ function FixtureSidebar({
                 <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
                   Negotiation
                 </h3>
-                <ActivityLog>
+                <ActivityLog separatorThreshold={86400000}>
                   {mockActivityLog.order.map((entry, index) => {
-                    const initials = entry.user.name === "System"
+                    const hasOrganization = entry.user.name.includes('•');
+                    const parts = hasOrganization ? entry.user.name.split('•').map(p => p.trim()) : [entry.user.name];
+                    const userName = parts[0];
+                    const orgName = parts[1];
+
+                    const userInitials = userName === "System"
                       ? "S"
-                      : entry.user.name.split(' ').map(n => n[0]).join('');
+                      : userName.split(' ').map(n => n[0]).join('');
+                    const orgInitials = orgName ? orgName.split(' ').map(n => n[0]).join('') : '';
+
+                    const formattedTimestamp = typeof entry.timestamp === 'string'
+                      ? entry.timestamp
+                      : entry.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' +
+                        entry.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
 
                     return (
-                      <ActivityLogItem key={index}>
-                        <ActivityLogHeader>
-                          <Avatar size="xxs">
-                            <AvatarFallback size="xxs">{initials}</AvatarFallback>
-                          </Avatar>
+                      <ActivityLogItem key={index} timestamp={entry.timestamp} collapsible={true} defaultOpen={false}>
+                        <ActivityLogHeader asCollapsibleTrigger>
+                          {hasOrganization ? (
+                            <AvatarGroup size="xxs">
+                              <Avatar size="xxs">
+                                <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                              </Avatar>
+                              <Avatar size="xxs">
+                                <AvatarFallback size="xxs">{orgInitials}</AvatarFallback>
+                              </Avatar>
+                            </AvatarGroup>
+                          ) : (
+                            <Avatar size="xxs">
+                              <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                            </Avatar>
+                          )}
                           <ActivityLogDescription>
                             <span className="text-body-medium-sm">{entry.user.name}</span>
-                            <span>{entry.description}</span>
                             {entry.status && (
                               <FixtureStatus value={entry.status.value as any} size="sm" />
                             )}
+                            <span>{entry.description}</span>
                           </ActivityLogDescription>
-                          <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                          <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
+                          {entry.expandable && <ActivityLogChevron />}
                         </ActivityLogHeader>
+                        {entry.expandable && entry.expandable.data && (
+                          <ActivityLogContent>
+                            <div className="mt-4 max-w-md rounded border border-[var(--color-border-primary-bold)] overflow-hidden">
+                              <table className="w-full">
+                                <tbody>
+                                  {entry.expandable.data.map((row, rowIndex, array) => (
+                                    <tr
+                                      key={rowIndex}
+                                      className={`h-[22px] ${rowIndex < array.length - 1 ? "border-b border-[var(--color-border-primary-bold)]" : ""}`}
+                                    >
+                                      <td className="border-r border-[var(--color-border-primary-bold)] bg-[var(--color-surface-sunken)] px-3 text-body-medium-xsm text-[var(--color-text-secondary)]">
+                                        {row.label}
+                                      </td>
+                                      <td className="bg-white px-3 text-body-xsm text-[var(--color-text-primary)]">
+                                        {row.value}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </ActivityLogContent>
+                        )}
                       </ActivityLogItem>
                     );
                   })}
@@ -1232,33 +1403,72 @@ function FixtureSidebar({
                 <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
                   Contract
                 </h3>
-                <ActivityLog>
+                <ActivityLog separatorThreshold={86400000}>
                   {mockActivityLog.contract.map((entry, index) => {
-                    const initials = entry.user.name === "System"
+                    const hasOrganization = entry.user.name.includes('•');
+                    const parts = hasOrganization ? entry.user.name.split('•').map(p => p.trim()) : [entry.user.name];
+                    const userName = parts[0];
+                    const orgName = parts[1];
+
+                    const userInitials = userName === "System"
                       ? "S"
-                      : entry.user.name.split(' ').map(n => n[0]).join('');
+                      : userName.split(' ').map(n => n[0]).join('');
+                    const orgInitials = orgName ? orgName.split(' ').map(n => n[0]).join('') : '';
+
+                    const formattedTimestamp = typeof entry.timestamp === 'string'
+                      ? entry.timestamp
+                      : entry.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' +
+                        entry.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
 
                     return (
-                      <ActivityLogItem key={index} collapsible={!!entry.expandable}>
-                        <ActivityLogHeader>
-                          <Avatar size="xxs">
-                            <AvatarFallback size="xxs">{initials}</AvatarFallback>
-                          </Avatar>
+                      <ActivityLogItem key={index} timestamp={entry.timestamp} collapsible={true} defaultOpen={false}>
+                        <ActivityLogHeader asCollapsibleTrigger>
+                          {hasOrganization ? (
+                            <AvatarGroup size="xxs">
+                              <Avatar size="xxs">
+                                <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                              </Avatar>
+                              <Avatar size="xxs">
+                                <AvatarFallback size="xxs">{orgInitials}</AvatarFallback>
+                              </Avatar>
+                            </AvatarGroup>
+                          ) : (
+                            <Avatar size="xxs">
+                              <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                            </Avatar>
+                          )}
                           <ActivityLogDescription>
                             <span className="text-body-medium-sm">{entry.user.name}</span>
-                            <span>{entry.description}</span>
                             {entry.status && (
                               <FixtureStatus value={entry.status.value as any} size="sm" />
                             )}
+                            <span>{entry.description}</span>
                           </ActivityLogDescription>
-                          <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                          <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
+                          {entry.expandable && <ActivityLogChevron />}
                         </ActivityLogHeader>
-                        {entry.expandable && (
-                          <div className="mt-4 rounded bg-[var(--color-surface-sunken)] p-3">
-                            <p className="text-body-sm text-[var(--color-text-secondary)]">
-                              {entry.expandable.content}
-                            </p>
-                          </div>
+                        {entry.expandable && entry.expandable.data && (
+                          <ActivityLogContent>
+                            <div className="mt-4 max-w-md rounded border border-[var(--color-border-primary-bold)] overflow-hidden">
+                              <table className="w-full">
+                                <tbody>
+                                  {entry.expandable.data.map((row, rowIndex, array) => (
+                                    <tr
+                                      key={rowIndex}
+                                      className={`h-[22px] ${rowIndex < array.length - 1 ? "border-b border-[var(--color-border-primary-bold)]" : ""}`}
+                                    >
+                                      <td className="border-r border-[var(--color-border-primary-bold)] bg-[var(--color-surface-sunken)] px-3 text-body-medium-xsm text-[var(--color-text-secondary)]">
+                                        {row.label}
+                                      </td>
+                                      <td className="bg-white px-3 text-body-xsm text-[var(--color-text-primary)]">
+                                        {row.value}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </ActivityLogContent>
                         )}
                       </ActivityLogItem>
                     );
