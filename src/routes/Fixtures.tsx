@@ -543,7 +543,9 @@ const generateFixtureData = (): FixtureData[] => {
     "Dong Yuan",
   ];
   const people = ["John Doe", "Martin Leake"];
-  const statuses = [
+
+  // Split statuses based on contract existence
+  const orderNegotiationStatuses = [
     "order-draft",
     "order-distributed",
     "order-withdrawn",
@@ -555,6 +557,9 @@ const generateFixtureData = (): FixtureData[] => {
     "negotiation-on-subs",
     "negotiation-fixed",
     "negotiation-withdrawn",
+  ];
+
+  const contractStatuses = [
     "contract-draft",
     "contract-working-copy",
     "contract-final",
@@ -569,17 +574,39 @@ const generateFixtureData = (): FixtureData[] => {
     "Pending signature",
     "Approved",
   ];
-  const owners = ["Owning Company A", "Owning Company B", "Owning Company C"];
+  const owners = [
+    "MSC",
+    "Maersk",
+    "CMA CGM",
+    "COSCO Shipping",
+    "Hapag-Lloyd",
+    "Star Bulk Carriers",
+    "Oldendorff Carriers",
+    "Frontline",
+    "Euronav",
+    "Teekay"
+  ];
   const brokers = [
-    "Broking Company A",
-    "Broking Company B",
-    "Broking Company C",
+    "Clarksons",
+    "Ifchor Galbraiths",
+    "BRS Shipbrokers",
+    "Howe Robinson Partners",
+    "Simpson Spence Young",
+    "E.A. Gibson",
+    "Lorentzen & Co",
+    "McQuilling Partners"
   ];
   const charterers = [
-    "Chartering Company A",
-    "Chartering Company B",
-    "Chartering Company C",
-    "Chartering Company D",
+    "Cargill",
+    "Trafigura",
+    "Vitol",
+    "Glencore",
+    "Louis Dreyfus Company",
+    "Bunge",
+    "ADM",
+    "Mercuria",
+    "Gunvor",
+    "COFCO International"
   ];
 
   const generateId = (prefix: string) => {
@@ -627,6 +654,9 @@ const generateFixtureData = (): FixtureData[] => {
 
       // Create one contract per negotiation (1:1 relationship)
       for (let j = 0; j < numNegotiations; j++) {
+        // Choose status array based on whether this has a contract
+        const statusArray = hasCp ? contractStatuses : orderNegotiationStatuses;
+
         fixtures.push({
           id: `contract-${i}-${j}`,
           fixtureId,
@@ -638,7 +668,7 @@ const generateFixtureData = (): FixtureData[] => {
             contractTypes[Math.floor(Math.random() * contractTypes.length)],
           vessels: vessels[Math.floor(Math.random() * vessels.length)],
           personInCharge: people[Math.floor(Math.random() * people.length)],
-          status: statuses[Math.floor(Math.random() * statuses.length)],
+          status: statusArray[Math.floor(Math.random() * statusArray.length)],
           approvalStatus:
             approvalStatuses[
               Math.floor(Math.random() * approvalStatuses.length)
@@ -651,6 +681,7 @@ const generateFixtureData = (): FixtureData[] => {
       }
     } else {
       // No negotiations - single contract without order or negotiation
+      // Always use contract statuses since this has a cpId
       fixtures.push({
         id: `fixture-${i}`,
         fixtureId,
@@ -662,7 +693,7 @@ const generateFixtureData = (): FixtureData[] => {
           contractTypes[Math.floor(Math.random() * contractTypes.length)],
         vessels: vessels[Math.floor(Math.random() * vessels.length)],
         personInCharge: people[Math.floor(Math.random() * people.length)],
-        status: statuses[Math.floor(Math.random() * statuses.length)],
+        status: contractStatuses[Math.floor(Math.random() * contractStatuses.length)],
         approvalStatus:
           approvalStatuses[Math.floor(Math.random() * approvalStatuses.length)],
         owner: owners[Math.floor(Math.random() * owners.length)],
@@ -1873,21 +1904,21 @@ function Fixtures() {
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueStatuses = Array.from(new Set(row.subRows?.map((r: any) => r.original.status) || [])) as string[];
+          const allStatuses = (row.subRows?.map((r: any) => r.original.status) || []) as string[];
 
           // Single item group - show full status label without object prefix
           if (row.subRows?.length === 1) {
             return (
               <div className="flex items-center justify-start overflow-visible">
-                <FixtureStatus value={uniqueStatuses[0] as any} showObject={false} className="overflow-visible" />
+                <FixtureStatus value={allStatuses[0] as any} showObject={false} className="overflow-visible" />
               </div>
             );
           }
 
-          // Multiple items - show all unique status icons
+          // Multiple items - show all status icons including duplicates
           return (
             <div className="flex items-center justify-start gap-1 overflow-visible">
-              {uniqueStatuses.map((status, index) => (
+              {allStatuses.map((status, index) => (
                 <FixtureStatus key={index} value={status as any} iconOnly className="overflow-visible" />
               ))}
             </div>
