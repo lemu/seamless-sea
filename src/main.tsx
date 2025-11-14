@@ -15,6 +15,7 @@ import Compliance from "./routes/Compliance.tsx";
 import GlobalMarket from "./routes/GlobalMarket.tsx";
 import Assets from "./routes/Assets.tsx";
 import Fixtures from "./routes/Fixtures.tsx";
+import SeaNet from "./routes/SeaNet.tsx";
 import Notifications from "./routes/Notifications.tsx";
 import HelpSupport from "./routes/HelpSupport.tsx";
 import Boards from "./routes/Boards.tsx";
@@ -93,6 +94,13 @@ const router = createBrowserRouter([
         },
       },
       // Intelligence routes
+      {
+        path: "seanet",
+        element: <SeaNet />,
+        handle: {
+          crumb: () => "SeaNet",
+        },
+      },
       {
         path: "global-market",
         element: <GlobalMarket />,

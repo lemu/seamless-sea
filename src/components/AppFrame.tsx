@@ -205,6 +205,12 @@ const getSidebarData = (
       ],
       intelligence: [
         {
+          title: "SeaNet",
+          icon: "map",
+          url: "/seanet",
+          isActive: currentPath === "/seanet",
+        },
+        {
           title: "Global market",
           icon: "globe",
           url: "/global-market",

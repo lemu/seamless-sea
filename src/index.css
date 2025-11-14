@@ -126,3 +126,8 @@ body.resize-active * {
   border-top: none !important;
   border-bottom: none !important;
 }
+
+/* Ensure collapse/expand buttons have pointer cursor */
+.fixtures-table button {
+  cursor: pointer;
+}
