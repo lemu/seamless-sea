@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Button, Input } from "@rafal.lemieszewski/tide-ui";
+import { Button, Input, TextLink } from "@rafal.lemieszewski/tide-ui";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { setSessionToken } from "../lib/auth-client";
@@ -251,29 +251,35 @@ function Login() {
 
           {mode !== "setPassword" && (
             <div className="text-center">
-              <button
-                type="button"
-                onClick={() => switchMode(mode === "signUp" ? "signIn" : "signUp")}
-                disabled={isLoading}
-                className="text-sm text-[var(--color-text-link)] hover:text-[var(--color-text-link-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              <TextLink
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  switchMode(mode === "signUp" ? "signIn" : "signUp");
+                }}
+                size="sm"
+                className={isLoading ? "pointer-events-none opacity-50" : ""}
               >
                 {mode === "signUp"
                   ? "Already have an account? Sign in"
                   : "Don't have an account? Create one"}
-              </button>
+              </TextLink>
             </div>
           )}
 
           {mode === "setPassword" && (
             <div className="text-center">
-              <button
-                type="button"
-                onClick={() => switchMode("signIn")}
-                disabled={isLoading}
-                className="text-sm text-[var(--color-text-link)] hover:text-[var(--color-text-link-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              <TextLink
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  switchMode("signIn");
+                }}
+                size="sm"
+                className={isLoading ? "pointer-events-none opacity-50" : ""}
               >
                 Use a different email
-              </button>
+              </TextLink>
             </div>
           )}
         </form>
