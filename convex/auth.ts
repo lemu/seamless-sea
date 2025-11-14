@@ -276,3 +276,69 @@ export const setPasswordForExistingUser = mutation({
     };
   },
 });
+
+// Change password for authenticated user
+export const changePassword = mutation({
+  args: {
+    token: v.string(),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session) {
+      throw new Error("Invalid session. Please sign in again.");
+    }
+
+    // Check if session has expired
+    if (session.expiresAt < Date.now()) {
+      throw new Error("Session expired. Please sign in again.");
+    }
+
+    // Get the user
+    const user = await ctx.db.get(session.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if user has a password
+    if (!user.passwordHash) {
+      throw new Error("No password set for this account");
+    }
+
+    // Verify the current password
+    const isCurrentPasswordValid = bcrypt.compareSync(
+      args.currentPassword,
+      user.passwordHash
+    );
+    if (!isCurrentPasswordValid) {
+      throw new Error("Current password is incorrect");
+    }
+
+    // Validate new password length
+    if (args.newPassword.length < 8) {
+      throw new Error("New password must be at least 8 characters long");
+    }
+
+    // Check that new password is different from current
+    if (args.currentPassword === args.newPassword) {
+      throw new Error("New password must be different from current password");
+    }
+
+    // Hash the new password
+    const newPasswordHash = bcrypt.hashSync(args.newPassword, 10);
+
+    // Update the user with the new password
+    await ctx.db.patch(user._id, {
+      passwordHash: newPasswordHash,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
