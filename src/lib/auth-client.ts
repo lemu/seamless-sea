@@ -1,8 +1,17 @@
-import { createAuthClient } from "better-auth/react";
+// Session token storage helpers
+const SESSION_TOKEN_KEY = "convex_session_token";
 
-export const authClient = createAuthClient({
-  baseURL: import.meta.env.VITE_SITE_URL || "http://localhost:5173",
-});
+export function getSessionToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SESSION_TOKEN_KEY);
+}
 
-// Export commonly used auth methods for convenience
-export const { signIn, signUp, signOut, useSession } = authClient;
+export function setSessionToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+export function clearSessionToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+}

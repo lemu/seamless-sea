@@ -1,25 +1,24 @@
 import { createContext, type ReactNode } from "react";
-import { useSession, signOut } from "../lib/auth-client";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { getSessionToken, clearSessionToken } from "../lib/auth-client";
 import type { Id } from "../../convex/_generated/dataModel";
 
 // Keep backward compatibility with existing User type
 interface User {
   _id: Id<"users">;
-  id: string;
   name: string;
   email: string;
   avatar?: Id<"_storage">;
   avatarUrl?: string | null;
-  image?: string | null;
-  emailVerified: boolean;
+  emailVerified?: boolean;
   createdAt: number;
-  updatedAt: Date;
+  updatedAt?: number;
 }
 
 interface UserContextType {
   user: User | null;
   isLoading: boolean;
-  error: Error | null;
   logout: () => Promise<void>;
   refreshUser?: () => void;
 }
@@ -27,39 +26,34 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const { data: session, isPending, error } = useSession();
+  const token = getSessionToken();
+  const signOutMutation = useMutation(api.auth.signOut);
 
-  // Transform session.user to match existing User interface for backward compatibility
-  const user: User | null = session?.user
-    ? {
-        _id: session.user.id as Id<"users">, // Cast Better-Auth ID to Convex ID type
-        id: session.user.id,
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image ?? undefined,
-        avatarUrl: session.user.image,
-        emailVerified: session.user.emailVerified,
-        createdAt: new Date(session.user.createdAt).getTime(),
-        updatedAt: session.user.updatedAt,
-      }
-    : null;
+  // Get current user from session token
+  const user = useQuery(
+    api.auth.getCurrentUser,
+    token ? { token } : "skip"
+  );
 
   const logout = async () => {
-    await signOut();
+    if (token) {
+      await signOutMutation({ token });
+    }
+    clearSessionToken();
+    // Force page reload to clear state
+    window.location.href = "/";
   };
 
   const refreshUser = () => {
-    // With Better-Auth, sessions are automatically refreshed
-    // This is a no-op for compatibility
-    console.log("User refresh requested (handled automatically by Better-Auth)");
+    // Convex queries are reactive, so this is a no-op
+    console.log("User refresh requested (handled automatically by Convex)");
   };
 
   return (
     <UserContext.Provider
       value={{
-        user,
-        isLoading: isPending,
-        error: error || null,
+        user: user || null,
+        isLoading: user === undefined,
         logout,
         refreshUser,
       }}

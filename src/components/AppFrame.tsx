@@ -1601,11 +1601,15 @@ export function AppFrame({ children }: AppFrameProps) {
   const navigate = useNavigate();
   const { user, isLoading } = useUser();
 
+  // Clean up old localStorage auth data on mount
+  React.useEffect(() => {
+    localStorage.removeItem("userEmail");
+  }, []);
+
   // Handle authentication redirect - must be at top level
   React.useEffect(() => {
-    // Only redirect if we're not loading and there's no user AND no stored email
-    const storedEmail = localStorage.getItem("userEmail");
-    if (location.pathname !== "/" && !isLoading && !user && !storedEmail) {
+    // Only redirect if we're not loading and there's no user
+    if (location.pathname !== "/" && !isLoading && !user) {
       navigate("/");
     }
   }, [location.pathname, isLoading, user, navigate]);
@@ -1627,20 +1631,12 @@ export function AppFrame({ children }: AppFrameProps) {
     );
   }
 
-  // Show loading or redirecting message if not authenticated
+  // Redirect to login if not authenticated
   if (!user) {
-    const storedEmail = localStorage.getItem("userEmail");
     return (
       <main className="h-full flex items-center justify-center">
         <div className="text-center">
-          {isLoading || storedEmail ? (
-            <>
-              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border-primary-subtle)] border-t-[var(--color-border-brand)]"></div>
-              <p className="text-body-md text-[var(--color-text-secondary)]">Loading...</p>
-            </>
-          ) : (
-            <p className="text-body-md text-[var(--color-text-secondary)]">Redirecting to login...</p>
-          )}
+          <p className="text-body-md text-[var(--color-text-secondary)]">Redirecting to login...</p>
         </div>
       </main>
     );

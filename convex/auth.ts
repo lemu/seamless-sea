@@ -1,93 +1,198 @@
-import { betterAuth } from "better-auth";
-import { convexAdapter } from "@convex-dev/better-auth";
-import { components } from "./_generated/api";
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
+import bcrypt from "bcryptjs";
 
-export const auth = betterAuth({
-  database: convexAdapter(components.betterAuth),
+// Generate a random session token
+function generateToken(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-    maxPasswordLength: 128,
-    requireEmailVerification: false, // Start with false, can enable later
-
-    // Email sending functions - using console.log for now
-    // TODO: Integrate with email service (Resend, SendGrid, etc.)
-    sendVerificationEmail: async (user, url, token) => {
-      console.log(`
-========================================
-EMAIL VERIFICATION
-========================================
-To: ${user.email}
-Name: ${user.name}
-Verification URL: ${url}
-Token: ${token}
-========================================
-      `);
-      // In production, use:
-      // await sendEmail({
-      //   to: user.email,
-      //   subject: "Verify your email",
-      //   html: `<p>Click <a href="${url}">here</a> to verify your email.</p>`,
-      // });
-    },
-
-    sendResetPassword: async (user, url, token) => {
-      console.log(`
-========================================
-PASSWORD RESET
-========================================
-To: ${user.email}
-Name: ${user.name}
-Reset URL: ${url}
-Token: ${token}
-========================================
-      `);
-      // In production, use:
-      // await sendEmail({
-      //   to: user.email,
-      //   subject: "Reset your password",
-      //   html: `<p>Click <a href="${url}">here</a> to reset your password.</p>`,
-      // });
-    },
+// Sign up a new user
+export const signUp = mutation({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    password: v.string(),
   },
+  handler: async (ctx, args) => {
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
 
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // Update session every 24 hours
-    cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60, // 5 minutes
-    },
+    if (existingUser) {
+      throw new Error("User with this email already exists");
+    }
+
+    // Validate password length
+    if (args.password.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+
+    // Hash the password
+    const passwordHash = await bcrypt.hash(args.password, 10);
+
+    // Create the user
+    const userId = await ctx.db.insert("users", {
+      name: args.name,
+      email: args.email,
+      passwordHash,
+      emailVerified: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    // Create a session
+    const token = generateToken();
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    await ctx.db.insert("sessions", {
+      userId,
+      token,
+      expiresAt,
+      createdAt: Date.now(),
+    });
+
+    // Return the user and session
+    const user = await ctx.db.get(userId);
+    return {
+      user,
+      session: { token, expiresAt },
+    };
   },
+});
 
-  rateLimit: {
-    enabled: true,
-    window: 10, // 10 seconds
-    max: 100, // Max 100 requests per window
-    storage: "database", // Persist rate limit data
-    customRules: {
-      "/sign-in/email": {
-        window: 10,
-        max: 5, // Stricter for login attempts
-      },
-      "/sign-up/email": {
-        window: 60,
-        max: 3, // Stricter for signup
-      },
-      "/forget-password": {
-        window: 60,
-        max: 3, // Stricter for password reset requests
-      },
-    },
+// Sign in an existing user
+export const signIn = mutation({
+  args: {
+    email: v.string(),
+    password: v.string(),
   },
+  handler: async (ctx, args) => {
+    // Find the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
 
-  // Advanced options
-  advanced: {
-    cookiePrefix: "seamless-sea",
-    crossSubDomainCookies: {
-      enabled: false,
-    },
-    useSecureCookies: process.env.NODE_ENV === "production",
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Check if user has a password (for migration from old system)
+    if (!user.passwordHash) {
+      throw new Error("Please set up your password first");
+    }
+
+    // Verify the password
+    const isValid = await bcrypt.compare(args.password, user.passwordHash);
+    if (!isValid) {
+      throw new Error("Invalid email or password");
+    }
+
+    // Create a new session
+    const token = generateToken();
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    await ctx.db.insert("sessions", {
+      userId: user._id,
+      token,
+      expiresAt,
+      createdAt: Date.now(),
+    });
+
+    // Return the user and session
+    return {
+      user,
+      session: { token, expiresAt },
+    };
+  },
+});
+
+// Sign out (invalidate session)
+export const signOut = mutation({
+  args: {
+    token: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (session) {
+      await ctx.db.delete(session._id);
+    }
+
+    return { success: true };
+  },
+});
+
+// Get current user from session token
+export const getCurrentUser = query({
+  args: {
+    token: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!args.token) {
+      return null;
+    }
+
+    const token = args.token; // Capture token in a const for TypeScript
+
+    // Find the session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .first();
+
+    if (!session) {
+      return null;
+    }
+
+    // Check if session has expired
+    if (session.expiresAt < Date.now()) {
+      // Session expired - return null
+      // Note: Expired sessions are cleaned up by the cleanupExpiredSessions mutation
+      return null;
+    }
+
+    // Get the user
+    const user = await ctx.db.get(session.userId);
+    if (!user) {
+      return null;
+    }
+
+    // Get avatar URL if avatar exists
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await ctx.storage.getUrl(user.avatar);
+    }
+
+    return {
+      ...user,
+      avatarUrl,
+    };
+  },
+});
+
+// Clean up expired sessions (can be called periodically)
+export const cleanupExpiredSessions = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const expiredSessions = await ctx.db
+      .query("sessions")
+      .filter((q) => q.lt(q.field("expiresAt"), now))
+      .collect();
+
+    for (const session of expiredSessions) {
+      await ctx.db.delete(session._id);
+    }
+
+    return { deleted: expiredSessions.length };
   },
 });

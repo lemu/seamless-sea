@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button, Input } from "@rafal.lemieszewski/tide-ui";
-import { signIn, signUp } from "../lib/auth-client";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { setSessionToken } from "../lib/auth-client";
 
 function Login() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -11,6 +13,9 @@ function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  const signUpMutation = useMutation(api.auth.signUp);
+  const signInMutation = useMutation(api.auth.signIn);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,35 +31,37 @@ function Login() {
           return;
         }
 
-        const result = await signUp.email({
+        const result = await signUpMutation({
           email,
           password,
           name: name.trim(),
         });
 
-        if (result.error) {
-          setError(result.error.message || "Failed to create account");
-        } else {
-          // Successfully signed up
-          navigate("/home");
-        }
+        // Store the session token
+        setSessionToken(result.session.token);
+
+        // Successfully signed up
+        navigate("/home");
       } else {
         // Sign in flow
-        const result = await signIn.email({
+        const result = await signInMutation({
           email,
           password,
         });
 
-        if (result.error) {
-          setError(result.error.message || "Invalid email or password");
-        } else {
-          // Successfully signed in
-          navigate("/home");
-        }
+        // Store the session token
+        setSessionToken(result.session.token);
+
+        // Successfully signed in
+        navigate("/home");
       }
     } catch (err) {
       console.error("Authentication error:", err);
-      setError("An unexpected error occurred. Please try again.");
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

@@ -2,13 +2,24 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Example users table
+  // Users table with authentication
   users: defineTable({
     name: v.string(),
     email: v.string(),
+    passwordHash: v.optional(v.string()), // Optional for migration from old users
     avatar: v.optional(v.id("_storage")),
+    emailVerified: v.optional(v.boolean()),
     createdAt: v.number(),
-  }),
+    updatedAt: v.optional(v.number()),
+  }).index("by_email", ["email"]),
+
+  // Sessions table for authentication
+  sessions: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_token", ["token"]).index("by_userId", ["userId"]),
 
   // Organizations table
   organizations: defineTable({
