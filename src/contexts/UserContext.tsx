@@ -1,137 +1,68 @@
-import {
-  createContext,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { createContext, type ReactNode } from "react";
+import { useSession, signOut } from "../lib/auth-client";
 import type { Id } from "../../convex/_generated/dataModel";
 
+// Keep backward compatibility with existing User type
 interface User {
   _id: Id<"users">;
+  id: string;
   name: string;
   email: string;
   avatar?: Id<"_storage">;
   avatarUrl?: string | null;
+  image?: string | null;
+  emailVerified: boolean;
   createdAt: number;
+  updatedAt: Date;
 }
 
 interface UserContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
-  login: (email: string) => Promise<boolean>;
-  logout: () => void;
   isLoading: boolean;
-  refreshUser: () => void;
+  error: Error | null;
+  logout: () => Promise<void>;
+  refreshUser?: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [currentEmail, setCurrentEmail] = useState<string | null>(() => {
-    // Initialize from localStorage
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("userEmail");
-    }
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginPromiseResolvers, setLoginPromiseResolvers] = useState<{
-    resolve: (value: boolean) => void;
-    email: string;
-  } | null>(null);
+  const { data: session, isPending, error } = useSession();
 
-  // Single query for current email
-  const userData = useQuery(
-    api.users.getUserByEmail,
-    currentEmail ? { email: currentEmail } : "skip",
-  );
-
-  // Handle query results
-  useEffect(() => {
-    console.log("userData changed:", userData, "currentEmail:", currentEmail);
-
-    if (userData && currentEmail) {
-      // Set the user in context (this should update the avatar too)
-      console.log("Updating user with new data:", userData);
-      setUser(userData);
-      setIsLoading(false);
-
-      // Save to localStorage for persistence
-      localStorage.setItem("userEmail", currentEmail);
-
-      // Resolve any pending login promise
-      if (
-        loginPromiseResolvers &&
-        loginPromiseResolvers.email === currentEmail
-      ) {
-        console.log("Login successful! Resolving promise");
-        loginPromiseResolvers.resolve(true);
-        setLoginPromiseResolvers(null);
+  // Transform session.user to match existing User interface for backward compatibility
+  const user: User | null = session?.user
+    ? {
+        _id: session.user.id as Id<"users">, // Cast Better-Auth ID to Convex ID type
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image ?? undefined,
+        avatarUrl: session.user.image,
+        emailVerified: session.user.emailVerified,
+        createdAt: new Date(session.user.createdAt).getTime(),
+        updatedAt: session.user.updatedAt,
       }
-    } else if (userData === null && currentEmail) {
-      // Query completed but no user found
-      setIsLoading(false);
-      if (
-        loginPromiseResolvers &&
-        loginPromiseResolvers.email === currentEmail
-      ) {
-        console.log("Login failed! User not found");
-        loginPromiseResolvers.resolve(false);
-        setLoginPromiseResolvers(null);
-        setCurrentEmail(null); // Clear failed query
-      }
-    }
-  }, [userData, currentEmail, loginPromiseResolvers]);
+    : null;
 
-  const login = async (email: string): Promise<boolean> => {
-    console.log("Login attempt for email:", email);
-    setIsLoading(true);
-
-    return new Promise((resolve) => {
-      // Store the promise resolver
-      setLoginPromiseResolvers({ resolve, email });
-
-      // Set the email to trigger the query
-      setCurrentEmail(email);
-
-      // Set a timeout as backup
-      setTimeout(() => {
-        if (loginPromiseResolvers && loginPromiseResolvers.email === email) {
-          console.log("Login timeout - resolving as false");
-          resolve(false);
-          setLoginPromiseResolvers(null);
-          setIsLoading(false);
-          setCurrentEmail(null);
-        }
-      }, 5000);
-    });
-  };
-
-  const logout = () => {
-    setUser(null);
-    setCurrentEmail(null);
-    setIsLoading(false);
-    localStorage.removeItem("userEmail");
+  const logout = async () => {
+    await signOut();
   };
 
   const refreshUser = () => {
-    if (currentEmail) {
-      console.log("Manually refreshing user data for:", currentEmail);
-      // Force re-trigger the query by clearing and setting email
-      const email = currentEmail;
-      setCurrentEmail(null);
-      setTimeout(() => {
-        setCurrentEmail(email);
-      }, 100);
-    }
+    // With Better-Auth, sessions are automatically refreshed
+    // This is a no-op for compatibility
+    console.log("User refresh requested (handled automatically by Better-Auth)");
   };
 
   return (
     <UserContext.Provider
-      value={{ user, setUser, login, logout, isLoading, refreshUser }}
+      value={{
+        user,
+        isLoading: isPending,
+        error: error || null,
+        logout,
+        refreshUser,
+      }}
     >
       {children}
     </UserContext.Provider>

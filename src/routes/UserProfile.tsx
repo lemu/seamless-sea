@@ -42,7 +42,7 @@ function UserProfile() {
 
       // Manually refresh the user data to get the updated avatar
       console.log("Avatar updated in database, refreshing user data...");
-      refreshUser();
+      refreshUser?.();
     } catch (error) {
       setError("Failed to upload avatar");
       console.error("Avatar upload error:", error);
