@@ -196,3 +196,83 @@ export const cleanupExpiredSessions = mutation({
     return { deleted: expiredSessions.length };
   },
 });
+
+// Check if a user exists and whether they have a password
+export const checkUserExists = query({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!user) {
+      return { exists: false, hasPassword: false };
+    }
+
+    return {
+      exists: true,
+      hasPassword: !!user.passwordHash,
+      name: user.name,
+    };
+  },
+});
+
+// Set password for existing user without password (migration)
+export const setPasswordForExistingUser = mutation({
+  args: {
+    email: v.string(),
+    password: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if user already has a password
+    if (user.passwordHash) {
+      throw new Error("User already has a password set. Please use sign in.");
+    }
+
+    // Validate password length
+    if (args.password.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+
+    // Hash the password
+    const passwordHash = await bcrypt.hash(args.password, 10);
+
+    // Update the user with the password
+    await ctx.db.patch(user._id, {
+      passwordHash,
+      emailVerified: true, // Mark as verified since they had access
+      updatedAt: Date.now(),
+    });
+
+    // Create a session
+    const token = generateToken();
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    await ctx.db.insert("sessions", {
+      userId: user._id,
+      token,
+      expiresAt,
+      createdAt: Date.now(),
+    });
+
+    // Return the updated user and session
+    const updatedUser = await ctx.db.get(user._id);
+    return {
+      user: updatedUser,
+      session: { token, expiresAt },
+    };
+  },
+});
