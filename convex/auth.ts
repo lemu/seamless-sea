@@ -32,8 +32,8 @@ export const signUp = mutation({
       throw new Error("Password must be at least 8 characters long");
     }
 
-    // Hash the password
-    const passwordHash = await bcrypt.hash(args.password, 10);
+    // Hash the password (using sync version for Convex compatibility)
+    const passwordHash = bcrypt.hashSync(args.password, 10);
 
     // Create the user
     const userId = await ctx.db.insert("users", {
@@ -87,8 +87,8 @@ export const signIn = mutation({
       throw new Error("Please set up your password first");
     }
 
-    // Verify the password
-    const isValid = await bcrypt.compare(args.password, user.passwordHash);
+    // Verify the password (using sync version for Convex compatibility)
+    const isValid = bcrypt.compareSync(args.password, user.passwordHash);
     if (!isValid) {
       throw new Error("Invalid email or password");
     }
@@ -247,8 +247,8 @@ export const setPasswordForExistingUser = mutation({
       throw new Error("Password must be at least 8 characters long");
     }
 
-    // Hash the password
-    const passwordHash = await bcrypt.hash(args.password, 10);
+    // Hash the password (using sync version for Convex compatibility)
+    const passwordHash = bcrypt.hashSync(args.password, 10);
 
     // Update the user with the password
     await ctx.db.patch(user._id, {
