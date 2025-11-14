@@ -53,7 +53,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     <UserContext.Provider
       value={{
         user: user || null,
-        isLoading: user === undefined,
+        isLoading: token ? user === undefined : false,
         logout,
         refreshUser,
       }}
