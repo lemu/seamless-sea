@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed-db": "tsx scripts/seed-db.ts",
-    "clear-db": "tsx scripts/clear-db.ts"
+    "clear-db": "tsx scripts/clear-db.ts",
+    "migrate-data": "tsx scripts/migrate-data.ts"
   },
   "dependencies": {
     "@rafal.lemieszewski/tide-ui": "^0.46.3",
