@@ -11,16 +11,21 @@
   },
   "dependencies": {
     "@rafal.lemieszewski/tide-ui": "^0.46.3",
+    "@types/papaparse": "^5.5.0",
     "@types/react-router": "^5.1.20",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "convex": "^1.25.4",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
+    "papaparse": "^5.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-grid-layout": "^1.5.2",
     "react-router": "^7.8.1",
     "recharts": "^3.2.1",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

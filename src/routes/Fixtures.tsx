@@ -57,6 +57,8 @@ import {
   type FilterValue,
   type Bookmark,
 } from "@rafal.lemieszewski/tide-ui";
+import { useHeaderActions } from "../hooks";
+import { ExportDialog } from "../components/ExportDialog";
 
 // Define types for fixture structure
 interface FixtureData {
@@ -1518,6 +1520,25 @@ function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
   );
+  const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Memoize header actions
+  const headerActions = useMemo(
+    () => (
+      <Button
+        variant="secondary"
+        icon="share"
+        iconPosition="left"
+        onClick={() => setShowExportDialog(true)}
+      >
+        Export
+      </Button>
+    ),
+    []
+  );
+
+  // Set header actions
+  useHeaderActions(headerActions);
 
   // Memoize fixture data
   const fixtureData = useMemo(() => generateFixtureData(), []);
@@ -2118,6 +2139,30 @@ function Fixtures() {
     [setSelectedFixture, columnVisibility, globalSearchTerms],
   );
 
+  // Prepare available columns for export
+  const availableColumnsForExport = useMemo(() => {
+    return fixtureColumns
+      .filter((col): col is typeof col & { accessorKey: string } =>
+        "accessorKey" in col && typeof col.accessorKey === "string"
+      )
+      .map((col) => ({
+        id: col.accessorKey,
+        label: ((col.meta as any)?.label || col.header) as string,
+      }));
+  }, [fixtureColumns]);
+
+  // Get visible columns for export
+  const visibleColumnsForExport = useMemo(() => {
+    return fixtureColumns
+      .filter((col): col is typeof col & { accessorKey: string } => {
+        if (!("accessorKey" in col) || typeof col.accessorKey !== "string") return false;
+        const key = col.accessorKey;
+        return columnVisibility[key] !== false;
+      })
+      .map((col) => col.accessorKey);
+  }, [fixtureColumns, columnVisibility]);
+
+
   // Extract unique values for filters
   const uniqueVessels = useMemo(() => {
     const vessels = new Set<string>();
@@ -2462,6 +2507,63 @@ function Fixtures() {
     grouping,
   ]);
 
+  // Calculate bookmark data (data filtered by bookmark's saved filters only)
+  const bookmarkData = useMemo(() => {
+    if (!activeBookmark?.filtersState) {
+      // If no saved filters, return data filtered by bookmark type only
+      let data = fixtureData.filter((fixture) => {
+        // Special filter for Negotiations bookmark
+        if (activeBookmarkId === "system-negotiations") {
+          if (!fixture.negotiationId || fixture.negotiationId === "-") {
+            return false;
+          }
+        }
+        // Special filter for Contracts bookmark
+        if (activeBookmarkId === "system-contracts") {
+          if (!fixture.cpId) {
+            return false;
+          }
+        }
+        return true;
+      });
+      return data;
+    }
+
+    // Apply bookmark's saved filters
+    const savedFilters = activeBookmark.filtersState.activeFilters;
+    let data = fixtureData.filter((fixture) => {
+      // Special filter for Negotiations bookmark
+      if (activeBookmarkId === "system-negotiations") {
+        if (!fixture.negotiationId || fixture.negotiationId === "-") {
+          return false;
+        }
+      }
+      // Special filter for Contracts bookmark
+      if (activeBookmarkId === "system-contracts") {
+        if (!fixture.cpId) {
+          return false;
+        }
+      }
+
+      // Apply saved filters from bookmark
+      for (const [filterId, filterValue] of Object.entries(savedFilters)) {
+        if (Array.isArray(filterValue) && filterValue.length > 0) {
+          const fixtureValue = String(
+            fixture[filterId as keyof typeof fixture] || "",
+          );
+          const match = filterValue.some((val) =>
+            fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
+          );
+          if (!match) return false;
+        }
+      }
+
+      return true;
+    });
+
+    return data;
+  }, [fixtureData, activeBookmark, activeBookmarkId]);
+
   // Load bookmark state
   const loadBookmark = (bookmark: Bookmark) => {
     setActiveBookmarkId(bookmark.id);
@@ -2773,11 +2875,6 @@ function Fixtures() {
   return (
     <>
       <div className="m-6 flex flex-col gap-[var(--space-lg)]">
-        {/* Page Header */}
-        <div className="flex flex-col gap-[var(--space-sm)]">
-          <h1 className="text-heading-lg">Fixtures</h1>
-        </div>
-
         {/* Bookmarks Tabs Row + Filters Row */}
         <Bookmarks
           variant="tabs"
@@ -2994,6 +3091,19 @@ function Fixtures() {
           />
         )}
       </div>
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        data={fixtureData}
+        filteredData={filteredData}
+        bookmarkData={bookmarkData}
+        availableColumns={availableColumnsForExport}
+        visibleColumns={visibleColumnsForExport}
+        isDirty={isDirty}
+        bookmarkName={activeBookmark?.name}
+      />
     </>
   );
 }

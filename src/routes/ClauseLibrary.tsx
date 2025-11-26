@@ -1,15 +1,6 @@
 export default function ClauseLibrary() {
   return (
     <div className="m-6 space-y-6 p-6">
-      <div className="space-y-2">
-        <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)]">
-          Clause Library
-        </h1>
-        <p className="text-body-lg text-[var(--color-text-secondary)]">
-          Browse and manage your comprehensive library of contract clauses and legal provisions.
-        </p>
-      </div>
-
       <div className="space-y-4">
         <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">

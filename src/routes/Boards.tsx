@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate, Outlet, useLocation } from "react-router";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../hooks";
+import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardsSkeleton, BoardsEmptyState } from "../components/BoardsSkeleton";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -48,7 +48,27 @@ function Boards() {
 
   // Check if we're on a board detail page (child route)
   const isOnBoardDetail = location.pathname.match(/^\/boards\/[^/]+$/);
-  
+
+  // Memoize header actions to prevent infinite re-render loop
+  const headerActions = useMemo(
+    () =>
+      !isOnBoardDetail ? (
+        <Button
+          variant="primary"
+          icon="plus"
+          iconPosition="left"
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 shrink-0"
+        >
+          New Board
+        </Button>
+      ) : null,
+    [isOnBoardDetail]
+  );
+
+  // Set header actions (only for boards list, not detail page)
+  useHeaderActions(headerActions);
+
   // If we're on a board detail page, render the Outlet
   if (isOnBoardDetail) {
     return <Outlet />;
@@ -127,22 +147,6 @@ function Boards() {
 
   return (
     <div className="m-6 flex flex-col gap-[var(--space-lg)]">
-      {/* Header with Title */}
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
-          Boards
-        </h1>
-        <Button
-          variant="primary"
-          icon="plus"
-          iconPosition="left"
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 shrink-0"
-        >
-          New Board
-        </Button>
-      </div>
-
       {/* Boards Grid */}
       {boards && boards.length === 0 ? (
         <BoardsEmptyState onCreateBoard={() => setShowCreateModal(true)} />

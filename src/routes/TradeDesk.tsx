@@ -23,6 +23,7 @@ import {
 } from "@rafal.lemieszewski/tide-ui";
 import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 import { InsightsSection } from "../components/InsightsSection";
+import { useHeaderActions } from "../hooks";
 
 // Helper function for Badge appearance
 const getStageBadgeProps = (
@@ -194,6 +195,34 @@ const generateMultiLevelOrderData = (): OrderData[] => {
 
 function TradeDesk() {
   const [showInsights, setShowInsights] = useState(true);
+
+  // Memoize header actions to prevent infinite re-render loop
+  const headerActions = useMemo(
+    () => (
+      <>
+        <div className="flex items-center gap-2">
+          <Switch checked={showInsights} onCheckedChange={setShowInsights} />
+          <span className="insights-label text-body-md font-medium text-[var(--color-text-primary)]">
+            Insights
+          </span>
+          <Icon name="chart-line" size="md" className="insights-icon" />
+        </div>
+        <div className="mx-2 h-1 w-1 rounded-full bg-[var(--color-text-tertiary)]"></div>
+        <Button variant="secondary" icon="plus" iconPosition="left" className="whitespace-nowrap">
+          <span className="btn-negotiation-full">New negotiation</span>
+          <span className="btn-negotiation-short">Negotiation</span>
+        </Button>
+        <Button variant="primary" icon="plus" iconPosition="left" className="whitespace-nowrap">
+          <span className="btn-order-full">New order</span>
+          <span className="btn-order-short">Order</span>
+        </Button>
+      </>
+    ),
+    [showInsights]
+  );
+
+  // Set header actions for this route
+  useHeaderActions(headerActions);
 
   // Memoize trade data to prevent regenerating on every render
   const tradeData = useMemo(() => generateMultiLevelOrderData(), []);
@@ -641,31 +670,6 @@ function TradeDesk() {
       `}</style>
 
       <div className="m-6 flex flex-col gap-[var(--space-lg)]">
-        {/* Header with Title and Buttons */}
-        <div className="flex items-center justify-between gap-4">
-          <h1 className="text-heading-lg font-bold text-[var(--color-text-primary)] shrink-0">
-            Trade desk
-          </h1>
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-2">
-              <Switch checked={showInsights} onCheckedChange={setShowInsights} />
-              <span className="insights-label text-body-md font-medium text-[var(--color-text-primary)]">
-                Insights
-              </span>
-              <Icon name="chart-line" size="md" className="insights-icon" />
-            </div>
-            <div className="mx-2 h-1 w-1 rounded-full bg-[var(--color-text-tertiary)]"></div>
-            <Button variant="secondary" icon="plus" iconPosition="left" className="whitespace-nowrap">
-              <span className="btn-negotiation-full">New negotiation</span>
-              <span className="btn-negotiation-short">Negotiation</span>
-            </Button>
-            <Button variant="primary" icon="plus" iconPosition="left" className="whitespace-nowrap">
-              <span className="btn-order-full">New order</span>
-              <span className="btn-order-short">Order</span>
-            </Button>
-          </div>
-        </div>
-
       {/* Insights Section */}
       {showInsights && (
         <div className="space-y-4">

@@ -4,6 +4,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useLocation, useNavigate, useMatches } from "react-router";
 import type { Id } from "../../convex/_generated/dataModel";
+import {
+  HeaderActionsProvider,
+  HeaderActionsContext,
+} from "../contexts/HeaderActionsContext";
 
 // Type definitions
 interface User {
@@ -1643,25 +1647,40 @@ export function AppFrame({ children }: AppFrameProps) {
   }
 
   return (
-    <SidebarProvider className="h-full [&>div]:!block" defaultOpen={true}>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-border-primary-subtle)] transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 box-border">
-          <div className="flex items-center gap-2 px-[var(--space-md)]">
-            <SidebarToggleWithTooltip />
-            <Separator layout="horizontal" className="mr-2 h-4" />
-            <Breadcrumb className="min-w-0 flex-1">
-              <BreadcrumbList className="flex-nowrap">
-                <DynamicBreadcrumbs />
-              </BreadcrumbList>
-            </Breadcrumb>
-
+    <HeaderActionsProvider>
+      <SidebarProvider className="h-full [&>div]:!block" defaultOpen={true}>
+        <AppSidebar />
+        <SidebarInset>
+          <HeaderWithActions />
+          <div className="flex flex-1 flex-col overflow-auto min-h-0">
+            {children}
           </div>
-        </header>
-        <div className="flex flex-1 flex-col overflow-auto min-h-0">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </HeaderActionsProvider>
+  );
+}
+
+// Header component that consumes the HeaderActionsContext
+function HeaderWithActions() {
+  const context = React.useContext(HeaderActionsContext);
+
+  return (
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--color-border-primary-subtle)] transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 box-border">
+      <div className="flex items-center gap-2 px-[var(--space-md)] flex-1 min-w-0">
+        <SidebarToggleWithTooltip />
+        <Separator layout="horizontal" className="mr-2 h-4" />
+        <Breadcrumb className="min-w-0 flex-1">
+          <BreadcrumbList className="flex-nowrap">
+            <DynamicBreadcrumbs />
+          </BreadcrumbList>
+        </Breadcrumb>
+        {context?.actions && (
+          <div className="flex items-center gap-2 ml-auto">
+            {context.actions}
+          </div>
+        )}
+      </div>
+    </header>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -8,9 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Editable,
-  EditablePreview,
-  EditableInput,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -18,74 +15,11 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
-import { useUser } from "../hooks";
+import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
 import { WidgetGrid, AddWidgetModal } from "../components/widgets";
 import type { Id } from "../../convex/_generated/dataModel";
-
-// Clean implementation using our new Editable component
-const BoardTitle = ({ boardId, title, isOwner }: {
-  boardId: string;
-  title: string;
-  isOwner: boolean;
-}) => {
-  const updateBoard = useMutation(api.boards.updateBoard);
-
-  const handleSubmit = async (newTitle: string) => {
-    try {
-      await updateBoard({
-        boardId: boardId as Id<"boards">,
-        title: newTitle.trim(),
-      });
-    } catch (error) {
-      console.error("Failed to update board:", error);
-    }
-  };
-
-  const sharedStyles = {
-    fontSize: '1.75rem',
-    lineHeight: '2.25rem',
-    fontWeight: '700',
-    color: 'var(--color-text-primary)',
-    fontFamily: 'inherit',
-    padding: '0.25rem 0.5rem',
-    margin: '0',
-  };
-
-  return (
-    <div style={{ marginLeft: '-0.5rem', display: 'inline-block' }}>
-      <Editable
-        defaultValue={title}
-        onSubmit={handleSubmit}
-        disabled={!isOwner}
-        placeholder="Enter board title..."
-      >
-        <EditablePreview
-          className="cursor-pointer hover:bg-[var(--color-background-neutral-subtle)] rounded-md transition-colors"
-          style={{
-            ...sharedStyles,
-            minHeight: '2.25rem',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        />
-        <EditableInput
-          className="outline-none rounded-md"
-          style={{
-            ...sharedStyles,
-            border: 'none',
-            background: 'transparent',
-            boxShadow: '0 0 0 2px var(--color-border-brand)',
-          }}
-          autoResize
-          minWidth={120}
-          charWidth={16}
-        />
-      </Editable>
-    </div>
-  );
-};
 
 function BoardDetail() {
   const { id } = useParams<{ id: string }>();
@@ -110,10 +44,49 @@ function BoardDetail() {
 
   const deleteBoard = useMutation(api.boards.deleteBoard);
 
+  // Calculate ownership early for header actions
+  const isOwner = board && user ? board.userId === user._id : false;
 
-  const handleDeleteBoard = () => {
-    setShowDeleteDialog(true);
-  };
+  // Memoize header actions to prevent infinite re-render loop
+  const headerActions = useMemo(
+    () =>
+      board && user && isOwner ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="secondary"
+            icon="plus"
+            iconPosition="left"
+            onClick={() => {
+              setIsAddingWidget(true);
+              setShowAddWidgetModal(true);
+            }}
+          >
+            Add widget
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button icon="more-horizontal" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                icon="trash-2"
+                onClick={() => setShowDeleteDialog(true)}
+                className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
+              >
+                Delete Board
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ) : null,
+    [board, user, isOwner, setIsAddingWidget, setShowAddWidgetModal, setShowDeleteDialog]
+  );
+
+  // Set header actions
+  useHeaderActions(headerActions);
+
+
 
   const handleConfirmDelete = async () => {
     if (!board) return;
@@ -131,9 +104,6 @@ function BoardDetail() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
 
   const handleAddWidget = () => {
     setIsAddingWidget(true);
@@ -192,8 +162,7 @@ function BoardDetail() {
     );
   }
 
-  // Check if user owns this board
-  const isOwner = board.userId === user._id;
+  // Check if user has access to this board
   const hasAccess =
     isOwner ||
     userOrganizations?.some((org) => org._id === board.organizationId);
@@ -221,56 +190,6 @@ function BoardDetail() {
 
   return (
     <div className="m-6 flex flex-col gap-[var(--space-lg)]">
-      {/* Header with Title */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-4 min-w-0">
-          <div className="mb-2 min-w-0 flex-1">
-            {board && (
-              <BoardTitle
-                boardId={board._id}
-                title={board.title}
-                isOwner={isOwner}
-              />
-            )}
-          </div>
-
-          {isOwner && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="secondary"
-                icon="plus"
-                iconPosition="left"
-                onClick={handleAddWidget}
-              >
-                Add widget
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button icon="more-horizontal" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    icon="trash-2"
-                    onClick={handleDeleteBoard}
-                    className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
-                  >
-                    Delete Board
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
-        </div>
-
-        <div className="text-body-sm flex items-center gap-4 text-[var(--color-text-secondary)]">
-          <span>Created {formatDate(board.createdAt)}</span>
-          {board.updatedAt !== board.createdAt && (
-            <span>Updated {formatDate(board.updatedAt)}</span>
-          )}
-        </div>
-      </div>
-
       {/* Board Content - Widget Grid */}
       <div key="widget-grid-container">
         <WidgetGrid
