@@ -8,15 +8,18 @@
  * @module
  */
 
+import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
+import type * as migrations from "../migrations.js";
 import type * as negotiations from "../negotiations.js";
 import type * as orders from "../orders.js";
 import type * as organizations from "../organizations.js";
 import type * as ports from "../ports.js";
+import type * as recapManagers from "../recapManagers.js";
 import type * as routes from "../routes.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
@@ -30,15 +33,18 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  audit: typeof audit;
   auth: typeof auth;
   boards: typeof boards;
   cargo_types: typeof cargo_types;
   companies: typeof companies;
   contracts: typeof contracts;
+  migrations: typeof migrations;
   negotiations: typeof negotiations;
   orders: typeof orders;
   organizations: typeof organizations;
   ports: typeof ports;
+  recapManagers: typeof recapManagers;
   routes: typeof routes;
   seed: typeof seed;
   users: typeof users;
