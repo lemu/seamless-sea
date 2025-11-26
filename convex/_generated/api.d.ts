@@ -10,8 +10,14 @@
 
 import type * as auth from "../auth.js";
 import type * as boards from "../boards.js";
+import type * as cargo_types from "../cargo_types.js";
+import type * as companies from "../companies.js";
 import type * as organizations from "../organizations.js";
+import type * as ports from "../ports.js";
+import type * as routes from "../routes.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
+import type * as vessels from "../vessels.js";
 import type * as widgets from "../widgets.js";
 
 import type {
@@ -23,8 +29,14 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   boards: typeof boards;
+  cargo_types: typeof cargo_types;
+  companies: typeof companies;
   organizations: typeof organizations;
+  ports: typeof ports;
+  routes: typeof routes;
+  seed: typeof seed;
   users: typeof users;
+  vessels: typeof vessels;
   widgets: typeof widgets;
 }>;
 
