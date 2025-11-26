@@ -88,13 +88,13 @@ async function migrateTradeDeskData(
       const counterparty = randomItem(charterers);
       const broker = randomItem(brokers);
       const vessel = randomItem(vessels);
-      const statuses = [
+      const statuses: Array<"indicative-offer" | "firm-offer" | "firm-bid" | "firm" | "on-subs"> = [
         "indicative-offer",
         "firm-offer",
         "firm-bid",
         "firm",
         "on-subs",
-      ] as const;
+      ];
 
       const negotiationId = await ctx.db.insert("negotiations", {
         orderId,
@@ -156,7 +156,7 @@ async function migrateFixturesData(
     const vessel = randomItem(vessels);
 
     const contractNumber = `CP${10000 + i}`;
-    const statuses = ["draft", "working-copy", "final"] as const;
+    const statuses: Array<"draft" | "working-copy" | "final"> = ["draft", "working-copy", "final"];
 
     const contractId = await ctx.db.insert("contracts", {
       contractNumber,
@@ -201,7 +201,7 @@ async function migrateFixturesData(
     const vessel = randomItem(vessels);
 
     const recapNumber = `RCP${10000 + i}`;
-    const statuses = ["draft", "on-subs", "fully-fixed"] as const;
+    const statuses: Array<"draft" | "on-subs" | "fully-fixed"> = ["draft", "on-subs", "fully-fixed"];
 
     const recapId = await ctx.db.insert("recap_managers", {
       recapNumber,
