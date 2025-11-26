@@ -1,16 +1,15 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 
-// Seed function to populate vessels from existing data
-export const seedVessels = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const systemUser = await ctx.db.query("users").first();
-    if (!systemUser) {
-      throw new Error("No users found. Please create a user first.");
-    }
+// Internal seed function that can be called from other mutations
+export const seedVesselsInternal = async (ctx: MutationCtx) => {
+  const systemUser = await ctx.db.query("users").first();
+  if (!systemUser) {
+    throw new Error("No users found. Please create a user first.");
+  }
 
-    const now = Date.now();
+  const now = Date.now();
 
     // Vessels from Trade Desk (18 vessels)
     const tradeDeskVessels = [
@@ -69,19 +68,25 @@ export const seedVessels = mutation({
       createdVessels.push({ name, id: vesselId });
     }
 
-    return {
-      success: true,
-      message: `Successfully seeded ${createdVessels.length} vessels`,
-      vessels: createdVessels,
-    };
-  },
+  return {
+    success: true,
+    message: `Successfully seeded ${createdVessels.length} vessels`,
+    vessels: createdVessels,
+  };
+};
+
+// Seed function to populate vessels from existing data
+export const seedVessels = mutation({
+  args: {},
+  handler: seedVesselsInternal,
 });
 
 // Query all vessels
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("vessels").order("asc", "name").collect();
+    const vessels = await ctx.db.query("vessels").collect();
+    return vessels.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

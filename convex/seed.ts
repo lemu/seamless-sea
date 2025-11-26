@@ -1,9 +1,9 @@
 import { mutation, query } from "./_generated/server";
-import { seedCompanies } from "./companies";
-import { seedPorts } from "./ports";
-import { seedVessels } from "./vessels";
-import { seedCargoTypes } from "./cargo_types";
-import { seedRoutes } from "./routes";
+import { seedCompaniesInternal } from "./companies";
+import { seedPortsInternal } from "./ports";
+import { seedVesselsInternal } from "./vessels";
+import { seedCargoTypesInternal } from "./cargo_types";
+import { seedRoutesInternal } from "./routes";
 
 // Master seed function to populate all reference data
 export const seedAll = mutation({
@@ -13,23 +13,23 @@ export const seedAll = mutation({
 
     try {
       // 1. Seed companies (charterers, brokers, owners)
-      const companiesResult = await seedCompanies(ctx, {});
+      const companiesResult = await seedCompaniesInternal(ctx);
       results.push(companiesResult);
 
       // 2. Seed ports
-      const portsResult = await seedPorts(ctx, {});
+      const portsResult = await seedPortsInternal(ctx);
       results.push(portsResult);
 
       // 3. Seed vessels
-      const vesselsResult = await seedVessels(ctx, {});
+      const vesselsResult = await seedVesselsInternal(ctx);
       results.push(vesselsResult);
 
       // 4. Seed cargo types
-      const cargoTypesResult = await seedCargoTypes(ctx, {});
+      const cargoTypesResult = await seedCargoTypesInternal(ctx);
       results.push(cargoTypesResult);
 
       // 5. Seed routes (depends on ports)
-      const routesResult = await seedRoutes(ctx, {});
+      const routesResult = await seedRoutesInternal(ctx);
       results.push(routesResult);
 
       return {

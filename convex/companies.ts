@@ -1,117 +1,122 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+
+// Internal seed function that can be called from other mutations
+export const seedCompaniesInternal = async (ctx: MutationCtx) => {
+  // Get a system user ID for createdBy field
+  const systemUser = await ctx.db.query("users").first();
+  if (!systemUser) {
+    throw new Error("No users found. Please create a user first.");
+  }
+
+  const now = Date.now();
+
+  // Charterers (8 companies)
+  const charterers = [
+    "Archer Daniels Midland",
+    "Bunge",
+    "Cofco",
+    "Cargill",
+    "Louis Dreyfus",
+    "Mercuria",
+    "Trafigura",
+    "Vitol",
+  ];
+
+  // Brokers (8 companies)
+  const brokers = [
+    "BRS",
+    "Clarksons",
+    "Howe Robinson",
+    "Ifchor Galbraiths",
+    "McQuilling Partners",
+    "Simpson Spence Young",
+    "MB Shipbrokers",
+    "Gibson",
+  ];
+
+  // Owners (8 companies)
+  const owners = [
+    "CMA CGM",
+    "Cosco Shipping",
+    "CMB Tech",
+    "Hapag-Lloyd",
+    "Mediterranean Shipping Company",
+    "Maersk",
+    "Evergreen",
+    "Star Bulk Carriers",
+  ];
+
+  const createdCompanies = [];
+
+  // Create charterers
+  for (const name of charterers) {
+    const companyId = await ctx.db.insert("companies", {
+      name,
+      displayName: name,
+      companyType: "shipping-company",
+      roles: ["charterer"],
+      isVerified: true,
+      isActive: true,
+      createdBy: systemUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    createdCompanies.push({ name, id: companyId, role: "charterer" });
+  }
+
+  // Create brokers
+  for (const name of brokers) {
+    const companyId = await ctx.db.insert("companies", {
+      name,
+      displayName: name,
+      companyType: "broker",
+      roles: ["broker"],
+      isVerified: true,
+      isActive: true,
+      createdBy: systemUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    createdCompanies.push({ name, id: companyId, role: "broker" });
+  }
+
+  // Create owners
+  for (const name of owners) {
+    const companyId = await ctx.db.insert("companies", {
+      name,
+      displayName: name,
+      companyType: "shipping-company",
+      roles: ["owner"],
+      isVerified: true,
+      isActive: true,
+      createdBy: systemUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    createdCompanies.push({ name, id: companyId, role: "owner" });
+  }
+
+  return {
+    success: true,
+    message: `Successfully seeded ${createdCompanies.length} companies`,
+    companies: createdCompanies,
+  };
+};
 
 // Seed function to populate initial 24 companies
 export const seedCompanies = mutation({
   args: {},
-  handler: async (ctx) => {
-    // Get a system user ID for createdBy field
-    const systemUser = await ctx.db.query("users").first();
-    if (!systemUser) {
-      throw new Error("No users found. Please create a user first.");
-    }
-
-    const now = Date.now();
-
-    // Charterers (8 companies)
-    const charterers = [
-      "Archer Daniels Midland",
-      "Bunge",
-      "Cofco",
-      "Cargill",
-      "Louis Dreyfus",
-      "Mercuria",
-      "Trafigura",
-      "Vitol",
-    ];
-
-    // Brokers (8 companies)
-    const brokers = [
-      "BRS",
-      "Clarksons",
-      "Howe Robinson",
-      "Ifchor Galbraiths",
-      "McQuilling Partners",
-      "Simpson Spence Young",
-      "MB Shipbrokers",
-      "Gibson",
-    ];
-
-    // Owners (8 companies)
-    const owners = [
-      "CMA CGM",
-      "Cosco Shipping",
-      "CMB Tech",
-      "Hapag-Lloyd",
-      "Mediterranean Shipping Company",
-      "Maersk",
-      "Evergreen",
-      "Star Bulk Carriers",
-    ];
-
-    const createdCompanies = [];
-
-    // Create charterers
-    for (const name of charterers) {
-      const companyId = await ctx.db.insert("companies", {
-        name,
-        displayName: name,
-        companyType: "shipping-company",
-        roles: ["charterer"],
-        isVerified: true,
-        isActive: true,
-        createdBy: systemUser._id,
-        createdAt: now,
-        updatedAt: now,
-      });
-      createdCompanies.push({ name, id: companyId, role: "charterer" });
-    }
-
-    // Create brokers
-    for (const name of brokers) {
-      const companyId = await ctx.db.insert("companies", {
-        name,
-        displayName: name,
-        companyType: "broker",
-        roles: ["broker"],
-        isVerified: true,
-        isActive: true,
-        createdBy: systemUser._id,
-        createdAt: now,
-        updatedAt: now,
-      });
-      createdCompanies.push({ name, id: companyId, role: "broker" });
-    }
-
-    // Create owners
-    for (const name of owners) {
-      const companyId = await ctx.db.insert("companies", {
-        name,
-        displayName: name,
-        companyType: "shipping-company",
-        roles: ["owner"],
-        isVerified: true,
-        isActive: true,
-        createdBy: systemUser._id,
-        createdAt: now,
-        updatedAt: now,
-      });
-      createdCompanies.push({ name, id: companyId, role: "owner" });
-    }
-
-    return {
-      success: true,
-      message: `Successfully seeded ${createdCompanies.length} companies`,
-      companies: createdCompanies,
-    };
-  },
+  handler: seedCompaniesInternal,
 });
 
 // Query all companies
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("companies").order("desc").collect();
+    const companies = await ctx.db.query("companies").collect();
+    return companies.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 

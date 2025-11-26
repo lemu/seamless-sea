@@ -1,12 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
-// Seed function to populate common routes
-export const seedRoutes = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
+// Internal seed function that can be called from other mutations
+export const seedRoutesInternal = async (ctx: MutationCtx) => {
+  const now = Date.now();
 
     // Get ports by name to create routes
     const tubarao = await ctx.db
@@ -92,19 +91,25 @@ export const seedRoutes = mutation({
       createdRoutes.push({ name: route.name, id: routeId });
     }
 
-    return {
-      success: true,
-      message: `Successfully seeded ${createdRoutes.length} routes`,
-      routes: createdRoutes,
-    };
-  },
+  return {
+    success: true,
+    message: `Successfully seeded ${createdRoutes.length} routes`,
+    routes: createdRoutes,
+  };
+};
+
+// Seed function to populate common routes
+export const seedRoutes = mutation({
+  args: {},
+  handler: seedRoutesInternal,
 });
 
 // Query all routes
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("routes").order("asc", "name").collect();
+    const routes = await ctx.db.query("routes").collect();
+    return routes.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

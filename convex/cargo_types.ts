@@ -1,11 +1,10 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 
-// Seed function to populate common cargo types
-export const seedCargoTypes = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
+// Internal seed function that can be called from other mutations
+export const seedCargoTypesInternal = async (ctx: MutationCtx) => {
+  const now = Date.now();
 
     const cargoTypesData = [
       { name: "Iron Ore", category: "iron-ore", unitType: "mt" },
@@ -35,19 +34,25 @@ export const seedCargoTypes = mutation({
       createdCargoTypes.push({ name: cargoType.name, id: cargoTypeId });
     }
 
-    return {
-      success: true,
-      message: `Successfully seeded ${createdCargoTypes.length} cargo types`,
-      cargoTypes: createdCargoTypes,
-    };
-  },
+  return {
+    success: true,
+    message: `Successfully seeded ${createdCargoTypes.length} cargo types`,
+    cargoTypes: createdCargoTypes,
+  };
+};
+
+// Seed function to populate common cargo types
+export const seedCargoTypes = mutation({
+  args: {},
+  handler: seedCargoTypesInternal,
 });
 
 // Query all cargo types
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("cargo_types").order("asc", "name").collect();
+    const cargoTypes = await ctx.db.query("cargo_types").collect();
+    return cargoTypes.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
