@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { seedCompanies } from "./companies";
 import { seedPorts } from "./ports";
 import { seedVessels } from "./vessels";
@@ -48,7 +48,7 @@ export const seedAll = mutation({
 });
 
 // Check if database is already seeded
-export const checkSeeded = mutation({
+export const checkSeeded = query({
   args: {},
   handler: async (ctx) => {
     const companiesCount = (await ctx.db.query("companies").collect()).length;
