@@ -232,8 +232,31 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_stage", ["stage"]),
 
+  // Fixtures - Grouping of contracts resulting from orders/negotiations
+  fixtures: defineTable({
+    fixtureNumber: v.string(), // FIX12345
+    orderId: v.optional(v.id("orders")),
+    title: v.optional(v.string()),
+    organizationId: v.id("organizations"),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("working-copy"),
+      v.literal("final"),
+      v.literal("on-subs"),
+      v.literal("fully-fixed"),
+      v.literal("canceled")
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_fixtureNumber", ["fixtureNumber"])
+    .index("by_order", ["orderId"])
+    .index("by_status", ["status"]),
+
   // Negotiations - Individual offers/bids (previously "offers")
   negotiations: defineTable({
+    negotiationNumber: v.optional(v.string()), // NEG12345 (optional for migration)
     orderId: v.id("orders"),
     counterpartyId: v.id("companies"), // The company making the offer/bid
     brokerId: v.optional(v.id("companies")),
@@ -265,11 +288,13 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_counterparty", ["counterpartyId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_negotiationNumber", ["negotiationNumber"]),
 
   // Contracts - Dry market charter parties
   contracts: defineTable({
     contractNumber: v.string(), // CP12345
+    fixtureId: v.optional(v.id("fixtures")), // Group multiple contracts under one fixture
     negotiationId: v.optional(v.id("negotiations")),
     orderId: v.optional(v.id("orders")),
     parentContractId: v.optional(v.id("contracts")), // For COA voyages
@@ -314,6 +339,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_contractNumber", ["contractNumber"])
+    .index("by_fixture", ["fixtureId"])
     .index("by_negotiation", ["negotiationId"])
     .index("by_order", ["orderId"])
     .index("by_parent", ["parentContractId"])
@@ -322,6 +348,7 @@ export default defineSchema({
   // Recap Managers - Wet market contracts
   recap_managers: defineTable({
     recapNumber: v.string(), // RCP12345
+    fixtureId: v.optional(v.id("fixtures")), // Group multiple recaps under one fixture
     negotiationId: v.optional(v.id("negotiations")),
     orderId: v.optional(v.id("orders")),
     parentRecapId: v.optional(v.id("recap_managers")), // For COA voyages
@@ -367,6 +394,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_recapNumber", ["recapNumber"])
+    .index("by_fixture", ["fixtureId"])
     .index("by_negotiation", ["negotiationId"])
     .index("by_order", ["orderId"])
     .index("by_parent", ["parentRecapId"])
@@ -446,10 +474,35 @@ export default defineSchema({
       label: v.string(),
     })),
     metadata: v.optional(v.any()), // Additional data as JSON
+    expandable: v.optional(v.object({
+      data: v.optional(v.array(v.object({
+        label: v.string(),
+        value: v.string(),
+      }))),
+      content: v.optional(v.string()),
+    })),
     userId: v.optional(v.id("users")),
     timestamp: v.number(),
   })
     .index("by_entity", ["entityType", "entityId"])
+    .index("by_timestamp", ["timestamp"]),
+
+  // Approvals - Track approval status for contracts and fixtures
+  approvals: defineTable({
+    entityType: v.union(
+      v.literal("order"),
+      v.literal("contract"),
+      v.literal("recap_manager"),
+      v.literal("fixture")
+    ),
+    entityId: v.string(),
+    userId: v.id("users"),
+    approved: v.boolean(),
+    comment: v.optional(v.string()),
+    timestamp: v.number(),
+  })
+    .index("by_entity", ["entityType", "entityId"])
+    .index("by_user", ["userId"])
     .index("by_timestamp", ["timestamp"]),
 
   // Voyages - Individual voyages under COA

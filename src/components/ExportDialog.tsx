@@ -13,6 +13,8 @@ import {
   Label,
   Separator,
   Icon,
+  Toggle,
+  toast,
 } from "@rafal.lemieszewski/tide-ui";
 import type {
   ExportFormat,
@@ -22,7 +24,6 @@ import type {
   ExportDateRange,
 } from "../types/export";
 import { exportData, generateFileName } from "../utils/exportHelpers";
-import { cn } from "../lib/utils";
 
 interface ExportDialogProps<T extends Record<string, any>> {
   open: boolean;
@@ -53,7 +54,7 @@ export function ExportDialog<T extends Record<string, any>>({
   const [dateRangeType, setDateRangeType] = useState<ExportDateRange>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [fileName, setFileName] = useState(generateFileName("fixtures_export"));
+  const [fileName, _setFileName] = useState(generateFileName("fixtures_export"));
   const [isExporting, setIsExporting] = useState(false);
 
   // Initialize columns state with visible columns selected
@@ -102,7 +103,7 @@ export function ExportDialog<T extends Record<string, any>>({
   // Handle export
   const handleExport = async () => {
     if (selectedColumnCount === 0) {
-      alert("Please select at least one column to export");
+      toast.error("Please select at least one column to export");
       return;
     }
 
@@ -134,13 +135,14 @@ export function ExportDialog<T extends Record<string, any>>({
       const result = exportData(dataToExport, options);
 
       if (result.success) {
+        toast.success("Export successful!");
         onClose();
       } else {
-        alert(`Export failed: ${result.error}`);
+        toast.error(`Export failed: ${result.error}`);
       }
     } catch (error) {
       console.error("Export error:", error);
-      alert(
+      toast.error(
         `Export failed: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     } finally {
@@ -161,29 +163,32 @@ export function ExportDialog<T extends Record<string, any>>({
             <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
               Format
             </Label>
-            <RadioGroup value={format} onValueChange={(value) => setFormat(value as ExportFormat)}>
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="csv" id="format-csv" />
-                  <Label htmlFor="format-csv" className="flex items-center gap-2 cursor-pointer">
-                    <Icon name="file-text" size="sm" />
-                    CSV
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="excel" id="format-excel" />
-                  <Label htmlFor="format-excel" className="flex items-center gap-2 cursor-pointer">
-                    <Icon name="file-spreadsheet" size="sm" />
-                    Excel
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="pdf" id="format-pdf" />
-                  <Label htmlFor="format-pdf" className="flex items-center gap-2 cursor-pointer">
-                    <Icon name="file" size="sm" />
-                    PDF
-                  </Label>
-                </div>
+            <RadioGroup
+              value={format}
+              onValueChange={(value) => setFormat(value as ExportFormat)}
+              orientation="vertical"
+              className="gap-2"
+            >
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="csv" id="format-csv" />
+                <Label htmlFor="format-csv" className="flex items-center gap-2 cursor-pointer">
+                  <Icon name="file-text" size="sm" />
+                  CSV
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="excel" id="format-excel" />
+                <Label htmlFor="format-excel" className="flex items-center gap-2 cursor-pointer">
+                  <Icon name="file-spreadsheet" size="sm" />
+                  Excel
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="pdf" id="format-pdf" />
+                <Label htmlFor="format-pdf" className="flex items-center gap-2 cursor-pointer">
+                  <Icon name="file" size="sm" />
+                  PDF
+                </Label>
               </div>
             </RadioGroup>
           </div>
@@ -198,29 +203,29 @@ export function ExportDialog<T extends Record<string, any>>({
             <RadioGroup
               value={dataScope}
               onValueChange={(value) => setDataScope(value as ExportDataScope)}
+              orientation="vertical"
+              className="gap-2"
             >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="all" id="scope-all" />
-                  <Label htmlFor="scope-all" className="cursor-pointer">
-                    All data ({data.length} fixtures)
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="bookmark" id="scope-bookmark" />
-                  <Label htmlFor="scope-bookmark" className="cursor-pointer">
-                    Current bookmark{bookmarkName ? `: ${bookmarkName}` : ""} ({bookmarkData.length} fixtures)
-                  </Label>
-                </div>
-                {isDirty && (
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="filtered" id="scope-filtered" />
-                    <Label htmlFor="scope-filtered" className="cursor-pointer">
-                      Current filter ({filteredData.length} fixtures)
-                    </Label>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="all" id="scope-all" />
+                <Label htmlFor="scope-all" className="cursor-pointer">
+                  All data ({data.length} fixtures)
+                </Label>
               </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="bookmark" id="scope-bookmark" />
+                <Label htmlFor="scope-bookmark" className="cursor-pointer">
+                  Current bookmark{bookmarkName ? `: ${bookmarkName}` : ""} ({bookmarkData.length} fixtures)
+                </Label>
+              </div>
+              {isDirty && (
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="filtered" id="scope-filtered" />
+                  <Label htmlFor="scope-filtered" className="cursor-pointer">
+                    Current filter ({filteredData.length} fixtures)
+                  </Label>
+                </div>
+              )}
             </RadioGroup>
           </div>
 
@@ -234,20 +239,20 @@ export function ExportDialog<T extends Record<string, any>>({
             <RadioGroup
               value={dateRangeType}
               onValueChange={(value) => setDateRangeType(value as ExportDateRange)}
+              orientation="vertical"
+              className="gap-2"
             >
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="all" id="date-all" />
-                  <Label htmlFor="date-all" className="cursor-pointer">
-                    All time
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem value="custom" id="date-custom" />
-                  <Label htmlFor="date-custom" className="cursor-pointer">
-                    Custom range
-                  </Label>
-                </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="all" id="date-all" />
+                <Label htmlFor="date-all" className="cursor-pointer">
+                  All time
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="custom" id="date-custom" />
+                <Label htmlFor="date-custom" className="cursor-pointer">
+                  Custom range
+                </Label>
               </div>
             </RadioGroup>
 
@@ -309,36 +314,20 @@ export function ExportDialog<T extends Record<string, any>>({
 
             <div className="flex flex-wrap gap-2">
               {columns.map((column) => (
-                <button
+                <Toggle
                   key={column.id}
-                  onClick={() => handleColumnToggle(column.id)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-md text-body-sm cursor-pointer transition-colors",
-                    column.selected
-                      ? "bg-[var(--color-bg-interactive-selected)] text-[var(--color-text-interactive-selected)]"
-                      : "bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary-hover)]"
-                  )}
+                  pressed={column.selected}
+                  onPressedChange={() => handleColumnToggle(column.id)}
+                  variant="outline"
+                  size="sm"
                 >
                   {column.label}
-                </button>
+                </Toggle>
               ))}
             </div>
           </div>
 
           <Separator />
-
-          {/* File Name */}
-          <div className="space-y-2">
-            <Label htmlFor="file-name" className="text-label-md font-medium text-[var(--color-text-primary)]">
-              File name
-            </Label>
-            <Input
-              id="file-name"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              placeholder="Enter file name"
-            />
-          </div>
         </DialogBody>
 
         <DialogFooter>

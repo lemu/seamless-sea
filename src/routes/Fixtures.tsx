@@ -48,17 +48,19 @@ import {
   ActivityLogHeader,
   ActivityLogDescription,
   ActivityLogValue,
-  ActivityLogChevron,
-  ActivityLogContent,
   Avatar,
+  AvatarImage,
   AvatarFallback,
-  AvatarGroup,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
 } from "@rafal.lemieszewski/tide-ui";
 import { useHeaderActions } from "../hooks";
 import { ExportDialog } from "../components/ExportDialog";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { getRouteDisplay } from "../utils/countries";
+import { formatLaycanRange, formatCargo } from "../utils/dataUtils";
 
 // Define types for fixture structure
 interface FixtureData {
@@ -74,9 +76,20 @@ interface FixtureData {
   status: string;
   approvalStatus: string;
   owner: string;
+  ownerAvatarUrl?: string | null;
   broker: string;
+  brokerAvatarUrl?: string | null;
   charterer: string;
+  chartererAvatarUrl?: string | null;
   lastUpdated: number;
+  // Full objects for sidebar display
+  contract?: any;
+  order?: any;
+  negotiation?: any;
+  vessel?: any;
+  loadPort?: any;
+  dischargePort?: any;
+  cargoType?: any;
 }
 
 // Define types for change history
@@ -94,619 +107,67 @@ interface ChangeHistoryEntry {
   value: string;  // The new value
 }
 
-// Define types for activity log
-interface ActivityLogEntry {
-  timestamp: string | Date;
-  user: {
-    name: string;
-    avatar?: string;
-  };
-  action: string;
-  description: string;
-  status?: {
-    value: string;
-    label: string;
-  };
-  expandable?: {
-    data?: Array<{ label: string; value: string }>;
-    content?: string;
-  };
-  icon?: string;
-}
 
-// Mock change history data for fixture fields
-const mockChangeHistory: Record<string, ChangeHistoryEntry[]> = {
-  charterer: [
-    {
-      timestamp: "Jul 27, 2025 at 15:01",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "ShipCo"
-    },
-    {
-      timestamp: "Jul 14, 2025 at 9:37",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-draft", label: "contract draft" },
-      value: "ShipCo Corporation"
-    },
-    {
-      timestamp: "Jul 4, 2025 at 12:37",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "ShipCo Ltd."
-    }
-  ],
-  broker: [
-    {
-      timestamp: "Jul 20, 2025 at 10:15",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "Simpson Spence Young"
-    },
-    {
-      timestamp: "Jul 8, 2025 at 14:22",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "Clarksons"
-    }
-  ],
-  owner: [
-    {
-      timestamp: "Jul 26, 2025 at 16:45",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "Acme Shipping"
-    },
-    {
-      timestamp: "Jul 10, 2025 at 11:30",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "Acme Ltd."
-    }
-  ],
-  cargo: [
-    {
-      timestamp: "Jul 25, 2025 at 13:20",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "Iron Ore • 150,000 mt"
-    },
-    {
-      timestamp: "Jul 18, 2025 at 09:15",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-draft", label: "contract draft" },
-      value: "Iron Ore • 155,000 mt"
-    },
-    {
-      timestamp: "Jul 6, 2025 at 15:45",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "Iron Ore • 160,000 mt"
-    }
-  ],
-  freightRate: [
-    {
-      timestamp: "Jul 24, 2025 at 14:30",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "22.50 $/mt"
-    },
-    {
-      timestamp: "Jul 16, 2025 at 10:20",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-draft", label: "contract draft" },
-      value: "24.00 $/mt"
-    },
-    {
-      timestamp: "Jul 5, 2025 at 16:10",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "25.12 $/mt"
-    }
-  ],
-  laycan: [
-    {
-      timestamp: "Jul 23, 2025 at 11:40",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "25th October, 2025 – 28th October, 2025"
-    },
-    {
-      timestamp: "Jul 7, 2025 at 13:55",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "27th October, 2025 (0001 hrs) – 30th October, 2025 (2359 hrs)"
-    }
-  ],
-  loadPort: [
-    {
-      timestamp: "Jul 22, 2025 at 09:30",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "Rio de Janeiro, BR"
-    },
-    {
-      timestamp: "Jul 9, 2025 at 14:15",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "Tubarao, BR"
-    }
-  ],
-  dischargePort: [
-    {
-      timestamp: "Jul 21, 2025 at 10:45",
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      status: { value: "order-draft", label: "order draft" },
-      value: "Shanghai, CN"
-    },
-    {
-      timestamp: "Jul 11, 2025 at 15:30",
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      status: { value: "contract-working-copy", label: "contract working copy" },
-      value: "Qingdao or Tianjin, CN"
-    }
-  ]
-};
 
-// Mock activity log data
-const mockActivityLog: { order: ActivityLogEntry[], contract: ActivityLogEntry[] } = {
-  order: [
-    {
-      timestamp: new Date('2025-07-04T12:37:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "created",
-      description: "created",
-      status: { value: "order-draft", label: "order draft" },
-      expandable: {
-        data: [
-          { label: "Order type", value: "Spot" },
-          { label: "Cargo type", value: "Coal" },
-          { label: "Quantity", value: "60,000 mt" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-05T09:15:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "distributed",
-      description: "the order to the market",
-      status: { value: "order-distributed", label: "order distributed" },
-      expandable: {
-        data: [
-          { label: "Recipients", value: "12 counterparties" },
-          { label: "Response deadline", value: "Jul 6, 2025 at 18:00" },
-          { label: "Distribution channel", value: "Email + Platform" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-06T13:36:00'),
-      user: { name: "Ivy Chu" },
-      action: "sent",
-      description: "sent",
-      status: { value: "negotiation-indicative-bid", label: "indicative bid" },
-      expandable: {
-        data: [
-          { label: "Freight rate", value: "$14.08 mt" },
-          { label: "Laycan", value: "Oct 25-28, 2025" },
-          { label: "Demurrage", value: "$12,500/day" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-07T10:22:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "answered",
-      description: "answered with",
-      status: { value: "negotiation-indicative-offer", label: "indicative offer" },
-      expandable: {
-        data: [
-          { label: "Freight rate", value: "$14.90 mt" },
-          { label: "Laycan", value: "Oct 25-28, 2025" },
-          { label: "Demurrage", value: "$12,500/day" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-08T14:05:00'),
-      user: { name: "Ivy Chu" },
-      action: "sent",
-      description: "sent",
-      status: { value: "negotiation-firm-bid", label: "firm bid" },
-      expandable: {
-        data: [
-          { label: "Freight rate", value: "$43.50 mt" },
-          { label: "Alternative rate", value: "$37.50 mt" },
-          { label: "Laycan", value: "Oct 27-30, 2025" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-09T07:53:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "accepted",
-      description: "accepted firm bid. Offer is now",
-      status: { value: "negotiation-firm", label: "firm" },
-      expandable: {
-        data: [
-          { label: "Freight rate", value: "$43.50 mt" },
-          { label: "Laycan", value: "Oct 27-30, 2025" },
-          { label: "Demurrage", value: "$12,500/day" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-09T15:30:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "went",
-      description: "went",
-      status: { value: "negotiation-on-subs", label: "on subs" },
-      expandable: {
-        data: [
-          { label: "Subject 1", value: "Owner's final approval" },
-          { label: "Subject 2", value: "Vessel inspection" },
-          { label: "Deadline", value: "Jul 11, 2025 at 12:00" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-11T14:28:00'),
-      user: { name: "System" },
-      action: "compliance",
-      description: "Compliance check has finished with the result: compliant",
-      icon: "check-circle",
-      expandable: {
-        data: [
-          { label: "Sanctions check", value: "Passed" },
-          { label: "KYC verification", value: "Verified" },
-          { label: "Risk level", value: "Low" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-13T07:02:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "set",
-      description: "set negotiation as",
-      status: { value: "negotiation-fixed", label: "fixed" },
-      expandable: {
-        data: [
-          { label: "Final freight rate", value: "$43.50 mt" },
-          { label: "All subjects", value: "Lifted" },
-          { label: "Status", value: "Ready for signing" }
-        ]
-      }
-    }
-  ],
-  contract: [
-    {
-      timestamp: new Date('2025-07-12T07:02:00'),
-      user: { name: "System" },
-      action: "created",
-      description: "Contract was created",
-      status: { value: "contract-draft", label: "draft" },
-      icon: "file-text",
-      expandable: {
-        data: [
-          { label: "Source", value: "Fixed negotiation" },
-          { label: "Template", value: "NYPE 2015" },
-          { label: "Version", value: "1.0" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-12T14:30:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "updated",
-      description: "made changes to contract",
-      status: { value: "contract-draft", label: "draft" },
-      expandable: {
-        data: [
-          { label: "Modified clause §12", value: "Payment terms" },
-          { label: "Modified clause §23", value: "Arbitration" },
-          { label: "Added", value: "Additional insurance requirements" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-12T18:15:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "changed",
-      description: "changed contract status to",
-      status: { value: "contract-working-copy", label: "working copy" },
-      expandable: {
-        data: [
-          { label: "Draft status", value: "Finalized" },
-          { label: "Next step", value: "Approval process" },
-          { label: "Notification", value: "All parties notified" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-13T08:00:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "added",
-      description: "added Ivy Chu • Acme as approver from Owner side",
-      expandable: {
-        data: [
-          { label: "Role", value: "Owner representative" },
-          { label: "Approval rights", value: "Full authority" },
-          { label: "Notification", value: "Sent" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-13T11:22:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "added",
-      description: "added himself as approver from Charterer side",
-      expandable: {
-        data: [
-          { label: "Role", value: "Charterer representative" },
-          { label: "Approval rights", value: "Full authority" },
-          { label: "Status", value: "Active" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-15T10:37:00'),
-      user: { name: "Ivy Chu • Acme" },
-      action: "rejected",
-      description: "rejected the contract with the following reason",
-      expandable: {
-        data: [
-          { label: "Clause", value: "§34" },
-          { label: "Reason", value: "Please change clause §34: \"Lorem ipsum dolor sit amet.\"" },
-          { label: "Action required", value: "Revision needed" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-16T16:00:00'),
-      user: { name: "Ivy Chu • Acme" },
-      action: "approved",
-      description: "approved contract",
-      expandable: {
-        data: [
-          { label: "Side", value: "Owner" },
-          { label: "Digital signature", value: "Applied" },
-          { label: "Progress", value: "1/2 approvals received" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-18T08:04:00'),
-      user: { name: "Rafał Lemieszewski" },
-      action: "approved",
-      description: "approved contract",
-      expandable: {
-        data: [
-          { label: "Side", value: "Charterer" },
-          { label: "Digital signature", value: "Applied" },
-          { label: "Progress", value: "2/2 approvals received" }
-        ]
-      }
-    },
-    {
-      timestamp: new Date('2025-07-18T14:30:00'),
-      user: { name: "System" },
-      action: "changed",
-      description: "Contract changed status to",
-      status: { value: "contract-final", label: "final" },
-      icon: "check-circle-2",
-      expandable: {
-        data: [
-          { label: "Execution", value: "Fully executed" },
-          { label: "Signatures", value: "All complete" },
-          { label: "Status", value: "Binding and effective" }
-        ]
-      }
-    }
-  ]
-};
 
-// Generate mock fixture data based on Figma
-const generateFixtureData = (): FixtureData[] => {
-  const stages = ["Charter Party", "Addenda", "Negotiation", "COA"];
-  const contractTypes = ["Voyage charter", "TC", "COA"];
-  const vessels = [
-    "Kosta",
-    "TBN",
-    "Gisgo",
-    "Xin Yue Yang",
-    "Maran Glory",
-    "Judd",
-    "Buk Ara",
-    "Kymopolia",
-    "Lia Nangli",
-    "Gaia I",
-    "Dignity",
-    "Bacon",
-    "Navios Sakura",
-    "Dong Yuan",
-  ];
-  const people = ["John Doe", "Martin Leake"];
+// Transform database contracts and recap managers to FixtureData format
+const transformFixturesToTableData = (
+  fixtures: any[]
+): FixtureData[] => {
+  const tableData: FixtureData[] = [];
 
-  // Split statuses based on contract existence
-  const orderNegotiationStatuses = [
-    "order-draft",
-    "order-distributed",
-    "order-withdrawn",
-    "negotiation-indicative-offer",
-    "negotiation-indicative-bid",
-    "negotiation-firm-offer",
-    "negotiation-firm-bid",
-    "negotiation-firm",
-    "negotiation-on-subs",
-    "negotiation-fixed",
-    "negotiation-withdrawn",
-  ];
+  fixtures.forEach((fixture) => {
+    // Combine contracts and recap managers
+    const allContracts = [
+      ...fixture.contracts.map((c: any) => ({ ...c, source: "contract" })),
+      ...fixture.recapManagers.map((r: any) => ({ ...r, source: "recap" })),
+    ];
 
-  const contractStatuses = [
-    "contract-draft",
-    "contract-working-copy",
-    "contract-final",
-    "addenda-draft",
-    "addenda-working-copy",
-    "addenda-final",
-  ];
-  const approvalStatuses = [
-    "Signed",
-    "Not started",
-    "Pending approval",
-    "Pending signature",
-    "Approved",
-  ];
-  const owners = [
-    "MSC",
-    "Maersk",
-    "CMA CGM",
-    "COSCO Shipping",
-    "Hapag-Lloyd",
-    "Star Bulk Carriers",
-    "Oldendorff Carriers",
-    "Frontline",
-    "Euronav",
-    "Teekay"
-  ];
-  const brokers = [
-    "Clarksons",
-    "Ifchor Galbraiths",
-    "BRS Shipbrokers",
-    "Howe Robinson Partners",
-    "Simpson Spence Young",
-    "E.A. Gibson",
-    "Lorentzen & Co",
-    "McQuilling Partners"
-  ];
-  const charterers = [
-    "Cargill",
-    "Trafigura",
-    "Vitol",
-    "Glencore",
-    "Louis Dreyfus Company",
-    "Bunge",
-    "ADM",
-    "Mercuria",
-    "Gunvor",
-    "COFCO International"
-  ];
+    if (allContracts.length === 0) return; // Skip empty fixtures
 
-  const generateId = (prefix: string) => {
-    const num = Math.floor(Math.random() * 100000);
-    return `${prefix}${num.toString().padStart(5, "0")}`;
-  };
+    // Create a row for each contract/recap manager
+    // TanStack Table will handle grouping by fixtureId automatically
+    allContracts.forEach((item: any) => {
+      const isContract = item.source === "contract";
+      const contractNumber = isContract ? item.contractNumber : item.recapNumber;
 
-  const generateNegotiationId = () => {
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-    let id = "";
-    for (let i = 0; i < 5; i++) {
-      id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
-  };
-
-  const generateTimestamp = () => {
-    const day = Math.floor(Math.random() * 11) + 17; // 17-27
-    const hours = Math.floor(Math.random() * 24);
-    const minutes = Math.floor(Math.random() * 60);
-    return new Date(2025, 9, day, hours, minutes).getTime(); // October is month 9 (0-indexed)
-  };
-
-  const fixtures: FixtureData[] = [];
-
-  // Generate 150 fixture groups
-  for (let i = 0; i < 150; i++) {
-    const fixtureId = generateId("FIX");
-
-    // Determine if this fixture has negotiations (80% have negotiations)
-    const hasNegotiations = Math.random() > 0.2;
-
-    // Determine number of negotiations (1-3 negotiations per fixture)
-    const numNegotiations = hasNegotiations
-      ? Math.floor(Math.random() * 3) + 1
-      : 0;
-
-    // If there are negotiations, there MUST be an order
-    const orderId = hasNegotiations ? generateId("ORD") : undefined;
-
-    if (hasNegotiations && numNegotiations > 0) {
-      // Decide if negotiations have resulted in CPs (70% chance)
-      // This applies to ALL negotiations in this order
-      const hasCp = Math.random() > 0.3;
-
-      // Create one contract per negotiation (1:1 relationship)
-      for (let j = 0; j < numNegotiations; j++) {
-        // Choose status array based on whether this has a contract
-        const statusArray = hasCp ? contractStatuses : orderNegotiationStatuses;
-
-        fixtures.push({
-          id: `contract-${i}-${j}`,
-          fixtureId,
-          orderId,
-          cpId: hasCp ? generateId("30") : undefined,
-          negotiationId: generateNegotiationId(),
-          stage: stages[Math.floor(Math.random() * stages.length)],
-          typeOfContract:
-            contractTypes[Math.floor(Math.random() * contractTypes.length)],
-          vessels: vessels[Math.floor(Math.random() * vessels.length)],
-          personInCharge: people[Math.floor(Math.random() * people.length)],
-          status: statusArray[Math.floor(Math.random() * statusArray.length)],
-          approvalStatus:
-            approvalStatuses[
-              Math.floor(Math.random() * approvalStatuses.length)
-            ],
-          owner: owners[Math.floor(Math.random() * owners.length)],
-          broker: brokers[Math.floor(Math.random() * brokers.length)],
-          charterer: charterers[Math.floor(Math.random() * charterers.length)],
-          lastUpdated: generateTimestamp(),
-        });
-      }
-    } else {
-      // No negotiations - single contract without order or negotiation
-      // Always use contract statuses since this has a cpId
-      fixtures.push({
-        id: `fixture-${i}`,
-        fixtureId,
-        orderId: undefined,
-        cpId: generateId("30"),
-        negotiationId: "-",
-        stage: stages[Math.floor(Math.random() * stages.length)],
+      tableData.push({
+        id: item._id,
+        fixtureId: fixture.fixtureNumber,
+        orderId: item.order?.orderNumber || fixture.order?.orderNumber || "-",
+        cpId: contractNumber,
+        stage: item.contractType === "coa" ? "COA" : "Charter Party",
         typeOfContract:
-          contractTypes[Math.floor(Math.random() * contractTypes.length)],
-        vessels: vessels[Math.floor(Math.random() * vessels.length)],
-        personInCharge: people[Math.floor(Math.random() * people.length)],
-        status: contractStatuses[Math.floor(Math.random() * contractStatuses.length)],
-        approvalStatus:
-          approvalStatuses[Math.floor(Math.random() * approvalStatuses.length)],
-        owner: owners[Math.floor(Math.random() * owners.length)],
-        broker: brokers[Math.floor(Math.random() * brokers.length)],
-        charterer: charterers[Math.floor(Math.random() * charterers.length)],
-        lastUpdated: generateTimestamp(),
+          item.contractType === "voyage-charter"
+            ? "Voyage charter"
+            : item.contractType === "time-charter"
+            ? "TC"
+            : "COA",
+        negotiationId: item.negotiation?.negotiationNumber || "-",
+        vessels: item.vessel?.name || "TBN",
+        personInCharge: item.personInCharge?.name || item.negotiation?.personInCharge?.name || "User",
+        status: isContract ? `contract-${item.status}` : `recap-manager-${item.status}`,
+        approvalStatus: item.approvalStatus || "Not started",
+        owner: item.owner?.name || "Unknown",
+        ownerAvatarUrl: item.owner?.avatarUrl,
+        broker: item.broker?.name || "Unknown",
+        brokerAvatarUrl: item.broker?.avatarUrl,
+        charterer: item.charterer?.name || "Unknown",
+        chartererAvatarUrl: item.charterer?.avatarUrl,
+        lastUpdated: item.updatedAt || item._creationTime,
+        // Include full objects for sidebar
+        contract: item,
+        order: item.order || fixture.order,
+        negotiation: item.negotiation,
+        vessel: item.vessel,
+        loadPort: item.loadPort,
+        dischargePort: item.dischargePort,
+        cargoType: item.cargoType,
       });
-    }
-  }
+    });
+  });
 
-  return fixtures;
+  return tableData.sort((a, b) => b.lastUpdated - a.lastUpdated);
 };
 
 // Helper function to format timestamp
@@ -720,6 +181,51 @@ const formatTimestamp = (timestamp: number): string => {
   return `${day} ${month} ${year} ${hours}:${minutes}`;
 };
 
+// Helper function to get company initials for avatar fallback
+const getCompanyInitials = (companyName: string): string => {
+  const words = companyName.split(' ').filter(w => w.length > 0);
+  if (words.length === 1) {
+    return words[0].substring(0, 2).toUpperCase();
+  }
+  return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+};
+
+// Helper function to transform field changes for display
+const transformFieldChanges = (
+  fieldChanges: any[] | undefined,
+  fieldName: string
+): ChangeHistoryEntry[] => {
+  if (!fieldChanges) return [];
+
+  return fieldChanges
+    .filter((change) => change.fieldName === fieldName)
+    .map((change) => {
+      const date = new Date(change.timestamp);
+      const formattedDate = date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: false
+      }).replace(',', ' at');
+
+      return {
+        timestamp: formattedDate,
+        user: {
+          name: change.user?.name || 'Unknown',
+          avatar: change.user?.avatarUrl || undefined,
+        },
+        action: change.oldValue ? 'updated' : 'created',
+        status: {
+          value: 'contract-working-copy',
+          label: 'contract working copy',
+        },
+        value: change.newValue || '',
+      };
+    });
+};
+
 // Fixture Sidebar Component
 function FixtureSidebar({
   fixture,
@@ -728,12 +234,52 @@ function FixtureSidebar({
   fixture: FixtureData;
   onClose: () => void;
 }) {
+  // Fetch field changes for this contract
+  const fieldChanges = useQuery(
+    api.fixtures.getFieldChanges,
+    fixture.contract?._id
+      ? { entityType: "contract", entityId: fixture.contract._id }
+      : "skip"
+  );
+
+  // Fetch activity logs for contract and negotiation
+  const contractActivityLog = useQuery(
+    api.fixtures.getActivityLog,
+    fixture.contract?._id
+      ? { entityType: "contract", entityId: fixture.contract._id }
+      : "skip"
+  );
+
+  const negotiationActivityLog = useQuery(
+    api.fixtures.getActivityLog,
+    fixture.negotiation?._id
+      ? { entityType: "negotiation", entityId: fixture.negotiation._id }
+      : "skip"
+  );
+
+  // Combine and sort activity logs
+  const allActivityLogs = useMemo(() => {
+    const logs = [
+      ...(contractActivityLog || []),
+      ...(negotiationActivityLog || []),
+    ];
+    return logs.sort((a, b) => b.timestamp - a.timestamp);
+  }, [contractActivityLog, negotiationActivityLog]);
+
+  // Fetch approval status
+  const approvalStatus = useQuery(
+    api.fixtures.getApprovalStatus,
+    fixture.contract?._id
+      ? { entityType: "contract", entityId: fixture.contract._id }
+      : "skip"
+  );
+
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex flex-col gap-0 bg-[var(--color-surface-base)] p-0" style={{ width: '640px', maxWidth: '640px' }}>
         <SheetTitle className="sr-only">Fixture {fixture.id}</SheetTitle>
 
-        <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden">
+        <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden gap-0">
           {/* Header */}
           <div className="flex-shrink-0 bg-[var(--color-surface-primary)]">
             <div className="flex items-start justify-between px-6 pb-6 pt-6">
@@ -748,28 +294,53 @@ function FixtureSidebar({
                   <span>•</span>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <Icon name="building" size="sm" />
-                      <span className="text-body-sm font-medium">ShipCo</span>
+                      <Avatar type="organization" size="xs">
+                        <AvatarImage src={fixture.chartererAvatarUrl || undefined} alt={fixture.charterer} />
+                        <AvatarFallback>{getCompanyInitials(fixture.charterer)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-body-sm font-medium">{fixture.charterer}</span>
                     </div>
                     <span className="text-body-sm">×</span>
                     <div className="flex items-center gap-1">
-                      <Icon name="building" size="sm" />
-                      <span className="text-body-sm font-medium">Acme</span>
+                      <Avatar type="organization" size="xs">
+                        <AvatarImage src={fixture.ownerAvatarUrl || undefined} alt={fixture.owner} />
+                        <AvatarFallback>{getCompanyInitials(fixture.owner)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-body-sm font-medium">{fixture.owner}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Metadata line with route and cargo */}
                 <div className="flex items-center gap-1 text-body-xsm text-[var(--color-text-secondary)]">
-                  <span className="font-semibold">🇧🇷</span>
-                  <span>Tubarao, BR</span>
-                  <Icon name="arrow-right" size="sm" />
-                  <span className="font-semibold">🇨🇳</span>
-                  <span>Qingdao, CN</span>
-                  <span>•</span>
-                  <span>240,000 mt coal</span>
-                  <span>•</span>
-                  <span>June 12 – Aug 26 2025</span>
+                  {fixture.loadPort && fixture.dischargePort && (
+                    <>
+                      {getRouteDisplay(fixture.loadPort, fixture.dischargePort).split(" → ").map((port, idx, _arr) => (
+                        <>
+                          {idx > 0 && <Icon name="arrow-right" size="sm" />}
+                          <span key={idx}>{port}</span>
+                        </>
+                      ))}
+                    </>
+                  )}
+                  {fixture.cargoType && fixture.contract?.quantity && (
+                    <>
+                      <span>•</span>
+                      <span>
+                        {formatCargo(
+                          fixture.contract.quantity,
+                          fixture.contract.quantityUnit || "MT",
+                          fixture.cargoType.name
+                        )}
+                      </span>
+                    </>
+                  )}
+                  {fixture.contract?.laycanStart && fixture.contract?.laycanEnd && (
+                    <>
+                      <span>•</span>
+                      <span>{formatLaycanRange(fixture.contract.laycanStart, fixture.contract.laycanEnd)}</span>
+                    </>
+                  )}
                 </div>
               </div>
               <SheetClose />
@@ -839,7 +410,11 @@ function FixtureSidebar({
                       <AttributesItem>
                         <AttributesRow>
                           <AttributesLabel>Approval</AttributesLabel>
-                          <AttributesValue>1/2 approved</AttributesValue>
+                          <AttributesValue>
+                            {approvalStatus
+                              ? `${approvalStatus.summary.approved}/${approvalStatus.summary.total + approvalStatus.summary.pending} approved`
+                              : "Not started"}
+                          </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
                     </AttributesGroup>
@@ -849,129 +424,166 @@ function FixtureSidebar({
               {/* Fixture Specification Card */}
               <Card className="p-6">
                 <h3 className="mb-4 text-body-lg font-semibold text-[var(--color-text-primary)]">Fixture specification</h3>
+
+                {/* Pre-compute field changes for conditional rendering */}
+                {(() => {
+                  const chartererChanges = transformFieldChanges(fieldChanges, "chartererId");
+                  const brokerChanges = transformFieldChanges(fieldChanges, "brokerId");
+                  const ownerChanges = transformFieldChanges(fieldChanges, "ownerId");
+                  const loadPortChanges = transformFieldChanges(fieldChanges, "loadPortId");
+                  const dischargePortChanges = transformFieldChanges(fieldChanges, "dischargePortId");
+                  const cargoChanges = transformFieldChanges(fieldChanges, "quantity");
+                  const laycanChanges = transformFieldChanges(fieldChanges, "laycanStart");
+                  const freightRateChanges = transformFieldChanges(fieldChanges, "freightRate");
+
+                  const hasChartererChanges = chartererChanges.length > 0;
+                  const hasBrokerChanges = brokerChanges.length > 0;
+                  const hasOwnerChanges = ownerChanges.length > 0;
+                  const hasLoadPortChanges = loadPortChanges.length > 0;
+                  const hasDischargePortChanges = dischargePortChanges.length > 0;
+                  const hasCargoChanges = cargoChanges.length > 0;
+                  const hasLaycanChanges = laycanChanges.length > 0;
+                  const hasFreightRateChanges = freightRateChanges.length > 0;
+
+                  return (
                 <AttributesList style={{ gridTemplateColumns: 'minmax(140px, auto) 1fr' }}>
                   <AttributesGroup label="Involved Parties">
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasChartererChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasChartererChanges}>
                         <AttributesLabel>Charterer</AttributesLabel>
                         <AttributesValue>
-                          <Icon name="building" size="sm" />
-                          ShipCo Ltd.
-                          <AttributesChevron />
+                          <Avatar type="organization" size="xs">
+                            <AvatarImage src={fixture.chartererAvatarUrl || undefined} alt={fixture.charterer} />
+                            <AvatarFallback>{getCompanyInitials(fixture.charterer)}</AvatarFallback>
+                          </Avatar>
+                          {fixture.charterer}
+                          {hasChartererChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.charterer.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasChartererChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {chartererChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasBrokerChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasBrokerChanges}>
                         <AttributesLabel>Broker</AttributesLabel>
                         <AttributesValue>
-                          <Icon name="building" size="sm" />
-                          Clarksons
-                          <AttributesChevron />
+                          <Avatar type="organization" size="xs">
+                            <AvatarImage src={fixture.brokerAvatarUrl || undefined} alt={fixture.broker} />
+                            <AvatarFallback>{getCompanyInitials(fixture.broker)}</AvatarFallback>
+                          </Avatar>
+                          {fixture.broker}
+                          {hasBrokerChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.broker.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasBrokerChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {brokerChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasOwnerChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasOwnerChanges}>
                         <AttributesLabel>Owner</AttributesLabel>
                         <AttributesValue>
-                          <Icon name="building" size="sm" />
-                          Acme Ltd.
-                          <AttributesChevron />
+                          <Avatar type="organization" size="xs">
+                            <AvatarImage src={fixture.ownerAvatarUrl || undefined} alt={fixture.owner} />
+                            <AvatarFallback>{getCompanyInitials(fixture.owner)}</AvatarFallback>
+                          </Avatar>
+                          {fixture.owner}
+                          {hasOwnerChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.owner.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasOwnerChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {ownerChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
                   </AttributesGroup>
 
@@ -981,265 +593,309 @@ function FixtureSidebar({
                     <AttributesItem>
                       <AttributesRow>
                         <AttributesLabel>Vessel name</AttributesLabel>
-                        <AttributesValue>Ever Given</AttributesValue>
+                        <AttributesValue>{fixture.vessel?.name || "TBN"}</AttributesValue>
                       </AttributesRow>
                     </AttributesItem>
 
-                    <AttributesItem>
-                      <AttributesRow>
-                        <AttributesLabel>IMO Number</AttributesLabel>
-                        <AttributesValue>9811000</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.imoNumber && (
+                      <AttributesItem>
+                        <AttributesRow>
+                          <AttributesLabel>IMO Number</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.imoNumber}</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Callsign</AttributesLabel>
-                        <AttributesValue>H3RC</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.callsign && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Callsign</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.callsign}</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Built date</AttributesLabel>
-                        <AttributesValue>25th September, 2018</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.builtDate && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Built date</AttributesLabel>
+                          <AttributesValue>
+                            {new Date(fixture.vessel.builtDate).toLocaleDateString('en-US', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>GRT</AttributesLabel>
-                        <AttributesValue>220,940 mt</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.grt && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>GRT</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.grt.toLocaleString()} mt</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Flag</AttributesLabel>
-                        <AttributesValue>Panama</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.flag && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Flag</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.flag}</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Class</AttributesLabel>
-                        <AttributesValue>G class</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.vesselClass && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Class</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.vesselClass}</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>DWT</AttributesLabel>
-                        <AttributesValue>99,155 mt</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.dwt && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>DWT</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.dwt.toLocaleString()} mt</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Draft</AttributesLabel>
-                        <AttributesValue>14.5 m</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.draft && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Draft</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.draft} m</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>LOA/Beam</AttributesLabel>
-                        <AttributesValue>400 m • 59 m</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {(fixture.vessel?.loa || fixture.vessel?.beam) && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>LOA/Beam</AttributesLabel>
+                          <AttributesValue>
+                            {fixture.vessel.loa ? `${fixture.vessel.loa} m` : '—'} • {fixture.vessel.beam ? `${fixture.vessel.beam} m` : '—'}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Max height</AttributesLabel>
-                        <AttributesValue>60 m</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.vessel?.maxHeight && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Max height</AttributesLabel>
+                          <AttributesValue>{fixture.vessel.maxHeight} m</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Speed & Consumption</AttributesLabel>
-                        <AttributesValue>13.5 knots • 200,000 l/day</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {(fixture.vessel?.speedKnots || fixture.vessel?.consumptionPerDay) && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Speed & Consumption</AttributesLabel>
+                          <AttributesValue>
+                            {fixture.vessel.speedKnots ? `${fixture.vessel.speedKnots} knots` : '—'} • {fixture.vessel.consumptionPerDay ? `${fixture.vessel.consumptionPerDay.toLocaleString()} l/day` : '—'}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Full CP chain</AttributesLabel>
-                        <AttributesValue>Lorem Ipsum, Dolor Sit, Amet Consequeur</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.contract?.fullCpChainStorageId && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Full CP chain</AttributesLabel>
+                          <AttributesValue>Available</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Full itinerary</AttributesLabel>
-                        <AttributesValue>Lorem Ipsum, Dolor Sit, Amet Consequeur</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {fixture.contract?.itineraryStorageId && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Full itinerary</AttributesLabel>
+                          <AttributesValue>Available</AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
                   </AttributesGroup>
 
                   <AttributesSeparator />
 
                   <AttributesGroup label="Voyage">
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasLoadPortChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasLoadPortChanges}>
                         <AttributesLabel>Load Port</AttributesLabel>
                         <AttributesValue>
                           <span className="font-semibold">🇧🇷</span>
                           Tubarao, BR
-                          <AttributesChevron />
+                          {hasLoadPortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.loadPort.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasLoadPortChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {loadPortChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasDischargePortChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasDischargePortChanges}>
                         <AttributesLabel>Discharge Port</AttributesLabel>
                         <AttributesValue>
                           <span className="font-semibold">🇨🇳</span>
                           Qingdao or Tianjin, CN
-                          <AttributesChevron />
+                          {hasDischargePortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.dischargePort.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasDischargePortChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {dischargePortChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasCargoChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasCargoChanges}>
                         <AttributesLabel>Cargo</AttributesLabel>
                         <AttributesValue>
                           Iron Ore • 160,000 mt
-                          <AttributesChevron />
+                          {hasCargoChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.cargo.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasCargoChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {cargoChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasLaycanChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasLaycanChanges}>
                         <AttributesLabel>Laycan</AttributesLabel>
                         <AttributesValue>
                           27th October, 2025 (0001 hrs) – 30th October, 2025 (2359 hrs)
-                          <AttributesChevron />
+                          {hasLaycanChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.laycan.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasLaycanChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {laycanChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
                   </AttributesGroup>
 
@@ -1253,44 +909,46 @@ function FixtureSidebar({
                       </AttributesRow>
                     </AttributesItem>
 
-                    <AttributesItem collapsible defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger>
+                    <AttributesItem collapsible={hasFreightRateChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasFreightRateChanges}>
                         <AttributesLabel>Freight Rate</AttributesLabel>
                         <AttributesValue>
                           25.12 $/mt
-                          <AttributesChevron />
+                          {hasFreightRateChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
-                      <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                        <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                          <ActivityLog>
-                            {mockChangeHistory.freightRate.map((entry, index, arr) => {
-                              const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                              return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
-                                      {entry.action === 'updated' && previousValue && (
-                                        <>
-                                          <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                    </ActivityLogDescription>
-                                    <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              );
-                            })}
-                          </ActivityLog>
-                        </div>
-                      </AttributesContent>
+                      {hasFreightRateChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {freightRateChanges.map((entry, index, arr) => {
+                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
+                                return (
+                                  <ActivityLogItem key={index}>
+                                    <ActivityLogHeader>
+                                      <Avatar size="xxs">
+                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      </Avatar>
+                                      <ActivityLogDescription>
+                                        <span className="text-body-medium-sm">{entry.user.name}</span>
+                                        <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
+                                        {entry.action === 'updated' && previousValue && (
+                                          <>
+                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
+                                            <span>to</span>
+                                          </>
+                                        )}
+                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      </ActivityLogDescription>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogHeader>
+                                  </ActivityLogItem>
+                                );
+                              })}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
                     <AttributesItem hidden>
@@ -1319,10 +977,12 @@ function FixtureSidebar({
 
                   <AttributesGroup label="Order notes">
                     <p className="text-body-sm text-[var(--color-text-secondary)]">
-                      Lorem ipsum dolor sit amet
+                      {fixture.order?.description || "No notes"}
                     </p>
                   </AttributesGroup>
                 </AttributesList>
+                  );
+                })()}
               </Card>
             </div>
           </TabsContent>
@@ -1353,161 +1013,127 @@ function FixtureSidebar({
                 </Select>
               </div>
 
-              {/* Negotiation Card */}
-              <Card className="p-6">
-                <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
-                  Negotiation
-                </h3>
-                <ActivityLog separatorThreshold={86400000}>
-                  {mockActivityLog.order.map((entry, index) => {
-                    const hasOrganization = entry.user.name.includes('•');
-                    const parts = hasOrganization ? entry.user.name.split('•').map(p => p.trim()) : [entry.user.name];
-                    const userName = parts[0];
-                    const orgName = parts[1];
+              {/* Helper function to transform status values for backward compatibility */}
+              {(() => {
+                type StatusValue =
+                  | "order-draft" | "order-submitted" | "order-approved"
+                  | "negotiation-on-subs" | "negotiation-subs-lifted" | "negotiation-fixed"
+                  | "contract-working-copy" | "contract-signed" | "contract-approved";
 
-                    const userInitials = userName === "System"
-                      ? "S"
-                      : userName.split(' ').map(n => n[0]).join('');
-                    const orgInitials = orgName ? orgName.split(' ').map(n => n[0]).join('') : '';
+                const getFullStatusValue = (entry: any): StatusValue => {
+                  if (!entry.status?.value) return "order-draft" as StatusValue;
 
-                    const formattedTimestamp = typeof entry.timestamp === 'string'
-                      ? entry.timestamp
-                      : entry.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' +
-                        entry.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
+                  // If already in correct format (has dash), return as-is
+                  if (entry.status.value.includes('-')) {
+                    return entry.status.value as StatusValue;
+                  }
 
-                    return (
-                      <ActivityLogItem key={index} timestamp={entry.timestamp} collapsible={true} defaultOpen={false}>
-                        <ActivityLogHeader asCollapsibleTrigger>
-                          {hasOrganization ? (
-                            <AvatarGroup size="xxs">
+                  // Transform short format to phase-prefixed format
+                  const phase = entry.entityType; // "order", "negotiation", "contract"
+                  const status = entry.status.value;
+                  return `${phase}-${status}` as StatusValue;
+                };
+
+              return (
+                <>
+                  {/* Negotiation Card - Only show if fixture has negotiation */}
+                  {fixture.negotiation && (
+                    <Card className="p-6">
+                      <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
+                        Negotiation
+                      </h3>
+                      <ActivityLog separatorThreshold={86400000}>
+                        {allActivityLogs.filter((log) => log.entityType === 'negotiation').map((entry, index) => {
+                          const userName = entry.user?.name || 'System';
+                          const userInitials = userName === "System"
+                            ? "S"
+                            : userName.split(' ').map(n => n[0]).join('');
+
+                          const date = new Date(entry.timestamp);
+                          const formattedTimestamp = date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) + ' at ' + date.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: false
+                          });
+
+                          return (
+                            <ActivityLogItem key={index} timestamp={entry.timestamp}>
+                              <ActivityLogHeader>
+                                <Avatar size="xxs">
+                                  {entry.user?.avatarUrl ? (
+                                    <AvatarImage src={entry.user.avatarUrl} alt={userName} />
+                                  ) : null}
+                                  <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                                </Avatar>
+                                <ActivityLogDescription>
+                                  <span className="text-body-medium-sm">{userName}</span>
+                                  {entry.status && (
+                                    <FixtureStatus value={getFullStatusValue(entry) as any} size="sm" />
+                                  )}
+                                  <span>{entry.description}</span>
+                                </ActivityLogDescription>
+                                <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
+                              </ActivityLogHeader>
+                            </ActivityLogItem>
+                          );
+                        })}
+                      </ActivityLog>
+                    </Card>
+                  )}
+
+                  {/* Contract Card */}
+                  <Card className="p-6">
+                    <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
+                      Contract
+                    </h3>
+                    <ActivityLog separatorThreshold={86400000}>
+                      {allActivityLogs.filter((log) => log.entityType === 'contract').map((entry, index) => {
+                        const userName = entry.user?.name || 'System';
+                        const userInitials = userName === "System"
+                          ? "S"
+                          : userName.split(' ').map(n => n[0]).join('');
+
+                        const date = new Date(entry.timestamp);
+                        const formattedTimestamp = date.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) + ' at ' + date.toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: false
+                        });
+
+                        return (
+                          <ActivityLogItem key={index} timestamp={entry.timestamp}>
+                            <ActivityLogHeader>
                               <Avatar size="xxs">
+                                {entry.user?.avatarUrl ? (
+                                  <AvatarImage src={entry.user.avatarUrl} alt={userName} />
+                                ) : null}
                                 <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                               </Avatar>
-                              <Avatar size="xxs">
-                                <AvatarFallback size="xxs">{orgInitials}</AvatarFallback>
-                              </Avatar>
-                            </AvatarGroup>
-                          ) : (
-                            <Avatar size="xxs">
-                              <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                            </Avatar>
-                          )}
-                          <ActivityLogDescription>
-                            <span className="text-body-medium-sm">{entry.user.name}</span>
-                            {entry.status && (
-                              <FixtureStatus value={entry.status.value as any} size="sm" />
-                            )}
-                            <span>{entry.description}</span>
-                          </ActivityLogDescription>
-                          <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
-                          {entry.expandable && <ActivityLogChevron />}
-                        </ActivityLogHeader>
-                        {entry.expandable && entry.expandable.data && (
-                          <ActivityLogContent>
-                            <div className="mt-4 max-w-md rounded border border-[var(--color-border-primary-bold)] overflow-hidden">
-                              <table className="w-full">
-                                <tbody>
-                                  {entry.expandable.data.map((row, rowIndex, array) => (
-                                    <tr
-                                      key={rowIndex}
-                                      className={`h-[22px] ${rowIndex < array.length - 1 ? "border-b border-[var(--color-border-primary-bold)]" : ""}`}
-                                    >
-                                      <td className="border-r border-[var(--color-border-primary-bold)] bg-[var(--color-surface-sunken)] px-3 text-body-medium-xsm text-[var(--color-text-secondary)]">
-                                        {row.label}
-                                      </td>
-                                      <td className="bg-white px-3 text-body-xsm text-[var(--color-text-primary)]">
-                                        {row.value}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </ActivityLogContent>
-                        )}
-                      </ActivityLogItem>
-                    );
-                  })}
-                </ActivityLog>
-              </Card>
-
-              {/* Contract Card */}
-              <Card className="p-6">
-                <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
-                  Contract
-                </h3>
-                <ActivityLog separatorThreshold={86400000}>
-                  {mockActivityLog.contract.map((entry, index) => {
-                    const hasOrganization = entry.user.name.includes('•');
-                    const parts = hasOrganization ? entry.user.name.split('•').map(p => p.trim()) : [entry.user.name];
-                    const userName = parts[0];
-                    const orgName = parts[1];
-
-                    const userInitials = userName === "System"
-                      ? "S"
-                      : userName.split(' ').map(n => n[0]).join('');
-                    const orgInitials = orgName ? orgName.split(' ').map(n => n[0]).join('') : '';
-
-                    const formattedTimestamp = typeof entry.timestamp === 'string'
-                      ? entry.timestamp
-                      : entry.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' +
-                        entry.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
-
-                    return (
-                      <ActivityLogItem key={index} timestamp={entry.timestamp} collapsible={true} defaultOpen={false}>
-                        <ActivityLogHeader asCollapsibleTrigger>
-                          {hasOrganization ? (
-                            <AvatarGroup size="xxs">
-                              <Avatar size="xxs">
-                                <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                              </Avatar>
-                              <Avatar size="xxs">
-                                <AvatarFallback size="xxs">{orgInitials}</AvatarFallback>
-                              </Avatar>
-                            </AvatarGroup>
-                          ) : (
-                            <Avatar size="xxs">
-                              <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                            </Avatar>
-                          )}
-                          <ActivityLogDescription>
-                            <span className="text-body-medium-sm">{entry.user.name}</span>
-                            {entry.status && (
-                              <FixtureStatus value={entry.status.value as any} size="sm" />
-                            )}
-                            <span>{entry.description}</span>
-                          </ActivityLogDescription>
-                          <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
-                          {entry.expandable && <ActivityLogChevron />}
-                        </ActivityLogHeader>
-                        {entry.expandable && entry.expandable.data && (
-                          <ActivityLogContent>
-                            <div className="mt-4 max-w-md rounded border border-[var(--color-border-primary-bold)] overflow-hidden">
-                              <table className="w-full">
-                                <tbody>
-                                  {entry.expandable.data.map((row, rowIndex, array) => (
-                                    <tr
-                                      key={rowIndex}
-                                      className={`h-[22px] ${rowIndex < array.length - 1 ? "border-b border-[var(--color-border-primary-bold)]" : ""}`}
-                                    >
-                                      <td className="border-r border-[var(--color-border-primary-bold)] bg-[var(--color-surface-sunken)] px-3 text-body-medium-xsm text-[var(--color-text-secondary)]">
-                                        {row.label}
-                                      </td>
-                                      <td className="bg-white px-3 text-body-xsm text-[var(--color-text-primary)]">
-                                        {row.value}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </ActivityLogContent>
-                        )}
-                      </ActivityLogItem>
-                    );
-                  })}
-                </ActivityLog>
-              </Card>
+                              <ActivityLogDescription>
+                                <span className="text-body-medium-sm">{userName}</span>
+                                {entry.status && (
+                                  <FixtureStatus value={getFullStatusValue(entry) as any} size="sm" />
+                                )}
+                                <span>{entry.description}</span>
+                              </ActivityLogDescription>
+                              <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
+                            </ActivityLogHeader>
+                          </ActivityLogItem>
+                        );
+                      })}
+                    </ActivityLog>
+                  </Card>
+                </>
+              );
+              })()}
             </div>
           </TabsContent>
         </Tabs>
@@ -1540,8 +1166,24 @@ function Fixtures() {
   // Set header actions
   useHeaderActions(headerActions);
 
-  // Memoize fixture data
-  const fixtureData = useMemo(() => generateFixtureData(), []);
+  // Get user's organization
+  const organization = useQuery(api.organizations.getFirstOrganization);
+  const organizationId = organization?._id;
+
+  // Query fixtures with enriched data (includes contracts, recaps, and company avatars)
+  const fixtures = useQuery(
+    api.fixtures.listEnriched,
+    organizationId ? { organizationId } : "skip"
+  );
+
+  // Detect loading state
+  const isLoadingFixtures = fixtures === undefined;
+
+  // Transform database data to fixture format
+  const fixtureData = useMemo(() => {
+    if (!fixtures) return [];
+    return transformFixturesToTableData(fixtures);
+  }, [fixtures]);
 
   // Helper function to highlight search terms in text
   const highlightSearchTerms = (text: string, terms: string[]) => {
@@ -1868,7 +1510,17 @@ function Fixtures() {
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
-          const cpId = row.getValue("cpId") as string;
+          const cpId = row.getValue("cpId") as string | undefined;
+
+          // Parent rows without cpId show em dash
+          if (!cpId) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                –
+              </div>
+            );
+          }
+
           return (
             <button
               className="text-body-sm font-mono text-[var(--blue-600)] hover:underline"
@@ -1989,29 +1641,63 @@ function Fixtures() {
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const owner = row.getValue("owner") as string;
+          const ownerAvatarUrl = row.original.ownerAvatarUrl;
           return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {highlightSearchTerms(owner, globalSearchTerms)}
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
+                <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(owner, globalSearchTerms)}
+              </div>
             </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueOwners = new Set(row.subRows?.map((r: any) => r.original.owner) || []);
+          // Collect unique owners with avatar data
+          const uniqueOwners = Array.from(
+            new Map(
+              row.subRows?.map((r: any) => [
+                r.original.owner,
+                { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
 
-          // If only one unique owner, show the name with highlighting
-          if (uniqueOwners.size === 1) {
-            const owner = Array.from(uniqueOwners)[0] as string;
+          // Single owner: avatar + name
+          if (uniqueOwners.length === 1) {
+            const owner = uniqueOwners[0];
             return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(owner, globalSearchTerms)}
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
+                  <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(owner.name, globalSearchTerms)}
+                </div>
               </div>
             );
           }
 
-          // Multiple owners - show count
+          // Multiple owners: list avatars in a row
+          const displayOwners = uniqueOwners.slice(0, 5);
           return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueOwners.size} owners
+            <div className="flex items-center gap-1">
+              {displayOwners.map((owner, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
+                        <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{owner.name}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           );
         },
@@ -2024,29 +1710,63 @@ function Fixtures() {
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const broker = row.getValue("broker") as string;
+          const brokerAvatarUrl = row.original.brokerAvatarUrl;
           return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {highlightSearchTerms(broker, globalSearchTerms)}
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
+                <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(broker, globalSearchTerms)}
+              </div>
             </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueBrokers = new Set(row.subRows?.map((r: any) => r.original.broker) || []);
+          // Collect unique brokers with avatar data
+          const uniqueBrokers = Array.from(
+            new Map(
+              row.subRows?.map((r: any) => [
+                r.original.broker,
+                { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
 
-          // If only one unique broker, show the name with highlighting
-          if (uniqueBrokers.size === 1) {
-            const broker = Array.from(uniqueBrokers)[0] as string;
+          // Single broker: avatar + name
+          if (uniqueBrokers.length === 1) {
+            const broker = uniqueBrokers[0];
             return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(broker, globalSearchTerms)}
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
+                  <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(broker.name, globalSearchTerms)}
+                </div>
               </div>
             );
           }
 
-          // Multiple brokers - show count
+          // Multiple brokers: list avatars in a row
+          const displayBrokers = uniqueBrokers.slice(0, 5);
           return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueBrokers.size} brokers
+            <div className="flex items-center gap-1">
+              {displayBrokers.map((broker, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
+                        <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{broker.name}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           );
         },
@@ -2059,29 +1779,63 @@ function Fixtures() {
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
           const charterer = row.getValue("charterer") as string;
+          const chartererAvatarUrl = row.original.chartererAvatarUrl;
           return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {highlightSearchTerms(charterer, globalSearchTerms)}
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
+                <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(charterer, globalSearchTerms)}
+              </div>
             </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
-          const uniqueCharterers = new Set(row.subRows?.map((r: any) => r.original.charterer) || []);
+          // Collect unique charterers with avatar data
+          const uniqueCharterers = Array.from(
+            new Map(
+              row.subRows?.map((r: any) => [
+                r.original.charterer,
+                { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
 
-          // If only one unique charterer, show the name with highlighting
-          if (uniqueCharterers.size === 1) {
-            const charterer = Array.from(uniqueCharterers)[0] as string;
+          // Single charterer: avatar + name
+          if (uniqueCharterers.length === 1) {
+            const charterer = uniqueCharterers[0];
             return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(charterer, globalSearchTerms)}
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
+                  <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(charterer.name, globalSearchTerms)}
+                </div>
               </div>
             );
           }
 
-          // Multiple charterers - show count
+          // Multiple charterers: list avatars in a row
+          const displayCharterers = uniqueCharterers.slice(0, 5);
           return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueCharterers.size} charterers
+            <div className="flex items-center gap-1">
+              {displayCharterers.map((charterer, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
+                        <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{charterer.name}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           );
         },
@@ -3032,6 +2786,8 @@ function Fixtures() {
           <DataTable
             data={filteredData}
             columns={fixtureColumns}
+            isLoading={isLoadingFixtures}
+            loadingRowCount={15}
             enableGrouping={true}
             enableExpanding={true}
             enableResponsiveWrapper={true}

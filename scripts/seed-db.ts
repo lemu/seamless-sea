@@ -26,6 +26,8 @@ async function seedDatabase() {
     console.log(`  - Vessels: ${checkResult.counts.vessels}`);
     console.log(`  - Cargo Types: ${checkResult.counts.cargoTypes}`);
     console.log(`  - Routes: ${checkResult.counts.routes}`);
+    console.log(`  - Fixtures: ${checkResult.counts.fixtures}`);
+    console.log(`  - Contracts: ${checkResult.counts.contracts}`);
 
     if (checkResult.isSeeded) {
       console.log("\n⚠️  Database is already seeded!");
@@ -54,6 +56,8 @@ async function seedDatabase() {
       console.log(`  - Vessels: ${finalCheck.counts.vessels}`);
       console.log(`  - Cargo Types: ${finalCheck.counts.cargoTypes}`);
       console.log(`  - Routes: ${finalCheck.counts.routes}`);
+      console.log(`  - Fixtures: ${finalCheck.counts.fixtures}`);
+      console.log(`  - Contracts: ${finalCheck.counts.contracts}`);
     } else {
       console.error(`\n❌ Error: ${result.message}`);
       process.exit(1);

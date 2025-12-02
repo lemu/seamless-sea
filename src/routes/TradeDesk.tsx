@@ -24,6 +24,9 @@ import {
 import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
 import { InsightsSection } from "../components/InsightsSection";
 import { useHeaderActions } from "../hooks";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useUser } from "../hooks";
 
 // Helper function for Badge appearance
 const getStageBadgeProps = (
@@ -59,142 +62,105 @@ interface OrderData {
   children?: OrderData[];
 }
 
-// Generate multi-level order data according to the guide
-const generateMultiLevelOrderData = (): OrderData[] => {
-  const counterparties = [
-    'Teekay Corp', 'Frontline Ltd.', 'Maran Tankers', 'Seaspan', 'Euronav NV', 'Minerva Marine',
-    'International Seaways', 'AET', 'Maersk Tankers', 'Nordic Tankers', 'DHT Holdings',
-    'Scorpio Tankers', 'Hafnia Limited', 'Stena Bulk', 'Norden', 'Golden Ocean',
-    'Star Bulk Carriers', 'Eagle Bulk', 'Genco Shipping', 'Safe Bulkers'
-  ];
-  const brokers = ['Clarksons', 'Gibson Shipbrokers', 'Braemar ACM', 'SSY', 'Arrow Shipbroking', 'Howe Robinson'];
-  const vessels = [
-    'Copper Spirit', 'Front Sparta', 'Maran Poseidon', 'Cedar', 'Minerva Vera', 'Ocean Voyager',
-    'Trinity', 'Nordic Sky', 'Baltic Crown', 'Atlantic Pioneer', 'Pacific Dawn', 'Mediterranean Star',
-    'Arctic Explorer', 'Coral Reef', 'Diamond Wave', 'Emerald Tide', 'Golden Horizon', 'Silver Stream'
-  ];
-  const stages = ['Offer', 'Active', 'Pending', 'Negotiating'];
-  const types = ['+/-', 'Buy', 'Sell', 'Charter'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Transform database orders with nested negotiations into hierarchical structure
+const transformDatabaseToHierarchy = (
+  ordersWithNegotiations: any[]
+): OrderData[] => {
+  if (!ordersWithNegotiations || ordersWithNegotiations.length === 0) return [];
 
-  // Generate random ID
-  const generateId = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let id = '';
-    for (let i = 0; i < 7; i++) {
-      id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
-  };
+  return ordersWithNegotiations.map((order) => {
+    // Get negotiations for this order (already nested and enriched)
+    const orderNegotiations = order.negotiations || [];
 
-  // Generate random laycan date
-  const generateLaycan = () => {
-    const startDay = Math.floor(Math.random() * 28) + 1;
-    const endDay = startDay + Math.floor(Math.random() * 5) + 1;
-    const month = months[Math.floor(Math.random() * months.length)];
-    const year = 2025 + Math.floor(Math.random() * 2);
-    return `${startDay} ${month} ${year} — ${endDay} ${month} ${year}`;
-  };
-
-  // Level 3: Individual Offer
-  const generateIndividualOffer = (counterparty: string, broker: string): OrderData => {
-    const wsBase = 85 + Math.floor(Math.random() * 20);
-    return {
-      id: '',
-      counterparty,
-      broker,
-      type: '',
-      stage: stages[Math.floor(Math.random() * stages.length)],
-      laycan: generateLaycan(),
-      vessel: vessels[Math.floor(Math.random() * vessels.length)],
-      lastBid: `WS ${wsBase}-${wsBase + 5}`,
-      lastOffer: `WS ${wsBase + 2}-${wsBase + 7}`,
-      demurrage: `$${(Math.random() * 40000 + 50000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`,
-      tce: Math.random() > 0.3 ? `$${(Math.random() * 150000 + 150000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : '-',
-      validity: Math.random() > 0.7 ? `${Math.floor(Math.random() * 48) + 1}h` : '-',
-    };
-  };
-
-  // Level 2: Broker Group (section header)
-  const generateBrokerGroup = (broker: string, counterpartiesList: string[]): OrderData => ({
-    id: `broker-${broker.toLowerCase().replace(/\s/g, '-')}`,
-    counterparty: broker,
-    broker,
-    type: '',
-    stage: '',
-    laycan: '',
-    vessel: '',
-    lastBid: '',
-    lastOffer: '',
-    demurrage: '',
-    tce: '',
-    validity: '',
-    isBrokerGroup: true,
-    children: counterpartiesList.map((cp) => generateIndividualOffer(cp, broker))
-  });
-
-  // Level 1: Order (top-level aggregation)
-  const generateOrder = (): OrderData => {
-    // Randomly select 2-8 counterparties
-    const numCounterparties = Math.floor(Math.random() * 7) + 2;
-    const selectedCounterparties: string[] = [];
-    for (let i = 0; i < numCounterparties; i++) {
-      selectedCounterparties.push(counterparties[Math.floor(Math.random() * counterparties.length)]);
-    }
-
-    const uniqueCounterparties = [...new Set(selectedCounterparties)];
-    const displayCounterparty = uniqueCounterparties.length > 2
-      ? `${uniqueCounterparties.slice(0, 2).join(', ')} + ${uniqueCounterparties.length - 2}`
-      : uniqueCounterparties.join(', ');
-
-    const allOffers = selectedCounterparties.length;
-    const minDemurrage = 60000 + Math.floor(Math.random() * 20000);
-    const maxDemurrage = minDemurrage + Math.floor(Math.random() * 30000) + 10000;
-    const wsMin = 85 + Math.floor(Math.random() * 15);
-    const wsMax = wsMin + 5 + Math.floor(Math.random() * 10);
-
-    // Randomly select 2-3 brokers
-    const numBrokers = Math.floor(Math.random() * 2) + 2;
-    const selectedBrokers = [];
-    const shuffledBrokers = [...brokers].sort(() => Math.random() - 0.5);
-
-    for (let i = 0; i < numBrokers; i++) {
-      const brokersStart = Math.floor(i * selectedCounterparties.length / numBrokers);
-      const brokersEnd = Math.floor((i + 1) * selectedCounterparties.length / numBrokers);
-      const brokerCounterparties = selectedCounterparties.slice(brokersStart, brokersEnd);
-
-      if (brokerCounterparties.length > 0) {
-        selectedBrokers.push(generateBrokerGroup(shuffledBrokers[i], brokerCounterparties));
+    // Group negotiations by broker
+    const negotiationsByBroker = orderNegotiations.reduce((acc: Record<string, any[]>, neg: any) => {
+      const brokerName = neg.broker?.name || "Unknown Broker";
+      if (!acc[brokerName]) {
+        acc[brokerName] = [];
       }
-    }
+      acc[brokerName].push(neg);
+      return acc;
+    }, {} as Record<string, any[]>);
 
+    // Create broker groups (Level 2)
+    const brokerGroups: OrderData[] = Object.entries(negotiationsByBroker).map(
+      ([brokerName, negs]) => {
+        const negotiations = negs as any[];
+        return {
+        id: `broker-${order.orderNumber}-${brokerName.toLowerCase().replace(/\s/g, "-")}`,
+        counterparty: brokerName,
+        broker: brokerName,
+        type: "",
+        stage: "",
+        laycan: "",
+        vessel: "",
+        lastBid: "",
+        lastOffer: "",
+        demurrage: "",
+        tce: "",
+        validity: "",
+        isBrokerGroup: true,
+        children: negotiations.map((neg: any) => ({
+          id: neg.negotiationNumber || neg._id,
+          counterparty: neg.counterparty?.name || "Unknown",
+          broker: neg.broker?.name || "",
+          type: "",
+          stage: neg.status
+            .split("-")
+            .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(" "),
+          laycan: order.laycanStart
+            ? `${new Date(order.laycanStart).toLocaleDateString()} — ${new Date(order.laycanEnd).toLocaleDateString()}`
+            : "-",
+          vessel: neg.vessel?.name || "TBN",
+          lastBid: neg.bidPrice || "-",
+          lastOffer: neg.offerPrice || "-",
+          demurrage: neg.demurrageRate || "-",
+          tce: neg.tce || "-",
+          validity: neg.validity || "-",
+        })),
+      };
+      }
+    );
+
+    // Calculate aggregated values for top-level order
+    const allCounterparties = [
+      ...new Set(orderNegotiations.map((n: any) => n.counterparty?.name).filter(Boolean)),
+    ];
+    const displayCounterparty =
+      allCounterparties.length > 2
+        ? `${allCounterparties.slice(0, 2).join(", ")} + ${allCounterparties.length - 2}`
+        : allCounterparties.join(", ");
+
+    // Create top-level order (Level 1)
     return {
-      id: generateId(),
-      counterparty: displayCounterparty,
-      type: types[Math.floor(Math.random() * types.length)],
-      stage: 'Active',
-      laycan: generateLaycan(),
-      vessel: `${allOffers} options`,
-      lastBid: `WS ${wsMin}-${wsMin + 5}`,
-      lastOffer: `WS ${wsMax - 5}-${wsMax}`,
-      demurrage: `$${minDemurrage.toLocaleString()}-${maxDemurrage.toLocaleString()}`,
-      tce: Math.random() > 0.5 ? `$${(Math.random() * 200000 + 150000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : '-',
-      validity: Math.random() > 0.6 ? `${Math.floor(Math.random() * 72) + 1}h` : '-',
-      children: selectedBrokers
+      id: order.orderNumber,
+      counterparty: displayCounterparty || "No offers",
+      type: order.type.charAt(0).toUpperCase() + order.type.slice(1),
+      stage: order.stage.charAt(0).toUpperCase() + order.stage.slice(1),
+      laycan: order.laycanStart
+        ? `${new Date(order.laycanStart).toLocaleDateString()} — ${new Date(order.laycanEnd).toLocaleDateString()}`
+        : "-",
+      vessel: `${orderNegotiations.length} option${orderNegotiations.length !== 1 ? "s" : ""}`,
+      lastBid: "-",
+      lastOffer: "-",
+      demurrage: order.demurrageRate || "-",
+      tce: order.tce || "-",
+      validity: order.validityHours ? `${order.validityHours}h` : "-",
+      children: brokerGroups,
     };
-  };
-
-  // Generate 50 orders
-  const orders: OrderData[] = [];
-  for (let i = 0; i < 50; i++) {
-    orders.push(generateOrder());
-  }
-
-  return orders;
+  });
 };
 
 function TradeDesk() {
   const [showInsights, setShowInsights] = useState(true);
+
+  // Get current user and organization
+  const { user: _user } = useUser();
+
+  // Get user's first organization (for now, using first org in database)
+  const organization = useQuery(api.organizations.getFirstOrganization);
+  const organizationId = organization?._id;
 
   // Memoize header actions to prevent infinite re-render loop
   const headerActions = useMemo(
@@ -224,8 +190,20 @@ function TradeDesk() {
   // Set header actions for this route
   useHeaderActions(headerActions);
 
-  // Memoize trade data to prevent regenerating on every render
-  const tradeData = useMemo(() => generateMultiLevelOrderData(), []);
+  // Query orders with nested negotiations from database
+  const ordersWithNegotiations = useQuery(
+    api.orders.listWithNegotiations,
+    organizationId ? { organizationId } : "skip"
+  );
+
+  // Detect loading state
+  const isLoadingOrders = ordersWithNegotiations === undefined;
+
+  // Transform database data to hierarchical structure
+  const tradeData = useMemo(() => {
+    if (!ordersWithNegotiations) return [];
+    return transformDatabaseToHierarchy(ordersWithNegotiations);
+  }, [ordersWithNegotiations]);
 
   // Filter state
   const [pinnedFilters, setPinnedFilters] = useState<string[]>(['stage', 'type']);
@@ -762,6 +740,8 @@ function TradeDesk() {
       <DataTable
         data={filteredData}
         columns={orderColumns}
+        isLoading={isLoadingOrders}
+        loadingRowCount={10}
         enableExpanding={true}
         getSubRows={(row) => row.children}
         borderStyle="horizontal"

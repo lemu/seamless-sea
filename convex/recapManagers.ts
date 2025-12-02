@@ -48,6 +48,11 @@ export const create = mutation({
     const now = Date.now();
     const recapNumber = generateRecapNumber();
 
+    // Validate: both orderId and negotiationId must be present, OR both must be empty
+    if ((args.orderId && !args.negotiationId) || (!args.orderId && args.negotiationId)) {
+      throw new Error("orderId and negotiationId must both be present or both be empty");
+    }
+
     const recapId = await ctx.db.insert("recap_managers", {
       recapNumber,
       negotiationId: args.negotiationId,
@@ -277,5 +282,67 @@ export const listByOrder = query({
       .collect();
 
     return recaps.sort((a, b) => b._creationTime - a._creationTime);
+  },
+});
+
+// List all recap managers with enriched data
+export const listEnriched = query({
+  args: {},
+  handler: async (ctx) => {
+    const recaps = await ctx.db.query("recap_managers").collect();
+
+    const enrichedRecaps = await Promise.all(
+      recaps.map(async (recap) => {
+        // Get related entities
+        const owner = recap.ownerId
+          ? await ctx.db.get(recap.ownerId)
+          : null;
+        const charterer = recap.chartererId
+          ? await ctx.db.get(recap.chartererId)
+          : null;
+        const broker = recap.brokerId
+          ? await ctx.db.get(recap.brokerId)
+          : null;
+        const vessel = recap.vesselId
+          ? await ctx.db.get(recap.vesselId)
+          : null;
+        const cargoType = recap.cargoTypeId
+          ? await ctx.db.get(recap.cargoTypeId)
+          : null;
+        const loadPort = recap.loadPortId
+          ? await ctx.db.get(recap.loadPortId)
+          : null;
+        const dischargePort = recap.dischargePortId
+          ? await ctx.db.get(recap.dischargePortId)
+          : null;
+
+        // Get avatar URLs for companies
+        const ownerWithAvatar = owner && {
+          ...owner,
+          avatarUrl: owner.avatar ? await ctx.storage.getUrl(owner.avatar) : null,
+        };
+        const chartererWithAvatar = charterer && {
+          ...charterer,
+          avatarUrl: charterer.avatar ? await ctx.storage.getUrl(charterer.avatar) : null,
+        };
+        const brokerWithAvatar = broker && {
+          ...broker,
+          avatarUrl: broker.avatar ? await ctx.storage.getUrl(broker.avatar) : null,
+        };
+
+        return {
+          ...recap,
+          owner: ownerWithAvatar,
+          charterer: chartererWithAvatar,
+          broker: brokerWithAvatar,
+          vessel,
+          cargoType,
+          loadPort,
+          dischargePort,
+        };
+      })
+    );
+
+    return enrichedRecaps.sort((a, b) => b._creationTime - a._creationTime);
   },
 });

@@ -4,6 +4,7 @@ import { seedPortsInternal } from "./ports";
 import { seedVesselsInternal } from "./vessels";
 import { seedCargoTypesInternal } from "./cargo_types";
 import { seedRoutesInternal } from "./routes";
+import { seedFixturesInternal } from "./fixtures";
 
 // Master seed function to populate all reference data
 export const seedAll = mutation({
@@ -32,9 +33,13 @@ export const seedAll = mutation({
       const routesResult = await seedRoutesInternal(ctx);
       results.push(routesResult);
 
+      // 6. Seed fixtures (depends on companies, vessels, ports, cargo types)
+      const fixturesResult = await seedFixturesInternal(ctx);
+      results.push(fixturesResult);
+
       return {
         success: true,
-        message: "Successfully seeded all reference data",
+        message: "Successfully seeded all reference data and fixtures",
         results,
       };
     } catch (error) {
@@ -56,6 +61,8 @@ export const checkSeeded = query({
     const vesselsCount = (await ctx.db.query("vessels").collect()).length;
     const cargoTypesCount = (await ctx.db.query("cargo_types").collect()).length;
     const routesCount = (await ctx.db.query("routes").collect()).length;
+    const fixturesCount = (await ctx.db.query("fixtures").collect()).length;
+    const contractsCount = (await ctx.db.query("contracts").collect()).length;
 
     return {
       isSeeded: companiesCount > 0 && portsCount > 0 && vesselsCount > 0 && cargoTypesCount > 0,
@@ -65,16 +72,31 @@ export const checkSeeded = query({
         vessels: vesselsCount,
         cargoTypes: cargoTypesCount,
         routes: routesCount,
+        fixtures: fixturesCount,
+        contracts: contractsCount,
       },
     };
   },
 });
 
-// Clear all data (use with caution!)
-export const clearAll = mutation({
+// Clear all reference data (use with caution!)
+export const clearAllReferenceData = mutation({
   args: {},
   handler: async (ctx) => {
     // Clear in reverse dependency order
+
+    // Clear contracts first (depends on fixtures)
+    const contracts = await ctx.db.query("contracts").collect();
+    for (const contract of contracts) {
+      await ctx.db.delete(contract._id);
+    }
+
+    // Clear fixtures
+    const fixtures = await ctx.db.query("fixtures").collect();
+    for (const fixture of fixtures) {
+      await ctx.db.delete(fixture._id);
+    }
+
     const routes = await ctx.db.query("routes").collect();
     for (const route of routes) {
       await ctx.db.delete(route._id);
@@ -95,14 +117,24 @@ export const clearAll = mutation({
       await ctx.db.delete(port._id);
     }
 
+    // Clean up company avatars from storage before deleting companies
     const companies = await ctx.db.query("companies").collect();
+    let avatarsDeleted = 0;
     for (const company of companies) {
+      if (company.avatar) {
+        try {
+          await ctx.storage.delete(company.avatar);
+          avatarsDeleted++;
+        } catch (error) {
+          console.error(`Failed to delete avatar for ${company.name}:`, error);
+        }
+      }
       await ctx.db.delete(company._id);
     }
 
     return {
       success: true,
-      message: "All reference data cleared",
+      message: `All reference data cleared (${avatarsDeleted} avatars removed from storage)`,
     };
   },
 });

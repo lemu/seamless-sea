@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 
 // Internal seed function that can be called from other mutations
 export const seedRoutesInternal = async (ctx: MutationCtx) => {

@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
 
 // Generate order number (ORD12345)
 function generateOrderNumber(): string {
@@ -309,5 +308,78 @@ export const listByStage = query({
       .collect();
 
     return orders.sort((a, b) => b._creationTime - a._creationTime);
+  },
+});
+
+// List all orders with their negotiations for an organization
+export const listWithNegotiations = query({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId)
+      )
+      .collect();
+
+    const ordersWithNegotiations = await Promise.all(
+      orders.map(async (order) => {
+        // Get negotiations for this order
+        const negotiations = await ctx.db
+          .query("negotiations")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .collect();
+
+        // Enrich negotiations with related entities
+        const enrichedNegotiations = await Promise.all(
+          negotiations.map(async (negotiation) => {
+            const counterparty = await ctx.db.get(negotiation.counterpartyId);
+            const broker = negotiation.brokerId
+              ? await ctx.db.get(negotiation.brokerId)
+              : null;
+            const vessel = negotiation.vesselId
+              ? await ctx.db.get(negotiation.vesselId)
+              : null;
+            const personInCharge = negotiation.personInChargeId
+              ? await ctx.db.get(negotiation.personInChargeId)
+              : null;
+
+            return {
+              ...negotiation,
+              counterparty,
+              broker,
+              vessel,
+              personInCharge,
+            };
+          })
+        );
+
+        // Get related entities for the order
+        let cargoType = null;
+        if (order.cargoTypeId) {
+          cargoType = await ctx.db.get(order.cargoTypeId);
+        }
+
+        let loadPort = null;
+        if (order.loadPortId) {
+          loadPort = await ctx.db.get(order.loadPortId);
+        }
+
+        let dischargePort = null;
+        if (order.dischargePortId) {
+          dischargePort = await ctx.db.get(order.dischargePortId);
+        }
+
+        return {
+          ...order,
+          negotiations: enrichedNegotiations,
+          cargoType,
+          loadPort,
+          dischargePort,
+        };
+      })
+    );
+
+    return ordersWithNegotiations.sort((a, b) => b._creationTime - a._creationTime);
   },
 });

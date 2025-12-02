@@ -14,6 +14,7 @@ import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
+import type * as fixtures from "../fixtures.js";
 import type * as migrations from "../migrations.js";
 import type * as negotiations from "../negotiations.js";
 import type * as orders from "../orders.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   cargo_types: typeof cargo_types;
   companies: typeof companies;
   contracts: typeof contracts;
+  fixtures: typeof fixtures;
   migrations: typeof migrations;
   negotiations: typeof negotiations;
   orders: typeof orders;

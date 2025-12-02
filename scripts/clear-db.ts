@@ -58,13 +58,13 @@ async function clearDatabase() {
     return;
   }
 
-  console.log("\n🗑️  Clearing database...");
+  console.log("\n🗑️  Clearing database (including avatar cleanup)...");
 
   try {
-    const result = await client.mutation("seed:clearAll", {});
+    const result = await client.mutation("seed:clearAllReferenceData", {});
 
     if (result.success) {
-      console.log("✅ Database cleared successfully!");
+      console.log(`✅ ${result.message}`);
     } else {
       console.error("❌ Error clearing database");
       process.exit(1);

@@ -8,9 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "seed-all": "tsx scripts/seed-all.ts",
     "seed-db": "tsx scripts/seed-db.ts",
     "clear-db": "tsx scripts/clear-db.ts",
-    "migrate-data": "tsx scripts/migrate-data.ts"
+    "migrate-data": "tsx scripts/migrate-data.ts",
+    "clear-trading-data": "tsx scripts/clear-trading-data.ts",
+    "upload-avatars": "tsx scripts/upload-company-avatars.ts"
   },
   "dependencies": {
     "@rafal.lemieszewski/tide-ui": "^0.46.3",
@@ -19,6 +22,7 @@
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "convex": "^1.25.4",
+    "dotenv": "^17.2.3",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "papaparse": "^5.5.3",

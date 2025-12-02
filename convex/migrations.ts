@@ -96,7 +96,11 @@ async function migrateTradeDeskData(
         "on-subs",
       ];
 
-      const negotiationId = await ctx.db.insert("negotiations", {
+      // Generate negotiation number
+      const negotiationNumber: string = `NEG${10000 + negotiations.length}`;
+
+      const negotiationId: Id<"negotiations"> = await ctx.db.insert("negotiations", {
+        negotiationNumber,
         orderId,
         counterpartyId: counterparty._id,
         brokerId: broker._id,
@@ -126,7 +130,7 @@ async function migrateTradeDeskData(
 // Migrate sample Fixtures data
 async function migrateFixturesData(
   ctx: MutationCtx,
-  userId: Id<"users">
+  _userId: Id<"users">
 ) {
   // Get reference data
   const companies = await ctx.db.query("companies").collect();
@@ -137,15 +141,11 @@ async function migrateFixturesData(
   const ports = await ctx.db.query("ports").collect();
   const cargoTypes = await ctx.db.query("cargo_types").collect();
 
-  // Get some existing orders and negotiations
-  const orders = await ctx.db.query("orders").take(10);
-
   const contracts = [];
   const recapManagers = [];
 
-  // Create 10 contracts (dry market) from existing negotiations
+  // Create 10 contracts (dry market) as direct contracts without orders/negotiations
   for (let i = 0; i < 10; i++) {
-    const order = randomItem(orders);
     const laycan = generateLaycan();
     const loadPort = randomItem(ports);
     const dischargePort = randomItem(ports.filter((p) => p._id !== loadPort._id));
@@ -160,7 +160,7 @@ async function migrateFixturesData(
 
     const contractId = await ctx.db.insert("contracts", {
       contractNumber,
-      orderId: order._id,
+      // orderId and negotiationId omitted - these are direct contracts without negotiations
       contractType: randomItem(["voyage-charter", "time-charter", "coa"] as const),
       ownerId: owner._id,
       chartererId: charterer._id,
@@ -190,7 +190,6 @@ async function migrateFixturesData(
 
   // Create 5 recap managers (wet market)
   for (let i = 0; i < 5; i++) {
-    const order = randomItem(orders);
     const laycan = generateLaycan();
     const loadPort = randomItem(ports);
     const dischargePort = randomItem(ports.filter((p) => p._id !== loadPort._id));
@@ -205,7 +204,7 @@ async function migrateFixturesData(
 
     const recapId = await ctx.db.insert("recap_managers", {
       recapNumber,
-      orderId: order._id,
+      // orderId and negotiationId omitted - these are direct recap managers without negotiations
       contractType: randomItem(["voyage-charter", "time-charter"] as const),
       ownerId: owner._id,
       chartererId: charterer._id,
@@ -309,8 +308,64 @@ export const checkMigrationStatus = mutation({
   },
 });
 
-// Clear all trading data (use with caution!)
+// Clear one batch of trading data - call repeatedly until empty
+export const clearTradingDataBatch = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const BATCH_SIZE = 50;
+
+    // Tables in reverse dependency order
+    const tables = [
+      "recap_addenda",
+      "contract_addenda",
+      "voyages",
+      "recap_managers",
+      "contracts",
+      "fixtures",
+      "negotiations",
+      "orders",
+      "field_changes",
+      "activity_logs",
+    ];
+
+    // Try to delete a batch from the first non-empty table
+    for (const tableName of tables) {
+      const batch = await ctx.db.query(tableName as any).take(BATCH_SIZE);
+      if (batch.length > 0) {
+        for (const record of batch) {
+          await ctx.db.delete(record._id);
+        }
+        return {
+          success: true,
+          table: tableName,
+          deleted: batch.length,
+          moreToDelete: true,
+        };
+      }
+    }
+
+    // All tables are empty
+    return {
+      success: true,
+      table: null,
+      deleted: 0,
+      moreToDelete: false,
+    };
+  },
+});
+
+// Legacy function - kept for backwards compatibility but not recommended for large datasets
 export const clearTradingData = mutation({
+  args: {},
+  handler: async (_ctx) => {
+    throw new Error(
+      "This function is deprecated for large datasets. Use clearTradingDataBatch instead."
+    );
+  },
+});
+
+// Clear all trading data including vessels (use with caution!)
+export const clearAllTradingData = mutation({
   args: {},
   handler: async (ctx) => {
     // Clear in reverse dependency order
@@ -339,6 +394,12 @@ export const clearTradingData = mutation({
       await ctx.db.delete(contract._id);
     }
 
+    // Clear fixtures (after contracts are deleted)
+    const fixtures = await ctx.db.query("fixtures").collect();
+    for (const fixture of fixtures) {
+      await ctx.db.delete(fixture._id);
+    }
+
     const negotiations = await ctx.db.query("negotiations").collect();
     for (const negotiation of negotiations) {
       await ctx.db.delete(negotiation._id);
@@ -347,6 +408,12 @@ export const clearTradingData = mutation({
     const orders = await ctx.db.query("orders").collect();
     for (const order of orders) {
       await ctx.db.delete(order._id);
+    }
+
+    // Clear vessels (after all dependencies are deleted)
+    const vessels = await ctx.db.query("vessels").collect();
+    for (const vessel of vessels) {
+      await ctx.db.delete(vessel._id);
     }
 
     // Clear audit logs
@@ -362,7 +429,7 @@ export const clearTradingData = mutation({
 
     return {
       success: true,
-      message: "All trading data cleared",
+      message: "All trading data cleared including vessels",
     };
   },
 });

@@ -131,3 +131,9 @@ body.resize-active * {
 .fixtures-table button {
   cursor: pointer;
 }
+
+/* Fix for DataTable skeleton duplicate header row */
+/* Hide <th> elements in tbody during skeleton loading */
+tbody th {
+  display: none;
+}

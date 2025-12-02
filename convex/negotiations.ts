@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+// Generate negotiation number (NEG12345)
+function generateNegotiationNumber(): string {
+  const randomNum = Math.floor(10000 + Math.random() * 90000);
+  return `NEG${randomNum}`;
+}
+
 // Create a new negotiation
 export const create = mutation({
   args: {
@@ -35,8 +41,10 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const negotiationNumber = generateNegotiationNumber();
 
     const negotiationId = await ctx.db.insert("negotiations", {
+      negotiationNumber,
       orderId: args.orderId,
       counterpartyId: args.counterpartyId,
       brokerId: args.brokerId,

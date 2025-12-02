@@ -277,3 +277,30 @@ export const generateUploadUrl = mutation({
     return await ctx.storage.generateUploadUrl();
   },
 });
+
+// Clean up company avatars from storage before clearing companies
+export const cleanupCompanyAvatars = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const companies = await ctx.db.query("companies").collect();
+    let deletedCount = 0;
+
+    for (const company of companies) {
+      if (company.avatar) {
+        try {
+          await ctx.storage.delete(company.avatar);
+          deletedCount++;
+        } catch (error) {
+          // Avatar file may have already been deleted, continue
+          console.error(`Failed to delete avatar for ${company.name}:`, error);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Cleaned up ${deletedCount} company avatar files from storage`,
+      deletedCount,
+    };
+  },
+});
