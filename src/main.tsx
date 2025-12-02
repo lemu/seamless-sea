@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 import "./index.css";
 import App from "./App.tsx";
+import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import Login from "./routes/Login.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
@@ -36,7 +37,7 @@ const router = createBrowserRouter([
       },
       {
         path: "home",
-        element: <Home />,
+        element: <ProtectedRoute><Home /></ProtectedRoute>,
         handle: {
           crumb: () => "Home",
         },
@@ -44,14 +45,14 @@ const router = createBrowserRouter([
       // Management routes
       {
         path: "freight-planner",
-        element: <FreightPlanner />,
+        element: <ProtectedRoute><FreightPlanner /></ProtectedRoute>,
         handle: {
           crumb: () => "Freight planner",
         },
       },
       {
         path: "trade-desk",
-        element: <TradeDesk />,
+        element: <ProtectedRoute><TradeDesk /></ProtectedRoute>,
         handle: {
           crumb: () => "Trade desk",
         },
@@ -65,21 +66,21 @@ const router = createBrowserRouter([
           },
           {
             path: "recaps",
-            element: <Recaps />,
+            element: <ProtectedRoute><Recaps /></ProtectedRoute>,
             handle: {
               crumb: () => "Recaps",
             },
           },
           {
             path: "contracts",
-            element: <AgreementContracts />,
+            element: <ProtectedRoute><AgreementContracts /></ProtectedRoute>,
             handle: {
               crumb: () => "Contracts",
             },
           },
           {
             path: "clause-library",
-            element: <ClauseLibrary />,
+            element: <ProtectedRoute><ClauseLibrary /></ProtectedRoute>,
             handle: {
               crumb: () => "Clause library",
             },
@@ -88,7 +89,7 @@ const router = createBrowserRouter([
       },
       {
         path: "compliance",
-        element: <Compliance />,
+        element: <ProtectedRoute><Compliance /></ProtectedRoute>,
         handle: {
           crumb: () => "Compliance",
         },
@@ -96,28 +97,28 @@ const router = createBrowserRouter([
       // Intelligence routes
       {
         path: "seanet",
-        element: <SeaNet />,
+        element: <ProtectedRoute><SeaNet /></ProtectedRoute>,
         handle: {
           crumb: () => "SeaNet",
         },
       },
       {
         path: "global-market",
-        element: <GlobalMarket />,
+        element: <ProtectedRoute><GlobalMarket /></ProtectedRoute>,
         handle: {
           crumb: () => "Global market",
         },
       },
       {
         path: "assets",
-        element: <Assets />,
+        element: <ProtectedRoute><Assets /></ProtectedRoute>,
         handle: {
           crumb: () => "Assets",
         },
       },
       {
         path: "fixtures",
-        element: <Fixtures />,
+        element: <ProtectedRoute><Fixtures /></ProtectedRoute>,
         handle: {
           crumb: () => "Fixtures",
         },
@@ -125,14 +126,14 @@ const router = createBrowserRouter([
       // Support routes
       {
         path: "notifications",
-        element: <Notifications />,
+        element: <ProtectedRoute><Notifications /></ProtectedRoute>,
         handle: {
           crumb: () => "Notifications",
         },
       },
       {
         path: "help-support",
-        element: <HelpSupport />,
+        element: <ProtectedRoute><HelpSupport /></ProtectedRoute>,
         handle: {
           crumb: () => "Help & support",
         },
@@ -140,7 +141,7 @@ const router = createBrowserRouter([
       // Boards routes
       {
         path: "boards",
-        element: <Boards />,
+        element: <ProtectedRoute><Boards /></ProtectedRoute>,
         handle: {
           crumb: () => "Boards",
         },
@@ -162,14 +163,14 @@ const router = createBrowserRouter([
       // User routes
       {
         path: "user-profile",
-        element: <UserProfile />,
+        element: <ProtectedRoute><UserProfile /></ProtectedRoute>,
         handle: {
           crumb: () => "User Profile",
         },
       },
       {
         path: "organization-settings",
-        element: <OrganizationSettings />,
+        element: <ProtectedRoute><OrganizationSettings /></ProtectedRoute>,
         handle: {
           crumb: () => "Organization Settings",
         },

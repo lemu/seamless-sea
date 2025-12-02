@@ -1390,6 +1390,7 @@ interface CombinedSwitcherProps {
 
 function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
   const navigate = useNavigate();
+  const { logout } = useUser();
   const [activeTeam, setActiveTeam] = React.useState<Organization | undefined>(
     teams[0],
   );
@@ -1546,12 +1547,8 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
 
           <DropdownMenuItem
             icon="log-out"
-            onClick={() => {
-              // Add logout logic here
-              localStorage.removeItem("userEmail");
-              navigate("/");
-            }}
-                        destructive
+            onClick={logout}
+            destructive
           >
             Sign out
           </DropdownMenuItem>
@@ -1602,48 +1599,10 @@ function SidebarToggleWithTooltip() {
 
 export function AppFrame({ children }: AppFrameProps) {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { user, isLoading } = useUser();
-
-  // Clean up old localStorage auth data on mount
-  React.useEffect(() => {
-    localStorage.removeItem("userEmail");
-  }, []);
-
-  // Handle authentication redirect - must be at top level
-  React.useEffect(() => {
-    // Only redirect if we're not loading and there's no user
-    if (location.pathname !== "/" && !isLoading && !user) {
-      navigate("/");
-    }
-  }, [location.pathname, isLoading, user, navigate]);
 
   // Show login page without sidebar
   if (location.pathname === "/") {
     return <main className="h-full">{children}</main>;
-  }
-
-  // Show loading state while checking authentication
-  if (isLoading) {
-    return (
-      <main className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-[var(--color-border-primary-subtle)] border-t-[var(--color-border-brand)]"></div>
-          <p className="text-body-md text-[var(--color-text-secondary)]">Loading...</p>
-        </div>
-      </main>
-    );
-  }
-
-  // Redirect to login if not authenticated
-  if (!user) {
-    return (
-      <main className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-body-md text-[var(--color-text-secondary)]">Redirecting to login...</p>
-        </div>
-      </main>
-    );
   }
 
   return (
