@@ -1,0 +1,20 @@
+# Exclude company logos - these are uploaded to Convex storage during seeding
+# and are not needed in the production build
+public/company-logos/
+
+# Exclude development and test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+**/__tests__/
+
+# Exclude development scripts (keep only if needed for production seeding)
+scripts/upload-company-avatars.ts
+scripts/clear-db.ts
+scripts/clear-trading-data.ts
+
+# Exclude local environment files
+.env.local
+.env*.local
+.env.local.backup
