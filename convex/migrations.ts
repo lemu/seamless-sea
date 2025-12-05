@@ -2131,17 +2131,6 @@ export const clearTradingDataBatch = mutation({
     };
   },
 });
-
-// Legacy function - kept for backwards compatibility but not recommended for large datasets
-export const clearTradingData = mutation({
-  args: {},
-  handler: async (_ctx) => {
-    throw new Error(
-      "This function is deprecated for large datasets. Use clearTradingDataBatch instead."
-    );
-  },
-});
-
 // Clear all trading data including vessels (use with caution!)
 export const clearAllTradingData = mutation({
   args: {},

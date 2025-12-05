@@ -305,97 +305,6 @@ export const listEnriched = query({
     return enrichedFixtures.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
-
-// Get field changes for an entity (audit trail)
-export const getFieldChanges = query({
-  args: {
-    entityType: v.union(
-      v.literal("order"),
-      v.literal("negotiation"),
-      v.literal("contract"),
-      v.literal("recap_manager")
-    ),
-    entityId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const changes = await ctx.db
-      .query("field_changes")
-      .withIndex("by_entity", (q) =>
-        q.eq("entityType", args.entityType).eq("entityId", args.entityId)
-      )
-      .order("desc")
-      .collect();
-
-    // Enrich with user data
-    const enrichedChanges = await Promise.all(
-      changes.map(async (change) => {
-        const user = await ctx.db.get(change.userId);
-        return {
-          ...change,
-          user: user
-            ? {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-                avatarUrl: user.avatar
-                  ? await ctx.storage.getUrl(user.avatar)
-                  : null,
-              }
-            : null,
-        };
-      })
-    );
-
-    return enrichedChanges;
-  },
-});
-
-// Get activity logs for an entity
-export const getActivityLog = query({
-  args: {
-    entityType: v.union(
-      v.literal("order"),
-      v.literal("negotiation"),
-      v.literal("contract"),
-      v.literal("recap_manager")
-    ),
-    entityId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const activities = await ctx.db
-      .query("activity_logs")
-      .withIndex("by_entity", (q) =>
-        q.eq("entityType", args.entityType).eq("entityId", args.entityId)
-      )
-      .order("desc")
-      .collect();
-
-    // Enrich with user data
-    const enrichedActivities = await Promise.all(
-      activities.map(async (activity) => {
-        const user = activity.userId ? await ctx.db.get(activity.userId) : null;
-        return {
-          ...activity,
-          user: user
-            ? {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-                avatarUrl: user.avatar
-                  ? await ctx.storage.getUrl(user.avatar)
-                  : null,
-              }
-            : null,
-        };
-      })
-    );
-
-    return enrichedActivities;
-  },
-});
-
 // Get approval status for an entity
 export const getApprovalStatus = query({
   args: {
@@ -536,15 +445,6 @@ export const getFixtureDetails = query({
     };
   },
 });
-
-// Public mutation to seed fixtures (for testing/development)
-export const seedFixtures = mutation({
-  args: {},
-  handler: async (ctx) => {
-    return await seedFixturesInternal(ctx);
-  },
-});
-
 // Internal seed function for fixtures with realistic maritime data
 export const seedFixturesInternal = async (ctx: MutationCtx) => {
   console.log("🚢 Seeding fixtures...");
@@ -1104,37 +1004,3 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     count: fixturesCreated.length,
   };
 };
-
-// Test mutation to verify trackFieldChange works
-export const testCreateFieldChange = mutation({
-  args: {
-    contractId: v.id("contracts"),
-  },
-  handler: async (ctx, args) => {
-    const { trackFieldChange } = await import("./audit");
-
-    // Get first user
-    const user = await ctx.db.query("users").first();
-    if (!user) {
-      throw new Error("No user found");
-    }
-
-    console.log("[TEST] Creating test field change for contract:", args.contractId);
-
-    // Create a test field change
-    await trackFieldChange(
-      ctx,
-      "contract",
-      args.contractId,
-      "freightRate",
-      "$50.00/mt",
-      "$55.00/mt",
-      user._id,
-      "Test field change"
-    );
-
-    console.log("[TEST] Field change created successfully");
-
-    return { success: true, message: "Test field change created" };
-  },
-});

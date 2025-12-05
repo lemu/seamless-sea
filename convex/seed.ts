@@ -165,11 +165,3 @@ export const clearAllReferenceData = mutation({
     };
   },
 });
-
-// Helper query to get first contract (for testing)
-export const getFirstContract = query({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db.query("contracts").first();
-  },
-});
