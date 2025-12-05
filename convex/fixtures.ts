@@ -792,7 +792,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
   ) => {
     await ctx.db.insert("field_changes", {
       entityType,
-      entityId,
+      entityId: entityId.toString(),
       fieldName,
       oldValue,
       newValue,
@@ -802,7 +802,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     });
   };
 
-  // Helper: Create activity log with expandable field changes
+  // Helper: Create activity log
   const createActivityLog = async (
     entityType: "order" | "negotiation" | "contract" | "recap_manager",
     entityId: any,
@@ -811,9 +811,9 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     statusValue: string,
     statusLabel: string,
     timestamp: number,
-    expandableData?: { label: string; value: string }[]
+    expandable?: Array<{ label: string; value: string }>
   ) => {
-    const logEntry: any = {
+    await ctx.db.insert("activity_logs", {
       entityType,
       entityId,
       action,
@@ -824,15 +824,8 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       },
       userId: systemUser._id,
       timestamp,
-    };
-
-    if (expandableData && expandableData.length > 0) {
-      logEntry.expandable = {
-        data: expandableData,
-      };
-    }
-
-    await ctx.db.insert("activity_logs", logEntry);
+      expandable: expandable ? { data: expandable } : undefined,
+    });
   };
 
   const now = Date.now();
@@ -964,6 +957,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       const initialQuantity = Math.floor(Math.random() * 50000) + 20000;
       const quantity = Math.floor(Math.random() * 50000) + 20000;
       const initialFreightRate = `$${(parseFloat(freightRate.replace(/[^0-9.]/g, '')) * 0.92).toFixed(2)}/mt`;
+      const initialDemurrageRate = `$${Math.floor(parseInt(demurrageRate.replace(/[^0-9]/g, '')) * 0.85)}/day`;
       const initialLaycanStart = laycanStart - 7 * 24 * 60 * 60 * 1000;
 
       const contractId = await ctx.db.insert("contracts", {
@@ -1007,6 +1001,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
         { field: "quantity", old: initialQuantity.toString(), new: quantity.toString(), oldName: initialQuantity.toString(), newName: quantity.toString(), reason: "Cargo quantity finalized" },
         { field: "freightRate", old: initialFreightRate, new: freightRate, oldName: initialFreightRate, newName: freightRate, reason: "Freight rate negotiated to market level" },
         { field: "laycanStart", old: new Date(initialLaycanStart).toISOString(), new: new Date(laycanStart).toISOString(), oldName: new Date(initialLaycanStart).toLocaleDateString(), newName: new Date(laycanStart).toLocaleDateString(), reason: "Laycan adjusted for vessel schedule" },
+        { field: "demurrageRate", old: initialDemurrageRate, new: demurrageRate, oldName: initialDemurrageRate, newName: demurrageRate, reason: "Demurrage rate adjusted per market conditions" },
       ];
 
       // Randomly select fields to change
@@ -1053,13 +1048,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
             ] : undefined
           );
         } else if (statusStep.phase === "negotiation" && negotiationId) {
-          // Negotiation phase logs with terms in expandable
-          const expandableData = statusStep.action === "fixed" ? [
-            { label: "Freight Rate", value: freightRate },
-            { label: "Laycan", value: new Date(laycanStart).toLocaleDateString() },
-            { label: "Quantity", value: `${quantity} MT` },
-          ] : undefined;
-
+          // Negotiation phase logs
           await createActivityLog(
             "negotiation",
             negotiationId,
@@ -1067,8 +1056,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
             `${statusStep.description} with ${charterer.name}`,
             `negotiation-${statusStep.status}`,
             statusStep.label,
-            stepTimestamp,
-            expandableData
+            stepTimestamp
           );
         } else if (statusStep.phase === "contract") {
           // Contract phase logs with field changes in expandable
@@ -1116,3 +1104,37 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     count: fixturesCreated.length,
   };
 };
+
+// Test mutation to verify trackFieldChange works
+export const testCreateFieldChange = mutation({
+  args: {
+    contractId: v.id("contracts"),
+  },
+  handler: async (ctx, args) => {
+    const { trackFieldChange } = await import("./audit");
+
+    // Get first user
+    const user = await ctx.db.query("users").first();
+    if (!user) {
+      throw new Error("No user found");
+    }
+
+    console.log("[TEST] Creating test field change for contract:", args.contractId);
+
+    // Create a test field change
+    await trackFieldChange(
+      ctx,
+      "contract",
+      args.contractId,
+      "freightRate",
+      "$50.00/mt",
+      "$55.00/mt",
+      user._id,
+      "Test field change"
+    );
+
+    console.log("[TEST] Field change created successfully");
+
+    return { success: true, message: "Test field change created" };
+  },
+});

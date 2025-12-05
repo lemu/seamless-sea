@@ -4,7 +4,7 @@ import { seedPortsInternal } from "./ports";
 import { seedVesselsInternal } from "./vessels";
 import { seedCargoTypesInternal } from "./cargo_types";
 import { seedRoutesInternal } from "./routes";
-import { seedFixturesInternal } from "./fixtures";
+import { migrateTradeDeskDataInternal, migrateFixturesDataInternal, attachActivityLogsToFixtures } from "./migrations";
 
 // Master seed function to populate all reference data
 export const seedAll = mutation({
@@ -33,13 +33,40 @@ export const seedAll = mutation({
       const routesResult = await seedRoutesInternal(ctx);
       results.push(routesResult);
 
-      // 6. Seed fixtures (depends on companies, vessels, ports, cargo types)
-      const fixturesResult = await seedFixturesInternal(ctx);
+      // Get user and organization for fixture migration
+      const user = await ctx.db.query("users").first();
+      if (!user) {
+        throw new Error("No users found. Please create a user first.");
+      }
+
+      const organization = await ctx.db.query("organizations").first();
+      if (!organization) {
+        throw new Error("No organizations found. Please create an organization first.");
+      }
+
+      // 6. Seed Trade Desk data (orders + negotiations + contracts)
+      const tradeDeskResult = await migrateTradeDeskDataInternal(ctx, organization._id, user._id);
+      results.push(tradeDeskResult);
+
+      // 7. Seed Fixtures data (direct contracts + recap managers)
+      // Pass contract count from Trade Desk to avoid duplicate CP numbers
+      const fixturesResult = await migrateFixturesDataInternal(
+        ctx,
+        user._id,
+        tradeDeskResult.contractsCreated
+      );
       results.push(fixturesResult);
+
+      // 8. Attach activity logs to all fixtures (both Trade Desk and Out of Trade)
+      const baseNow = Date.now();
+      await attachActivityLogsToFixtures(ctx, user._id, baseNow);
+      results.push({
+        message: "Activity logs attached to all fixtures"
+      });
 
       return {
         success: true,
-        message: "Successfully seeded all reference data and fixtures",
+        message: "Successfully seeded all reference data, fixtures, and activity logs",
         results,
       };
     } catch (error) {
@@ -136,5 +163,13 @@ export const clearAllReferenceData = mutation({
       success: true,
       message: `All reference data cleared (${avatarsDeleted} avatars removed from storage)`,
     };
+  },
+});
+
+// Helper query to get first contract (for testing)
+export const getFirstContract = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("contracts").first();
   },
 });
