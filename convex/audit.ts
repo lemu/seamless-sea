@@ -39,8 +39,45 @@ export async function logActivity(
   description: string,
   status?: { value: string; label: string },
   metadata?: any,
-  userId?: Id<"users">
+  userId?: Id<"users">,
+  timestamp?: number
 ) {
+  // Automatically generate expandable data for negotiation events
+  let expandable: { data?: Array<{ label: string; value: string }> } | undefined;
+
+  if (entityType === "negotiation") {
+    try {
+      const negotiation = await ctx.db.get(entityId);
+      if (negotiation) {
+        // Find the contract for this negotiation to get full details
+        const contract = await ctx.db
+          .query("contracts")
+          .withIndex("by_negotiation", (q) => q.eq("negotiationId", entityId))
+          .first();
+
+        if (contract) {
+          // Generate expandable parameter snapshot
+          expandable = {
+            data: [
+              { label: "Freight Rate", value: contract.freightRate || "Not specified" },
+              {
+                label: "Laycan",
+                value: contract.laycanStart && contract.laycanEnd
+                  ? `${new Date(contract.laycanStart).toLocaleDateString()} - ${new Date(contract.laycanEnd).toLocaleDateString()}`
+                  : "Not specified"
+              },
+              { label: "Quantity", value: contract.quantity ? `${contract.quantity} ${contract.quantityUnit || "MT"}` : "Not specified" },
+              { label: "Demurrage", value: contract.demurrageRate || "Not specified" },
+            ]
+          };
+        }
+      }
+    } catch (error) {
+      // If we can't fetch negotiation/contract data, just skip expandable (don't fail the whole log)
+      console.warn(`Failed to generate expandable data for negotiation ${entityId}:`, error);
+    }
+  }
+
   await ctx.db.insert("activity_logs", {
     entityType,
     entityId: entityId.toString(),
@@ -49,7 +86,8 @@ export async function logActivity(
     status,
     metadata,
     userId,
-    timestamp: Date.now(),
+    timestamp: timestamp || Date.now(),
+    expandable,
   });
 }
 
