@@ -35,11 +35,6 @@ import {
   AttributesLabel,
   AttributesValue,
   AttributesSeparator,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   AttributesContent,
   AttributesChevron,
   ActivityLog,
@@ -48,18 +43,21 @@ import {
   ActivityLogHeader,
   ActivityLogDescription,
   ActivityLogValue,
+  ActivityLogContent,
+  ActivityLogChevron,
   Avatar,
   AvatarImage,
   AvatarFallback,
+  Flag,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
 } from "@rafal.lemieszewski/tide-ui";
 import { useHeaderActions } from "../hooks";
 import { ExportDialog } from "../components/ExportDialog";
+import { FormattedActivityLogDescription, ActivityLogExpandableContent } from "../components/ActivityLogDescription";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { getRouteDisplay } from "../utils/countries";
 import { formatLaycanRange, formatCargo } from "../utils/dataUtils";
 
 // Define types for fixture structure
@@ -222,6 +220,7 @@ const transformFieldChanges = (
           label: 'contract working copy',
         },
         value: change.newValue || '',
+        oldValue: change.oldValue || '',
       };
     });
 };
@@ -238,7 +237,7 @@ function FixtureSidebar({
   const fieldChanges = useQuery(
     api.fixtures.getFieldChanges,
     fixture.contract?._id
-      ? { entityType: "contract", entityId: fixture.contract._id }
+      ? { entityType: "contract", entityId: fixture.contract._id.toString() }
       : "skip"
   );
 
@@ -257,13 +256,13 @@ function FixtureSidebar({
       : "skip"
   );
 
-  // Combine and sort activity logs
+  // Combine and sort activity logs (oldest first)
   const allActivityLogs = useMemo(() => {
     const logs = [
       ...(contractActivityLog || []),
       ...(negotiationActivityLog || []),
     ];
-    return logs.sort((a, b) => b.timestamp - a.timestamp);
+    return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
   }, [contractActivityLog, negotiationActivityLog]);
 
   // Fetch approval status
@@ -287,7 +286,7 @@ function FixtureSidebar({
                 {/* Main title line with fixture ID and companies */}
                 <div className="flex items-center gap-2 text-[20px] font-semibold leading-6 tracking-[-0.2px] text-[var(--color-text-primary)]">
                   <span>
-                    {fixture.orderId && fixture.negotiationId
+                    {fixture.orderId && fixture.negotiationId && fixture.orderId !== "-" && fixture.negotiationId !== "-"
                       ? `${fixture.orderId} • ${fixture.negotiationId}`
                       : fixture.cpId || fixture.fixtureId}
                   </span>
@@ -315,12 +314,11 @@ function FixtureSidebar({
                 <div className="flex items-center gap-1 text-body-xsm text-[var(--color-text-secondary)]">
                   {fixture.loadPort && fixture.dischargePort && (
                     <>
-                      {getRouteDisplay(fixture.loadPort, fixture.dischargePort).split(" → ").map((port, idx, _arr) => (
-                        <>
-                          {idx > 0 && <Icon name="arrow-right" size="sm" />}
-                          <span key={idx}>{port}</span>
-                        </>
-                      ))}
+                      <span>{fixture.loadPort.name}</span>
+                      {fixture.loadPort.countryCode && <Flag country={fixture.loadPort.countryCode.toLowerCase()} />}
+                      <Icon name="arrow-right" size="sm" />
+                      <span>{fixture.dischargePort.name}</span>
+                      {fixture.dischargePort.countryCode && <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />}
                     </>
                   )}
                   {fixture.cargoType && fixture.contract?.quantity && (
@@ -364,20 +362,6 @@ function FixtureSidebar({
             className="mt-0 flex-1 overflow-y-auto bg-[var(--color-surface-base)]"
           >
             <div className="flex flex-col gap-4 px-6 py-6">
-              {/* Sorting Toolbar */}
-              <div className="flex items-center justify-end gap-2">
-                <span className="text-body-sm text-[var(--color-text-secondary)]">Sorting</span>
-                <Select defaultValue="newest-first">
-                  <SelectTrigger className="w-[120px]" size="sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest-first">Newest first</SelectItem>
-                    <SelectItem value="oldest-first">Oldest first</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Status Card */}
               <Card className="p-6">
                 <h3 className="mb-4 text-body-lg font-semibold text-[var(--color-text-primary)]">Status</h3>
@@ -390,7 +374,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Negotiation</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="negotiation-fixed" size="sm" />
+                            <FixtureStatus value="negotiation-fixed" size="sm" lowercase={false} />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -402,7 +386,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Contract</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="contract-working-copy" size="sm" />
+                            <FixtureStatus value="contract-working-copy" size="sm" lowercase={false} />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -435,6 +419,7 @@ function FixtureSidebar({
                   const cargoChanges = transformFieldChanges(fieldChanges, "quantity");
                   const laycanChanges = transformFieldChanges(fieldChanges, "laycanStart");
                   const freightRateChanges = transformFieldChanges(fieldChanges, "freightRate");
+                  const demurrageChanges = transformFieldChanges(fieldChanges, "demurrageRate");
 
                   const hasChartererChanges = chartererChanges.length > 0;
                   const hasBrokerChanges = brokerChanges.length > 0;
@@ -444,6 +429,7 @@ function FixtureSidebar({
                   const hasCargoChanges = cargoChanges.length > 0;
                   const hasLaycanChanges = laycanChanges.length > 0;
                   const hasFreightRateChanges = freightRateChanges.length > 0;
+                  const hasDemurrageChanges = demurrageChanges.length > 0;
 
                   return (
                 <AttributesList style={{ gridTemplateColumns: 'minmax(140px, auto) 1fr' }}>
@@ -464,30 +450,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {chartererChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {chartererChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -510,30 +493,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {brokerChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {brokerChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -556,30 +536,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {ownerChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {ownerChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -741,30 +718,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {loadPortChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {loadPortChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -784,30 +758,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {dischargePortChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {dischargePortChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -826,30 +797,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {cargoChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {cargoChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -868,30 +836,27 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {laycanChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {laycanChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -921,41 +886,70 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {freightRateChanges.map((entry, index, arr) => {
-                                const previousValue = index < arr.length - 1 ? arr[index + 1].value : null;
-                                return (
-                                  <ActivityLogItem key={index}>
-                                    <ActivityLogHeader>
-                                      <Avatar size="xxs">
-                                        <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                      </Avatar>
-                                      <ActivityLogDescription>
-                                        <span className="text-body-medium-sm">{entry.user.name}</span>
-                                        <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
-                                        {entry.action === 'updated' && previousValue && (
-                                          <>
-                                            <ActivityLogValue>{previousValue}</ActivityLogValue>
-                                            <span>to</span>
-                                          </>
-                                        )}
-                                        <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      </ActivityLogDescription>
+                              {freightRateChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
                                       <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogHeader>
-                                  </ActivityLogItem>
-                                );
-                              })}
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
                       )}
                     </AttributesItem>
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
+                    <AttributesItem collapsible={hasDemurrageChanges} defaultOpen={false}>
+                      <AttributesRow asCollapsibleTrigger={hasDemurrageChanges}>
                         <AttributesLabel>Demurrage / Despatch</AttributesLabel>
-                        <AttributesValue>20,000 $/m/day</AttributesValue>
+                        <AttributesValue>
+                          {fixture.contract?.demurrageRate || "Not specified"}
+                          {hasDemurrageChanges && <AttributesChevron />}
+                        </AttributesValue>
                       </AttributesRow>
+                      {hasDemurrageChanges && (
+                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+                            <ActivityLog>
+                              {demurrageChanges.map((entry, index) => (
+                                <ActivityLogItem key={index}>
+                                  <ActivityLogHeader>
+                                    <Avatar size="xxs">
+                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <ActivityLogDescription>
+                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span>{entry.action === 'created' ? 'set Demurrage Rate to' : 'changed Demurrage Rate from'}</span>
+                                      {entry.action === 'updated' && entry.oldValue && (
+                                        <>
+                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                                          <span>to</span>
+                                        </>
+                                      )}
+                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
+                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                                    </ActivityLogDescription>
+                                  </ActivityLogHeader>
+                                </ActivityLogItem>
+                              ))}
+                            </ActivityLog>
+                          </div>
+                        </AttributesContent>
+                      )}
                     </AttributesItem>
 
                     <AttributesItem hidden>
@@ -993,144 +987,152 @@ function FixtureSidebar({
             className="mt-0 flex-1 overflow-y-auto bg-[var(--color-surface-base)]"
           >
             <div className="flex flex-col gap-4 px-6 py-6">
-              {/* Toolbar */}
-              <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm">
-                  Show all changes
-                </Button>
-                <span className="text-body-sm text-[var(--color-text-secondary)]">•</span>
-                <span className="text-body-sm text-[var(--color-text-primary)]">
-                  Sorting
-                </span>
-                <Select defaultValue="oldest-last">
-                  <SelectTrigger className="w-[120px]" size="sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="oldest-last">Oldest last</SelectItem>
-                    <SelectItem value="oldest-first">Oldest first</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Helper function to transform status values for backward compatibility */}
               {(() => {
-                type StatusValue =
-                  | "order-draft" | "order-submitted" | "order-approved"
-                  | "negotiation-on-subs" | "negotiation-subs-lifted" | "negotiation-fixed"
-                  | "contract-working-copy" | "contract-signed" | "contract-approved";
-
-                const getFullStatusValue = (entry: any): StatusValue => {
-                  if (!entry.status?.value) return "order-draft" as StatusValue;
-
-                  // If already in correct format (has dash), return as-is
-                  if (entry.status.value.includes('-')) {
-                    return entry.status.value as StatusValue;
-                  }
-
-                  // Transform short format to phase-prefixed format
-                  const phase = entry.entityType; // "order", "negotiation", "contract"
-                  const status = entry.status.value;
-                  return `${phase}-${status}` as StatusValue;
-                };
-
               return (
                 <>
                   {/* Negotiation Card - Only show if fixture has negotiation */}
-                  {fixture.negotiation && (
-                    <Card className="p-6">
-                      <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
-                        Negotiation
-                      </h3>
-                      <ActivityLog separatorThreshold={86400000}>
-                        {allActivityLogs.filter((log) => log.entityType === 'negotiation').map((entry, index) => {
-                          const userName = entry.user?.name || 'System';
-                          const userInitials = userName === "System"
-                            ? "S"
-                            : userName.split(' ').map(n => n[0]).join('');
+                  {fixture.negotiation && (() => {
+                    const negotiationLogs = allActivityLogs.filter((log) => log.entityType === 'negotiation');
 
-                          const date = new Date(entry.timestamp);
-                          const formattedTimestamp = date.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          }) + ' at ' + date.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: false
-                          });
+                    if (negotiationLogs.length === 0) {
+                      return (
+                        <div className="flex items-center justify-center py-12">
+                          <p className="text-body-md text-[var(--color-text-tertiary)]">
+                            No history of activity yet
+                          </p>
+                        </div>
+                      );
+                    }
 
-                          return (
-                            <ActivityLogItem key={index} timestamp={entry.timestamp}>
-                              <ActivityLogHeader>
-                                <Avatar size="xxs">
-                                  {entry.user?.avatarUrl ? (
-                                    <AvatarImage src={entry.user.avatarUrl} alt={userName} />
-                                  ) : null}
-                                  <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                </Avatar>
-                                <ActivityLogDescription>
-                                  <span className="text-body-medium-sm">{userName}</span>
-                                  {entry.status && (
-                                    <FixtureStatus value={getFullStatusValue(entry) as any} size="sm" />
-                                  )}
-                                  <span>{entry.description}</span>
-                                </ActivityLogDescription>
-                                <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
-                              </ActivityLogHeader>
-                            </ActivityLogItem>
-                          );
-                        })}
-                      </ActivityLog>
-                    </Card>
-                  )}
+                    return (
+                      <Card className="p-6">
+                        <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
+                          Negotiation
+                        </h3>
+                        <ActivityLog separatorThreshold={86400000}>
+                          {negotiationLogs.map((entry, index) => {
+                            const userName = entry.user?.name || 'System';
+                            const userInitials = userName === "System"
+                              ? "S"
+                              : userName.split(' ').map(n => n[0]).join('');
+
+                            const date = new Date(entry.timestamp);
+                            const formattedTimestamp = date.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            }) + ' at ' + date.toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: false
+                            });
+
+                            const hasExpandable = entry.expandable?.data && entry.expandable.data.length > 0;
+
+                            return (
+                              <ActivityLogItem
+                                key={index}
+                                timestamp={entry.timestamp}
+                                collapsible={hasExpandable}
+                                defaultOpen={false}
+                              >
+                                <ActivityLogHeader asCollapsibleTrigger={hasExpandable}>
+                                  <Avatar size="xxs">
+                                    {entry.user?.avatarUrl ? (
+                                      <AvatarImage src={entry.user.avatarUrl} alt={userName} />
+                                    ) : null}
+                                    <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                                  </Avatar>
+                                  <FormattedActivityLogDescription
+                                    entry={entry}
+                                    userName={userName}
+                                    formattedTimestamp={formattedTimestamp}
+                                  />
+                                </ActivityLogHeader>
+                                {hasExpandable && (
+                                  <ActivityLogContent>
+                                    <ActivityLogExpandableContent entry={entry} />
+                                  </ActivityLogContent>
+                                )}
+                              </ActivityLogItem>
+                            );
+                          })}
+                        </ActivityLog>
+                      </Card>
+                    );
+                  })()}
 
                   {/* Contract Card */}
-                  <Card className="p-6">
-                    <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
-                      Contract
-                    </h3>
-                    <ActivityLog separatorThreshold={86400000}>
-                      {allActivityLogs.filter((log) => log.entityType === 'contract').map((entry, index) => {
-                        const userName = entry.user?.name || 'System';
-                        const userInitials = userName === "System"
-                          ? "S"
-                          : userName.split(' ').map(n => n[0]).join('');
+                  {(() => {
+                    const contractLogs = allActivityLogs.filter((log) => log.entityType === 'contract');
 
-                        const date = new Date(entry.timestamp);
-                        const formattedTimestamp = date.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        }) + ' at ' + date.toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: false
-                        });
+                    if (contractLogs.length === 0) {
+                      return (
+                        <div className="flex items-center justify-center py-12">
+                          <p className="text-body-md text-[var(--color-text-tertiary)]">
+                            No history of activity yet
+                          </p>
+                        </div>
+                      );
+                    }
 
-                        return (
-                          <ActivityLogItem key={index} timestamp={entry.timestamp}>
-                            <ActivityLogHeader>
-                              <Avatar size="xxs">
-                                {entry.user?.avatarUrl ? (
-                                  <AvatarImage src={entry.user.avatarUrl} alt={userName} />
-                                ) : null}
-                                <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                              </Avatar>
-                              <ActivityLogDescription>
-                                <span className="text-body-medium-sm">{userName}</span>
-                                {entry.status && (
-                                  <FixtureStatus value={getFullStatusValue(entry) as any} size="sm" />
+                    return (
+                      <Card className="p-6">
+                        <h3 className="mb-6 text-body-lg font-semibold text-[var(--color-text-primary)]">
+                          Contract
+                        </h3>
+                        <ActivityLog separatorThreshold={86400000}>
+                          {contractLogs.map((entry, index) => {
+                            const userName = entry.user?.name || 'System';
+                            const userInitials = userName === "System"
+                              ? "S"
+                              : userName.split(' ').map(n => n[0]).join('');
+
+                            const date = new Date(entry.timestamp);
+                            const formattedTimestamp = date.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            }) + ' at ' + date.toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: false
+                            });
+
+                            const hasExpandable = entry.expandable?.data && entry.expandable.data.length > 0;
+
+                            return (
+                              <ActivityLogItem
+                                key={index}
+                                timestamp={entry.timestamp}
+                                collapsible={hasExpandable}
+                                defaultOpen={false}
+                              >
+                                <ActivityLogHeader asCollapsibleTrigger={hasExpandable}>
+                                  <Avatar size="xxs">
+                                    {entry.user?.avatarUrl ? (
+                                      <AvatarImage src={entry.user.avatarUrl} alt={userName} />
+                                    ) : null}
+                                    <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                                  </Avatar>
+                                  <FormattedActivityLogDescription
+                                    entry={entry}
+                                    userName={userName}
+                                    formattedTimestamp={formattedTimestamp}
+                                  />
+                                </ActivityLogHeader>
+                                {hasExpandable && (
+                                  <ActivityLogContent>
+                                    <ActivityLogExpandableContent entry={entry} />
+                                  </ActivityLogContent>
                                 )}
-                                <span>{entry.description}</span>
-                              </ActivityLogDescription>
-                              <ActivityLogTime>{formattedTimestamp}</ActivityLogTime>
-                            </ActivityLogHeader>
-                          </ActivityLogItem>
-                        );
-                      })}
-                    </ActivityLog>
-                  </Card>
+                              </ActivityLogItem>
+                            );
+                          })}
+                        </ActivityLog>
+                      </Card>
+                    );
+                  })()}
                 </>
               );
               })()}
