@@ -13,7 +13,15 @@ export const getUserOrganizations = query({
     const organizations = await Promise.all(
       memberships.map(async (membership) => {
         const org = await ctx.db.get(membership.organizationId);
-        return org ? { ...org, role: membership.role } : null;
+        if (!org) return null;
+
+        // Generate avatar URL if avatar exists
+        let avatarUrl = null;
+        if (org.avatar) {
+          avatarUrl = await ctx.storage.getUrl(org.avatar);
+        }
+
+        return { ...org, role: membership.role, avatarUrl };
       })
     );
 
@@ -25,6 +33,15 @@ export const getUserOrganizations = query({
 export const getFirstOrganization = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("organizations").first();
+    const org = await ctx.db.query("organizations").first();
+    if (!org) return null;
+
+    // Generate avatar URL if avatar exists
+    let avatarUrl = null;
+    if (org.avatar) {
+      avatarUrl = await ctx.storage.getUrl(org.avatar);
+    }
+
+    return { ...org, avatarUrl };
   },
 });
