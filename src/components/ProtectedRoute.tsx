@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router";
+import { Spinner } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../hooks";
 
 interface ProtectedRouteProps {
@@ -13,12 +14,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--color-border-primary)] border-t-[var(--color-border-brand)]" />
-          <p className="text-body-sm text-[var(--color-text-secondary)]">
-            Loading...
-          </p>
-        </div>
+        <Spinner size="lg" variant="primary" showLabel loadingText="Loading..." />
       </div>
     );
   }

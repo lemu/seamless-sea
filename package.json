@@ -16,7 +16,7 @@
     "upload-avatars": "tsx scripts/upload-company-avatars.ts"
   },
   "dependencies": {
-    "@rafal.lemieszewski/tide-ui": "^0.46.3",
+    "@rafal.lemieszewski/tide-ui": "^0.52.4",
     "@types/papaparse": "^5.5.0",
     "@types/react-router": "^5.1.20",
     "bcryptjs": "^3.0.3",
