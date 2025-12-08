@@ -9,9 +9,16 @@ export default defineSchema({
     passwordHash: v.optional(v.string()), // Optional for migration from old users
     avatar: v.optional(v.id("_storage")),
     emailVerified: v.optional(v.boolean()),
+
+    // Clerk integration fields
+    clerkUserId: v.optional(v.string()), // Clerk user ID for JWT auth
+    migratedToClerk: v.optional(v.boolean()), // Track migration status
+
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  }).index("by_email", ["email"]),
+  })
+    .index("by_email", ["email"])
+    .index("by_clerkUserId", ["clerkUserId"]), // NEW: Query users by Clerk ID
 
   // Sessions table for authentication
   sessions: defineTable({
@@ -26,16 +33,24 @@ export default defineSchema({
     name: v.string(),
     plan: v.string(), // Enterprise, Pro, etc.
     avatar: v.optional(v.id("_storage")),
+
+    // Clerk integration fields
+    clerkOrgId: v.optional(v.string()), // Clerk organization ID
+
     createdAt: v.number(),
-  }),
+  }).index("by_clerkOrgId", ["clerkOrgId"]), // NEW: Query orgs by Clerk ID
 
   // User-Organization memberships (many-to-many relationship)
   memberships: defineTable({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
     role: v.string(), // Trader, Broker, Admin, etc.
+
+    // Clerk integration fields
+    clerkMembershipId: v.optional(v.string()), // Clerk membership ID
+
     createdAt: v.number(),
-  }),
+  }).index("by_clerkMembershipId", ["clerkMembershipId"]), // NEW: Query memberships by Clerk ID
 
   // Boards table - User + Organization scoped dashboards
   boards: defineTable({

@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { SignIn, useAuth } from "@clerk/clerk-react";
+import { SignUp, useAuth } from "@clerk/clerk-react";
 import { Spinner } from "@rafal.lemieszewski/tide-ui";
 
-function Login() {
+function SignUpPage() {
   const { isSignedIn, isLoaded } = useAuth();
   const navigate = useNavigate();
 
@@ -23,10 +23,10 @@ function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-      <SignIn
+      <SignUp
         routing="hash"
-        signUpUrl="/sign-up"
-        afterSignInUrl="/home"
+        signInUrl="/"
+        afterSignUpUrl="/home"
         appearance={{
           elements: {
             rootBox: "w-full max-w-md",
@@ -38,4 +38,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default SignUpPage;

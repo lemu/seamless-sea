@@ -1,7 +1,7 @@
 import { createContext, type ReactNode } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useUser as useClerkUser } from "@clerk/clerk-react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { getSessionToken, clearSessionToken } from "../lib/auth-client";
 import type { Id } from "../../convex/_generated/dataModel";
 
 // Keep backward compatibility with existing User type
@@ -14,6 +14,8 @@ interface User {
   emailVerified?: boolean;
   createdAt: number;
   updatedAt?: number;
+  clerkUserId?: string;
+  migratedToClerk?: boolean;
 }
 
 interface UserContextType {
@@ -26,34 +28,32 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const token = getSessionToken();
-  const signOutMutation = useMutation(api.auth.signOut);
+  const { user: clerkUser, isLoaded: clerkLoaded } = useClerkUser();
 
-  // Get current user from session token
-  const user = useQuery(
-    api.auth.getCurrentUser,
-    token ? { token } : "skip"
+  // Fetch Convex user data by Clerk ID
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    clerkUser?.id ? { clerkUserId: clerkUser.id } : "skip"
   );
 
   const logout = async () => {
-    if (token) {
-      await signOutMutation({ token });
-    }
-    clearSessionToken();
-    // Force page reload to clear state
+    // Clerk handles the sign out, just redirect to home
     window.location.href = "/";
   };
 
   const refreshUser = () => {
-    // Convex queries are reactive, so this is a no-op
-    console.log("User refresh requested (handled automatically by Convex)");
+    // Convex queries are reactive, handled automatically
+    console.log("User refresh requested (handled automatically by Clerk/Convex)");
   };
+
+  // Calculate loading state: waiting for Clerk to load OR waiting for Convex data
+  const isLoading = !clerkLoaded || (clerkUser && convexUser === undefined);
 
   return (
     <UserContext.Provider
       value={{
-        user: user || null,
-        isLoading: token ? user === undefined : false,
+        user: convexUser || null,
+        isLoading,
         logout,
         refreshUser,
       }}

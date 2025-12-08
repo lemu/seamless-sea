@@ -1,11 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexReactClient } from "convex/react";
+import { ClerkProvider, useAuth } from "@clerk/clerk-react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
 import "./index.css";
 import App from "./App.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import Login from "./routes/Login.tsx";
+import SignUpPage from "./routes/SignUp.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
@@ -25,6 +28,7 @@ import UserProfile from "./routes/UserProfile.tsx";
 import OrganizationSettings from "./routes/OrganizationSettings.tsx";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
 const router = createBrowserRouter([
   {
@@ -34,6 +38,10 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <Login />,
+      },
+      {
+        path: "sign-up",
+        element: <SignUpPage />,
       },
       {
         path: "home",
@@ -181,8 +189,10 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConvexProvider client={convex}>
-      <RouterProvider router={router} />
-    </ConvexProvider>
+    <ClerkProvider publishableKey={clerkPubKey}>
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <RouterProvider router={router} />
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
   </StrictMode>,
 );

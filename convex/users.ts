@@ -32,6 +32,32 @@ export const getUserByEmail = query({
   },
 });
 
+// Query to find user by Clerk ID (for Clerk integration)
+export const getByClerkId = query({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    // Generate avatar URL if avatar exists
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await ctx.storage.getUrl(user.avatar);
+    }
+
+    return {
+      ...user,
+      avatarUrl
+    };
+  },
+});
+
 // Query to list all users (for debugging)
 export const listAllUsers = query({
   args: {},

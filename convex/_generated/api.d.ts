@@ -12,6 +12,8 @@ import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
+import type * as clerk from "../clerk.js";
+import type * as clerkSync from "../clerkSync.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
 import type * as fixtures from "../fixtures.js";
@@ -38,6 +40,8 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   boards: typeof boards;
   cargo_types: typeof cargo_types;
+  clerk: typeof clerk;
+  clerkSync: typeof clerkSync;
   companies: typeof companies;
   contracts: typeof contracts;
   fixtures: typeof fixtures;
