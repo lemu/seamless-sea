@@ -8,6 +8,7 @@ export default defineSchema({
     email: v.string(),
     passwordHash: v.optional(v.string()), // Optional for migration from old users
     avatar: v.optional(v.id("_storage")),
+    clerkImageUrl: v.optional(v.string()), // Clerk-provided avatar URL
     emailVerified: v.optional(v.boolean()),
 
     // Clerk integration fields
@@ -33,6 +34,7 @@ export default defineSchema({
     name: v.string(),
     plan: v.string(), // Enterprise, Pro, etc.
     avatar: v.optional(v.id("_storage")),
+    clerkImageUrl: v.optional(v.string()), // Clerk-provided organization avatar URL
 
     // Clerk integration fields
     clerkOrgId: v.optional(v.string()), // Clerk organization ID

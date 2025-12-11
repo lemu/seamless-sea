@@ -1,12 +1,7 @@
 {
-  "buildCommand": "npx convex deploy --cmd 'npm run build'",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "devCommand": "npm run dev",
+  "framework": "vite",
   "installCommand": "npm install",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "devCommand": "npm run dev"
 }

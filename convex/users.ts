@@ -45,10 +45,14 @@ export const getByClerkId = query({
       return null;
     }
 
-    // Generate avatar URL if avatar exists
+    // Generate avatar URL with priority:
+    // 1. Convex storage avatar (user-uploaded)
+    // 2. Clerk-provided avatar URL
     let avatarUrl = null;
     if (user.avatar) {
       avatarUrl = await ctx.storage.getUrl(user.avatar);
+    } else if (user.clerkImageUrl) {
+      avatarUrl = user.clerkImageUrl;
     }
 
     return {

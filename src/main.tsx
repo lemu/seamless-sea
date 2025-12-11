@@ -9,6 +9,7 @@ import App from "./App.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import Login from "./routes/Login.tsx";
 import SignUpPage from "./routes/SignUp.tsx";
+import SignOut from "./routes/SignOut.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
@@ -42,6 +43,10 @@ const router = createBrowserRouter([
       {
         path: "sign-up",
         element: <SignUpPage />,
+      },
+      {
+        path: "auth/sign-out",
+        element: <SignOut />,
       },
       {
         path: "home",

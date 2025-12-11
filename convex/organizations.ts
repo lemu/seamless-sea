@@ -15,10 +15,14 @@ export const getUserOrganizations = query({
         const org = await ctx.db.get(membership.organizationId);
         if (!org) return null;
 
-        // Generate avatar URL if avatar exists
+        // Generate avatar URL with priority:
+        // 1. Convex storage avatar (uploaded)
+        // 2. Clerk-provided organization avatar URL
         let avatarUrl = null;
         if (org.avatar) {
           avatarUrl = await ctx.storage.getUrl(org.avatar);
+        } else if (org.clerkImageUrl) {
+          avatarUrl = org.clerkImageUrl;
         }
 
         return { ...org, role: membership.role, avatarUrl };
@@ -36,10 +40,14 @@ export const getFirstOrganization = query({
     const org = await ctx.db.query("organizations").first();
     if (!org) return null;
 
-    // Generate avatar URL if avatar exists
+    // Generate avatar URL with priority:
+    // 1. Convex storage avatar (uploaded)
+    // 2. Clerk-provided organization avatar URL
     let avatarUrl = null;
     if (org.avatar) {
       avatarUrl = await ctx.storage.getUrl(org.avatar);
+    } else if (org.clerkImageUrl) {
+      avatarUrl = org.clerkImageUrl;
     }
 
     return { ...org, avatarUrl };

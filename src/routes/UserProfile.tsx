@@ -7,6 +7,7 @@ import {
   AvatarFallback,
   Input,
 } from "@rafal.lemieszewski/tide-ui";
+import { UserButton } from "@clerk/clerk-react";
 import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { getSessionToken } from "../lib/auth-client";
@@ -198,14 +199,39 @@ function UserProfile() {
         </div>
       </div>
 
-      {/* Password Change Section */}
+      {/* Clerk Account Management */}
       <div className="space-y-6 rounded-lg border border-[var(--color-border-primary-subtle)] p-6">
         <div>
           <h2 className="text-heading-md mb-2 text-[var(--color-text-primary)]">
-            Change Password
+            Account Security
+          </h2>
+          <p className="text-body-sm text-[var(--color-text-secondary)] mb-4">
+            Manage your password, security settings, and connected accounts via Clerk
+          </p>
+          <div className="flex items-center gap-4">
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: "w-10 h-10"
+                }
+              }}
+            />
+            <p className="text-body-sm text-[var(--color-text-secondary)]">
+              Click your avatar to manage security settings, change password, enable MFA, and more
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* OLD Password Change Section - Will be removed after Clerk migration */}
+      <div className="space-y-6 rounded-lg border border-[var(--color-border-primary-subtle)] p-6 opacity-50">
+        <div>
+          <h2 className="text-heading-md mb-2 text-[var(--color-text-primary)]">
+            Legacy Password Change (Old Auth - Being Removed)
           </h2>
           <p className="text-body-sm text-[var(--color-text-secondary)]">
-            Update your password to keep your account secure
+            This section will be removed once all users are migrated to Clerk
           </p>
         </div>
 

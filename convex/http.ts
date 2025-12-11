@@ -24,7 +24,7 @@ const http = httpRouter();
 http.route({
   path: "/clerk-webhook",
   method: "POST",
-  handler: httpAction(async (ctx, request) => {
+  handler: httpAction(async (ctx, request): Promise<Response> => {
     // Get webhook secret from environment
     const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
     if (!webhookSecret) {
@@ -65,44 +65,58 @@ http.route({
       switch (event.type) {
         case "user.created":
         case "user.updated":
-          await ctx.runMutation(internal.clerkSync.syncUser, {
-            clerkUserId: event.data.id,
-            email: event.data.email_addresses?.[0]?.email_address || "",
+          const userArgs: any = {
+            clerkUserId: String(event.data.id),
+            email: String(event.data.email_addresses?.[0]?.email_address || ""),
             name: `${event.data.first_name || ""} ${event.data.last_name || ""}`.trim() || event.data.username || "Unknown",
-            imageUrl: event.data.image_url,
-          });
+            imageUrl: event.data.image_url as string | undefined,
+          };
+          await ctx.runMutation(internal.clerkSync.syncUser, userArgs);
+
+          // Auto-assign new users to default ACME organization
+          if (event.type === "user.created") {
+            const defaultOrgId = "org_36YXf5WTOuCjw3zg3HxHVdgv516"; // ACME org ID from Clerk
+            await ctx.runMutation(internal.clerkSync.autoAssignDefaultOrg, {
+              clerkUserId: String(event.data.id),
+              defaultClerkOrgId: defaultOrgId,
+            });
+          }
           break;
 
         case "organization.created":
         case "organization.updated":
-          await ctx.runMutation(internal.clerkSync.syncOrganization, {
-            clerkOrgId: event.data.id,
-            name: event.data.name,
-            imageUrl: event.data.image_url,
-          });
+          const orgArgs: any = {
+            clerkOrgId: String(event.data.id),
+            name: String(event.data.name),
+            imageUrl: event.data.image_url as string | undefined,
+          };
+          await ctx.runMutation(internal.clerkSync.syncOrganization, orgArgs);
           break;
 
         case "organizationMembership.created":
         case "organizationMembership.updated":
-          await ctx.runMutation(internal.clerkSync.syncMembership, {
-            clerkMembershipId: event.data.id,
-            clerkUserId: event.data.public_user_data?.user_id || "",
-            clerkOrgId: event.data.organization?.id || "",
-            role: event.data.role || "org:member",
-          });
+          const membershipArgs: any = {
+            clerkMembershipId: String(event.data.id),
+            clerkUserId: String(event.data.public_user_data?.user_id || ""),
+            clerkOrgId: String(event.data.organization?.id || ""),
+            role: String(event.data.role || "org:member"),
+          };
+          await ctx.runMutation(internal.clerkSync.syncMembership, membershipArgs);
           break;
 
         case "organizationMembership.deleted":
-          await ctx.runMutation(internal.clerkSync.removeMembership, {
-            clerkMembershipId: event.data.id,
-          });
+          const deleteMembershipArgs: any = {
+            clerkMembershipId: String(event.data.id),
+          };
+          await ctx.runMutation(internal.clerkSync.removeMembership, deleteMembershipArgs);
           break;
 
         case "user.deleted":
           // Soft delete - keep business data but anonymize user
-          await ctx.runMutation(internal.clerkSync.markUserDeleted, {
-            clerkUserId: event.data.id || "",
-          });
+          const deleteUserArgs: any = {
+            clerkUserId: String(event.data.id || ""),
+          };
+          await ctx.runMutation(internal.clerkSync.markUserDeleted, deleteUserArgs);
           break;
 
         default:

@@ -85,7 +85,15 @@ export function useAppFrameData(): UseAppFrameDataReturn {
       : "skip"
   );
 
-  const isLoading = user === undefined || userOrganizations === undefined || pinnedBoards === undefined;
+  // Show loading if:
+  // 1. User hasn't loaded yet
+  // 2. Organizations query hasn't completed yet (could be [] or an array, but not undefined)
+  // 3. If we have an org, wait for boards to load
+  const isLoading =
+    user === null ||
+    user === undefined ||
+    userOrganizations === undefined ||
+    (currentOrganization && pinnedBoards === undefined);
 
   // Build navigation data
   const navigationData: AppFrameNavigationData = {
@@ -198,7 +206,15 @@ export function useAppFrameData(): UseAppFrameDataReturn {
   return {
     navigationData,
     user: user || null,
-    teams: userOrganizations || [],
+    teams: (userOrganizations || [])
+      .filter(org => org && org._id && org.name)
+      .map(org => ({
+        _id: org._id,
+        name: org.name,
+        role: "Admin", // TODO: Get actual role from membership
+        plan: org.plan || "Free",
+        avatarUrl: org.avatarUrl || null,
+      })),
     currentOrganization,
     isLoading,
   };
