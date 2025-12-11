@@ -62,7 +62,7 @@ function AppContent() {
       user={user ? {
         name: user.name || "Unknown User",
         email: user.email || "",
-        avatarUrl: user.avatarUrl || null,
+        avatarUrl: user.avatarUrl || undefined,
       } : undefined}
       {...(formattedTeams.length > 0 && { teams: formattedTeams })}
       defaultSidebarOpen={true}

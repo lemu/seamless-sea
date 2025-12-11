@@ -1068,7 +1068,7 @@ export async function migrateTradeDeskDataInternal(
             // Create field changes with timestamps spread over a few days after contract creation
             for (let j = 0; j < selectedFields.length; j++) {
               const field = selectedFields[j];
-              const changeTimestamp = contractCreatedTime + (j * 0.5 + 0.5) * DAY; // Spread over days
+              const _changeTimestamp = contractCreatedTime + (j * 0.5 + 0.5) * DAY; // Spread over days (unused for now)
 
               console.log(`[Field Changes] Calling trackFieldChange for ${field.field}: ${field.oldValue} -> ${field.newValue}`);
               await trackFieldChange(
@@ -1261,7 +1261,7 @@ export async function migrateFixturesDataInternal(
       // Create field changes with timestamps spread over a few days after contract creation
       for (let j = 0; j < selectedFields.length; j++) {
         const field = selectedFields[j];
-        const changeTimestamp = contractCreatedTime + (j * 0.5 + 0.5) * DAY; // Spread over days
+        const _changeTimestamp = contractCreatedTime + (j * 0.5 + 0.5) * DAY; // Spread over days (unused for now)
 
         // Get first user for field changes
         const firstUser = await ctx.db.query("users").first();
@@ -1511,7 +1511,7 @@ async function correctTradeDeskStatusCombination(
 function selectTradeDeskScenario(
   negotiationStatus: string,
   contractStatus: string | null,
-  approvalStatus: string | undefined
+  _approvalStatus: string | undefined
 ): string {
   // No contract scenarios
   if (!contractStatus) {
