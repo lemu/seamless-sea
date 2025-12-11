@@ -770,6 +770,36 @@ Concise rules for building accessible, fast, delightful UIs. Use MUST/SHOULD/NEV
 - SHOULD: Match browser UI to bg
 - SHOULD: Avoid gradient banding (use masks when needed)
 
+## Production Deployment Workflow
+
+### Publishing to Production
+
+**IMPORTANT:** When the user says "push to production" or "publish", follow this exact workflow:
+
+1. **Run database migrations on Convex production:**
+   ```bash
+   # Check for migration scripts in package.json or convex/migrations/
+   # Run appropriate migration commands if they exist
+   ```
+
+2. **Deploy Convex backend to production:**
+   ```bash
+   npx convex deploy --yes
+   ```
+
+3. **Commit and push to GitHub:**
+   ```bash
+   git add .
+   git commit -m "[Descriptive commit message]
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+   Co-Authored-By: Claude <noreply@anthropic.com>"
+   git push origin main
+   ```
+
+**Note:** Vercel is configured to automatically deploy the frontend when changes are pushed to GitHub. No manual frontend deployment step is needed.
+
 ---
 
-*Last updated: 2025-10-22*
+*Last updated: 2025-12-11*
