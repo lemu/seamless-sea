@@ -31,9 +31,8 @@ import OrganizationSettings from "./routes/OrganizationSettings.tsx";
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
-// Allow both dev and prod URLs for dev instance
-const productionUrl = import.meta.env.VITE_PRODUCTION_URL || "";
-const allowedOrigins = productionUrl ? ["http://localhost:5173", productionUrl] : undefined;
+// Detect if running on localhost for development
+const isDev = window.location.hostname === 'localhost';
 
 const router = createBrowserRouter([
   {
@@ -200,7 +199,10 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={clerkPubKey}
-      {...(allowedOrigins && { allowedRedirectOrigins: allowedOrigins })}
+      signInUrl={isDev ? "/" : undefined}
+      signUpUrl={isDev ? "/sign-up" : undefined}
+      afterSignInUrl={isDev ? "/home" : undefined}
+      afterSignUpUrl={isDev ? "/home" : undefined}
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
         <RouterProvider router={router} />
