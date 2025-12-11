@@ -350,14 +350,6 @@ export const activityTemplates: Record<string, ActivityTemplate> = {
     ]
   },
 
-  // Approved - "approved contract"
-  "contract:approved": {
-    parts: [
-      { type: 'userName' },
-      { type: 'text', content: ' approved contract' }
-    ]
-  },
-
   // ======================
   // Compliance & System
   // ======================

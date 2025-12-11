@@ -31,13 +31,13 @@ import { useUser } from "../hooks";
 // Helper function for Badge appearance
 const getStageBadgeProps = (
   stage: string
-): { intent?: "neutral" | "brand" | "success" | "warning" | "destructive" | "information" | "violet" | "magenta"; appearance?: "solid" | "subtle" | "outline" } => {
+): { intent?: "neutral" | "brand" | "success" | "warning" | "destructive" | "information" | "violet" | "magenta"; appearance?: "bold" | "subtle" } => {
   if (stage === 'Active') {
     return { intent: 'brand', appearance: 'subtle' };
   } else if (stage === 'Negotiating') {
-    return { appearance: 'outline' };
+    return { appearance: 'subtle' };
   } else if (stage === 'Offer') {
-    return { appearance: 'outline' };
+    return { appearance: 'subtle' };
   } else if (stage === 'Pending') {
     return { intent: 'neutral', appearance: 'subtle' };
   }

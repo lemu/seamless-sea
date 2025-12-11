@@ -103,6 +103,7 @@ interface ChangeHistoryEntry {
     label: string;  // e.g., "order draft", "contract working copy"
   };
   value: string;  // The new value
+  oldValue?: string;  // The previous value (for 'updated' action)
 }
 
 
@@ -1014,7 +1015,7 @@ function FixtureSidebar({
                             const userName = entry.user?.name || 'System';
                             const userInitials = userName === "System"
                               ? "S"
-                              : userName.split(' ').map(n => n[0]).join('');
+                              : userName.split(' ').map((n: string) => n[0]).join('');
 
                             const date = new Date(entry.timestamp);
                             const formattedTimestamp = date.toLocaleDateString('en-US', {
@@ -1086,7 +1087,7 @@ function FixtureSidebar({
                             const userName = entry.user?.name || 'System';
                             const userInitials = userName === "System"
                               ? "S"
-                              : userName.split(' ').map(n => n[0]).join('');
+                              : userName.split(' ').map((n: string) => n[0]).join('');
 
                             const date = new Date(entry.timestamp);
                             const formattedTimestamp = date.toLocaleDateString('en-US', {
