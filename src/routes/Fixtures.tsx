@@ -234,44 +234,20 @@ function FixtureSidebar({
   onClose: () => void;
 }) {
   // TODO: Implement these API functions in convex/fixtures.ts or convex/audit.ts
-  // const fieldChanges = useQuery(
-  //   api.fixtures.getFieldChanges,
-  //   fixture.contract?._id
-  //     ? { entityType: "contract", entityId: fixture.contract._id.toString() }
-  //     : "skip"
-  // );
-
-  // Fetch activity logs for contract and negotiation
-  // const contractActivityLog = useQuery(
-  //   api.fixtures.getActivityLog,
-  //   fixture.contract?._id
-  //     ? { entityType: "contract", entityId: fixture.contract._id }
-  //     : "skip"
-  // );
-
-  // const negotiationActivityLog = useQuery(
-  //   api.fixtures.getActivityLog,
-  //   fixture.negotiation?._id
-  //     ? { entityType: "negotiation", entityId: fixture.negotiation._id }
-  //     : "skip"
-  // );
+  // For now, return empty/null values to prevent build errors
+  const fieldChanges = undefined; // useQuery(api.fixtures.getFieldChanges, ...)
+  const contractActivityLog = undefined; // useQuery(api.fixtures.getActivityLog, ...)
+  const negotiationActivityLog = undefined; // useQuery(api.fixtures.getActivityLog, ...)
+  const approvalStatus = undefined; // useQuery(api.fixtures.getApprovalStatus, ...)
 
   // Combine and sort activity logs (oldest first)
-  // const allActivityLogs = useMemo(() => {
-  //   const logs = [
-  //     ...(contractActivityLog || []),
-  //     ...(negotiationActivityLog || []),
-  //   ];
-  //   return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
-  // }, [contractActivityLog, negotiationActivityLog]);
-
-  // Fetch approval status
-  // const approvalStatus = useQuery(
-  //   api.fixtures.getApprovalStatus,
-  //   fixture.contract?._id
-  //     ? { entityType: "contract", entityId: fixture.contract._id }
-  //     : "skip"
-  // );
+  const allActivityLogs = useMemo(() => {
+    const logs = [
+      ...(contractActivityLog || []),
+      ...(negotiationActivityLog || []),
+    ];
+    return logs.sort((a: any, b: any) => a.timestamp - b.timestamp); // Oldest first
+  }, [contractActivityLog, negotiationActivityLog]);
 
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>

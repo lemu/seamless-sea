@@ -1,7 +1,7 @@
+import * as React from "react";
 import {
   ActivityLogDescription as TideActivityLogDescription,
   ActivityLogTime,
-  ActivityLogContent,
   ActivityLogChevron,
   FixtureStatus
 } from "@rafal.lemieszewski/tide-ui";
@@ -105,7 +105,7 @@ export function ActivityLogExpandableContent({ entry }: { entry: ActivityLogEntr
  * Render parameter value with change detection.
  * If the value contains " → ", it's a change, so show strikethrough old value.
  */
-function renderParameterValue(value: string): JSX.Element {
+function renderParameterValue(value: string): React.ReactElement {
   // Detect "old → new" format for changed parameters
   if (value.includes(' → ')) {
     const [oldValue, newValue] = value.split(' → ');
