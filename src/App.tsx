@@ -60,7 +60,6 @@ function AppContent() {
     <AppFrame
       navigationData={navigationData}
       user={user ? {
-        _id: String(user._id),
         name: user.name || "Unknown User",
         email: user.email || "",
         avatarUrl: user.avatarUrl || null,

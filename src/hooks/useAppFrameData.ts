@@ -93,7 +93,7 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     user === null ||
     user === undefined ||
     userOrganizations === undefined ||
-    (currentOrganization && pinnedBoards === undefined);
+    (!!currentOrganization && pinnedBoards === undefined);
 
   // Build navigation data
   const navigationData: AppFrameNavigationData = {

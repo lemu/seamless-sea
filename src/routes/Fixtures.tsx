@@ -44,7 +44,6 @@ import {
   ActivityLogDescription,
   ActivityLogValue,
   ActivityLogContent,
-  ActivityLogChevron,
   Avatar,
   AvatarImage,
   AvatarFallback,
@@ -234,45 +233,45 @@ function FixtureSidebar({
   fixture: FixtureData;
   onClose: () => void;
 }) {
-  // Fetch field changes for this contract
-  const fieldChanges = useQuery(
-    api.fixtures.getFieldChanges,
-    fixture.contract?._id
-      ? { entityType: "contract", entityId: fixture.contract._id.toString() }
-      : "skip"
-  );
+  // TODO: Implement these API functions in convex/fixtures.ts or convex/audit.ts
+  // const fieldChanges = useQuery(
+  //   api.fixtures.getFieldChanges,
+  //   fixture.contract?._id
+  //     ? { entityType: "contract", entityId: fixture.contract._id.toString() }
+  //     : "skip"
+  // );
 
   // Fetch activity logs for contract and negotiation
-  const contractActivityLog = useQuery(
-    api.fixtures.getActivityLog,
-    fixture.contract?._id
-      ? { entityType: "contract", entityId: fixture.contract._id }
-      : "skip"
-  );
+  // const contractActivityLog = useQuery(
+  //   api.fixtures.getActivityLog,
+  //   fixture.contract?._id
+  //     ? { entityType: "contract", entityId: fixture.contract._id }
+  //     : "skip"
+  // );
 
-  const negotiationActivityLog = useQuery(
-    api.fixtures.getActivityLog,
-    fixture.negotiation?._id
-      ? { entityType: "negotiation", entityId: fixture.negotiation._id }
-      : "skip"
-  );
+  // const negotiationActivityLog = useQuery(
+  //   api.fixtures.getActivityLog,
+  //   fixture.negotiation?._id
+  //     ? { entityType: "negotiation", entityId: fixture.negotiation._id }
+  //     : "skip"
+  // );
 
   // Combine and sort activity logs (oldest first)
-  const allActivityLogs = useMemo(() => {
-    const logs = [
-      ...(contractActivityLog || []),
-      ...(negotiationActivityLog || []),
-    ];
-    return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
-  }, [contractActivityLog, negotiationActivityLog]);
+  // const allActivityLogs = useMemo(() => {
+  //   const logs = [
+  //     ...(contractActivityLog || []),
+  //     ...(negotiationActivityLog || []),
+  //   ];
+  //   return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
+  // }, [contractActivityLog, negotiationActivityLog]);
 
   // Fetch approval status
-  const approvalStatus = useQuery(
-    api.fixtures.getApprovalStatus,
-    fixture.contract?._id
-      ? { entityType: "contract", entityId: fixture.contract._id }
-      : "skip"
-  );
+  // const approvalStatus = useQuery(
+  //   api.fixtures.getApprovalStatus,
+  //   fixture.contract?._id
+  //     ? { entityType: "contract", entityId: fixture.contract._id }
+  //     : "skip"
+  // );
 
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>

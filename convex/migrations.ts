@@ -432,7 +432,7 @@ async function createTradeDeskScenario_ExpiredOffer(
   orderId: Id<"orders">,
   negotiationId: Id<"negotiations">,
   userId: Id<"users">,
-  counterpartyUserId: Id<"users">,
+  _counterpartyUserId: Id<"users">,
   daysAgoOffset: number,
   baseNow: number
 ) {

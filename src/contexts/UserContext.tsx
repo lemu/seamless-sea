@@ -47,7 +47,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   // Calculate loading state: waiting for Clerk to load OR waiting for Convex data
-  const isLoading = !clerkLoaded || (clerkUser && convexUser === undefined);
+  const isLoading = !clerkLoaded || (!!clerkUser && convexUser === undefined);
 
   return (
     <UserContext.Provider
