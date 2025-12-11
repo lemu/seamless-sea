@@ -14,23 +14,6 @@ function AppContent() {
   const { navigationData, user, teams, isLoading } = useAppFrameData();
   const [showProfileModal, setShowProfileModal] = React.useState(false);
 
-  // Clerk authentication handlers
-  const handleUserProfileClick = () => {
-    console.log("Opening Clerk profile modal");
-    // Remove focus after current event loop completes
-    requestAnimationFrame(() => {
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-    });
-    // Close any open menus with ESC key
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
-    // Wait for menu to close, then open modal
-    setTimeout(() => {
-      setShowProfileModal(true);
-    }, 150);
-  };
-
   // Show login page without AppFrame
   if (location.pathname === "/") {
     return <main className="h-full"><Outlet /></main>;
@@ -50,10 +33,10 @@ function AppContent() {
     .filter(team => team && team._id && team.name)
     .map(team => ({
       _id: String(team._id),
-      name: team.name,
+      name: team.name || "Unknown Team",
       role: team.role || "Member",
       plan: team.plan || "Free",
-      avatarUrl: team.avatarUrl || null,
+      avatarUrl: team.avatarUrl || undefined,
     }));
 
   return (
@@ -105,7 +88,6 @@ function AppContent() {
 
         navigate(url);
       }}
-      onUserProfileClick={handleUserProfileClick}
     >
       <Outlet />
       {showProfileModal && (

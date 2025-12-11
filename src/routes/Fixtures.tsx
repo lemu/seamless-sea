@@ -235,13 +235,13 @@ function FixtureSidebar({
 }) {
   // TODO: Implement these API functions in convex/fixtures.ts or convex/audit.ts
   // For now, return empty/null values to prevent build errors
-  const fieldChanges = undefined; // useQuery(api.fixtures.getFieldChanges, ...)
-  const contractActivityLog = undefined; // useQuery(api.fixtures.getActivityLog, ...)
-  const negotiationActivityLog = undefined; // useQuery(api.fixtures.getActivityLog, ...)
-  const approvalStatus = undefined; // useQuery(api.fixtures.getApprovalStatus, ...)
+  const fieldChanges: any[] | undefined = undefined; // useQuery(api.fixtures.getFieldChanges, ...)
+  const contractActivityLog: any[] | undefined = undefined; // useQuery(api.fixtures.getActivityLog, ...)
+  const negotiationActivityLog: any[] | undefined = undefined; // useQuery(api.fixtures.getActivityLog, ...)
+  const approvalStatus: any | undefined = undefined; // useQuery(api.fixtures.getApprovalStatus, ...)
 
   // Combine and sort activity logs (oldest first)
-  const allActivityLogs = useMemo(() => {
+  const allActivityLogs: any[] = useMemo(() => {
     const logs = [
       ...(contractActivityLog || []),
       ...(negotiationActivityLog || []),
