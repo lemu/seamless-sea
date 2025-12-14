@@ -11,10 +11,6 @@ export default defineSchema({
     emailVerified: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-    // Legacy fields from Clerk authentication (optional for backward compatibility)
-    clerkUserId: v.optional(v.string()),
-    clerkImageUrl: v.optional(v.string()),
-    migratedToClerk: v.optional(v.boolean()),
   }).index("by_email", ["email"]),
 
   // Sessions table for bcrypt authentication
@@ -33,8 +29,6 @@ export default defineSchema({
     plan: v.string(), // Enterprise, Pro, etc.
     avatar: v.optional(v.id("_storage")),
     createdAt: v.number(),
-    // Legacy field from Clerk authentication (optional for backward compatibility)
-    clerkOrgId: v.optional(v.string()),
   }),
 
   // User-Organization memberships (many-to-many relationship)
@@ -43,8 +37,6 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     role: v.string(), // Trader, Broker, Admin, etc.
     createdAt: v.number(),
-    // Legacy field from Clerk authentication (optional for backward compatibility)
-    clerkMembershipId: v.optional(v.string()),
   }),
 
   // Boards table - User + Organization scoped dashboards
