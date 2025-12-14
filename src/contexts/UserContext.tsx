@@ -13,7 +13,7 @@ interface User {
   avatarUrl?: string | null;
   emailVerified?: boolean;
   createdAt: number;
-  updatedAt: number;
+  updatedAt?: number;
 }
 
 interface UserContextType {
