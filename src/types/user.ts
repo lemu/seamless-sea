@@ -7,6 +7,7 @@ export interface User {
   avatar?: Id<"_storage">;
   avatarUrl?: string | null;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface UserContextType {

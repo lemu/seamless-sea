@@ -1,7 +1,6 @@
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { v } from "convex/values";
 import { logActivity, trackFieldChange } from "./audit";
 
 // Helper to get random item from array

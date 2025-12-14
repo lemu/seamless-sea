@@ -25,7 +25,6 @@ import Boards from "./routes/Boards.tsx";
 import BoardDetail from "./routes/BoardDetail.tsx";
 import UserProfile from "./routes/UserProfile.tsx";
 import OrganizationSettings from "./routes/OrganizationSettings.tsx";
-import SimpleTest from "./routes/SimpleTest.tsx";
 
 const convex = new ConvexReactClient(
   import.meta.env.VITE_CONVEX_URL as string
@@ -43,10 +42,6 @@ const router = createBrowserRouter([
       {
         path: "sign-up",
         element: <SignUpPage />,
-      },
-      {
-        path: "test",
-        element: <SimpleTest />,
       },
       {
         path: "auth/sign-out",
