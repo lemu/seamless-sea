@@ -1,13 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
-import { ConvexReactClient } from "convex/react";
-import { ClerkProvider, useAuth } from "@clerk/clerk-react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexReactClient, ConvexProvider } from "convex/react";
 import "./index.css";
 import App from "./App.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
-import Login from "./routes/Login.tsx";
+import AuthGate from "./routes/AuthGate.tsx";
 import SignUpPage from "./routes/SignUp.tsx";
 import SignOut from "./routes/SignOut.tsx";
 import Home from "./routes/Home.tsx";
@@ -27,12 +25,11 @@ import Boards from "./routes/Boards.tsx";
 import BoardDetail from "./routes/BoardDetail.tsx";
 import UserProfile from "./routes/UserProfile.tsx";
 import OrganizationSettings from "./routes/OrganizationSettings.tsx";
+import SimpleTest from "./routes/SimpleTest.tsx";
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
-
-// Detect if running on localhost for development
-const isDev = window.location.hostname === 'localhost';
+const convex = new ConvexReactClient(
+  import.meta.env.VITE_CONVEX_URL as string
+);
 
 const router = createBrowserRouter([
   {
@@ -41,11 +38,15 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Login />,
+        element: <AuthGate />,
       },
       {
         path: "sign-up",
         element: <SignUpPage />,
+      },
+      {
+        path: "test",
+        element: <SimpleTest />,
       },
       {
         path: "auth/sign-out",
@@ -197,16 +198,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      signInUrl={isDev ? "/" : undefined}
-      signUpUrl={isDev ? "/sign-up" : undefined}
-      afterSignInUrl={isDev ? "/home" : undefined}
-      afterSignUpUrl={isDev ? "/home" : undefined}
-    >
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <RouterProvider router={router} />
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
+    <ConvexProvider client={convex}>
+      <RouterProvider router={router} />
+    </ConvexProvider>
   </StrictMode>,
 );

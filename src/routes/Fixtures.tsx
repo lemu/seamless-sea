@@ -233,12 +233,30 @@ function FixtureSidebar({
   fixture: FixtureData;
   onClose: () => void;
 }) {
-  // TODO: Implement these API functions in convex/fixtures.ts or convex/audit.ts
-  // For now, return empty/null values to prevent build errors
-  const fieldChanges: any[] | undefined = undefined; // useQuery(api.fixtures.getFieldChanges, ...)
-  const contractActivityLog: any[] | undefined = undefined; // useQuery(api.fixtures.getActivityLog, ...)
-  const negotiationActivityLog: any[] | undefined = undefined; // useQuery(api.fixtures.getActivityLog, ...)
-  const approvalStatus: any | undefined = undefined; // useQuery(api.fixtures.getApprovalStatus, ...)
+  // Fetch field changes for this contract
+  const fieldChanges = useQuery(
+    api.audit.getFieldChanges,
+    fixture.contract?._id
+      ? { entityType: "contract", entityId: fixture.contract._id }
+      : "skip"
+  );
+
+  // Fetch activity logs for contract and negotiation
+  const contractActivityLog = useQuery(
+    api.audit.getActivityLog,
+    fixture.contract?._id
+      ? { entityType: "contract", entityId: fixture.contract._id }
+      : "skip"
+  );
+
+  const negotiationActivityLog = useQuery(
+    api.audit.getActivityLog,
+    fixture.negotiation?._id
+      ? { entityType: "negotiation", entityId: fixture.negotiation._id }
+      : "skip"
+  );
+
+  const approvalStatus: any | undefined = undefined; // TODO: implement getApprovalStatus query
 
   // Combine and sort activity logs (oldest first)
   const allActivityLogs: any[] = useMemo(() => {

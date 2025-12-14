@@ -1,11 +1,11 @@
 import { Outlet, useLocation, useNavigate } from "react-router";
 import * as React from "react";
 import { AppFrame, Spinner } from "@rafal.lemieszewski/tide-ui";
-import { UserProfile } from "@clerk/clerk-react";
 import { UserProvider } from "./contexts/UserContext";
 import { HeaderActionsProvider, HeaderActionsContext } from "./contexts/HeaderActionsContext";
 import { useAppFrameData } from "./hooks";
 import { HeaderContent } from "./components/HeaderContent";
+import { UserProfileModal } from "./components/UserProfileModal";
 
 function AppContent() {
   const location = useLocation();
@@ -14,8 +14,9 @@ function AppContent() {
   const { navigationData, user, teams, isLoading } = useAppFrameData();
   const [showProfileModal, setShowProfileModal] = React.useState(false);
 
-  // Show login page without AppFrame
-  if (location.pathname === "/") {
+  // Show auth pages without AppFrame (login, signup, sign-out, test)
+  const isAuthPage = ["/", "/sign-up", "/auth/sign-out", "/test"].includes(location.pathname);
+  if (isAuthPage) {
     return <main className="h-full"><Outlet /></main>;
   }
 
@@ -96,7 +97,7 @@ function AppContent() {
           onClick={() => setShowProfileModal(false)}
         >
           <div onClick={(e) => e.stopPropagation()}>
-            <UserProfile />
+            <UserProfileModal onClose={() => setShowProfileModal(false)} />
           </div>
         </div>
       )}

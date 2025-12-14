@@ -6,53 +6,46 @@ export default defineSchema({
   users: defineTable({
     name: v.string(),
     email: v.string(),
-    passwordHash: v.optional(v.string()), // Optional for migration from old users
+    passwordHash: v.optional(v.string()),
     avatar: v.optional(v.id("_storage")),
-    clerkImageUrl: v.optional(v.string()), // Clerk-provided avatar URL
     emailVerified: v.optional(v.boolean()),
-
-    // Clerk integration fields
-    clerkUserId: v.optional(v.string()), // Clerk user ID for JWT auth
-    migratedToClerk: v.optional(v.boolean()), // Track migration status
-
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
-  })
-    .index("by_email", ["email"])
-    .index("by_clerkUserId", ["clerkUserId"]), // NEW: Query users by Clerk ID
+    // Legacy fields from Clerk authentication (optional for backward compatibility)
+    clerkUserId: v.optional(v.string()),
+    clerkImageUrl: v.optional(v.string()),
+    migratedToClerk: v.optional(v.boolean()),
+  }).index("by_email", ["email"]),
 
-  // Sessions table for authentication
+  // Sessions table for bcrypt authentication
   sessions: defineTable({
     userId: v.id("users"),
     token: v.string(),
     expiresAt: v.number(),
     createdAt: v.number(),
-  }).index("by_token", ["token"]).index("by_userId", ["userId"]),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId", ["userId"]),
 
   // Organizations table
   organizations: defineTable({
     name: v.string(),
     plan: v.string(), // Enterprise, Pro, etc.
     avatar: v.optional(v.id("_storage")),
-    clerkImageUrl: v.optional(v.string()), // Clerk-provided organization avatar URL
-
-    // Clerk integration fields
-    clerkOrgId: v.optional(v.string()), // Clerk organization ID
-
     createdAt: v.number(),
-  }).index("by_clerkOrgId", ["clerkOrgId"]), // NEW: Query orgs by Clerk ID
+    // Legacy field from Clerk authentication (optional for backward compatibility)
+    clerkOrgId: v.optional(v.string()),
+  }),
 
   // User-Organization memberships (many-to-many relationship)
   memberships: defineTable({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
     role: v.string(), // Trader, Broker, Admin, etc.
-
-    // Clerk integration fields
-    clerkMembershipId: v.optional(v.string()), // Clerk membership ID
-
     createdAt: v.number(),
-  }).index("by_clerkMembershipId", ["clerkMembershipId"]), // NEW: Query memberships by Clerk ID
+    // Legacy field from Clerk authentication (optional for backward compatibility)
+    clerkMembershipId: v.optional(v.string()),
+  }),
 
   // Boards table - User + Organization scoped dashboards
   boards: defineTable({

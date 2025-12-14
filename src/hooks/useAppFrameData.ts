@@ -86,13 +86,12 @@ export function useAppFrameData(): UseAppFrameDataReturn {
   );
 
   // Show loading if:
-  // 1. User hasn't loaded yet
+  // 1. User query hasn't completed yet (undefined, not null which means unauthenticated)
   // 2. Organizations query hasn't completed yet (could be [] or an array, but not undefined)
   // 3. If we have an org, wait for boards to load
   const isLoading =
-    user === null ||
     user === undefined ||
-    userOrganizations === undefined ||
+    (user !== null && userOrganizations === undefined) ||
     (!!currentOrganization && pinnedBoards === undefined);
 
   // Build navigation data

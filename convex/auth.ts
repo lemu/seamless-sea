@@ -2,14 +2,18 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import bcrypt from "bcryptjs";
 
-// Generate a random session token
+/**
+ * Generate a secure random session token
+ */
 function generateToken(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// Sign up a new user
+/**
+ * Sign up a new user with email and password
+ */
 export const signUp = mutation({
   args: {
     name: v.string(),
@@ -32,10 +36,10 @@ export const signUp = mutation({
       throw new Error("Password must be at least 8 characters long");
     }
 
-    // Hash the password (using sync version for Convex compatibility)
+    // Hash the password
     const passwordHash = bcrypt.hashSync(args.password, 10);
 
-    // Create the user
+    // Create user
     const userId = await ctx.db.insert("users", {
       name: args.name,
       email: args.email,
@@ -45,7 +49,7 @@ export const signUp = mutation({
       updatedAt: Date.now(),
     });
 
-    // Create a session
+    // Create session
     const token = generateToken();
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -56,7 +60,7 @@ export const signUp = mutation({
       createdAt: Date.now(),
     });
 
-    // Return the user and session
+    // Return user and session
     const user = await ctx.db.get(userId);
     return {
       user,
@@ -65,35 +69,32 @@ export const signUp = mutation({
   },
 });
 
-// Sign in an existing user
+/**
+ * Sign in an existing user with email and password
+ */
 export const signIn = mutation({
   args: {
     email: v.string(),
     password: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find the user
+    // Find user by email
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", args.email))
       .first();
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw new Error("Invalid email or password");
     }
 
-    // Check if user has a password (for migration from old system)
-    if (!user.passwordHash) {
-      throw new Error("Please set up your password first");
-    }
-
-    // Verify the password (using sync version for Convex compatibility)
+    // Verify password
     const isValid = bcrypt.compareSync(args.password, user.passwordHash);
     if (!isValid) {
       throw new Error("Invalid email or password");
     }
 
-    // Create a new session
+    // Create session
     const token = generateToken();
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -104,7 +105,6 @@ export const signIn = mutation({
       createdAt: Date.now(),
     });
 
-    // Return the user and session
     return {
       user,
       session: { token, expiresAt },
@@ -112,7 +112,9 @@ export const signIn = mutation({
   },
 });
 
-// Sign out (invalidate session)
+/**
+ * Sign out a user by deleting their session
+ */
 export const signOut = mutation({
   args: {
     token: v.string(),
@@ -126,12 +128,12 @@ export const signOut = mutation({
     if (session) {
       await ctx.db.delete(session._id);
     }
-
-    return { success: true };
   },
 });
 
-// Get current user from session token
+/**
+ * Get current user from session token
+ */
 export const getCurrentUser = query({
   args: {
     token: v.optional(v.string()),
@@ -141,32 +143,27 @@ export const getCurrentUser = query({
       return null;
     }
 
-    const token = args.token; // Capture token in a const for TypeScript
+    // Store token in const to satisfy TypeScript
+    const token = args.token;
 
-    // Find the session
+    // Find session
     const session = await ctx.db
       .query("sessions")
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
 
-    if (!session) {
+    // Check if session exists and is not expired
+    if (!session || session.expiresAt < Date.now()) {
       return null;
     }
 
-    // Check if session has expired
-    if (session.expiresAt < Date.now()) {
-      // Session expired - return null
-      // Note: Expired sessions are cleaned up by the cleanupExpiredSessions mutation
-      return null;
-    }
-
-    // Get the user
+    // Get user
     const user = await ctx.db.get(session.userId);
     if (!user) {
       return null;
     }
 
-    // Get avatar URL if avatar exists
+    // Get avatar URL if exists
     let avatarUrl = null;
     if (user.avatar) {
       avatarUrl = await ctx.storage.getUrl(user.avatar);
@@ -179,7 +176,57 @@ export const getCurrentUser = query({
   },
 });
 
-// Clean up expired sessions (can be called periodically)
+/**
+ * Change password for authenticated user
+ */
+export const changePassword = mutation({
+  args: {
+    token: v.string(),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Find session
+    const session = await ctx.db
+      .query("sessions")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .first();
+
+    if (!session || session.expiresAt < Date.now()) {
+      throw new Error("Invalid or expired session");
+    }
+
+    // Get user
+    const user = await ctx.db.get(session.userId);
+    if (!user || !user.passwordHash) {
+      throw new Error("User not found");
+    }
+
+    // Verify current password
+    const isValid = bcrypt.compareSync(args.currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new Error("Current password is incorrect");
+    }
+
+    // Validate new password
+    if (args.newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters long");
+    }
+
+    // Hash new password
+    const passwordHash = bcrypt.hashSync(args.newPassword, 10);
+
+    // Update user
+    await ctx.db.patch(user._id, {
+      passwordHash,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Cleanup expired sessions (maintenance function)
+ */
 export const cleanupExpiredSessions = mutation({
   args: {},
   handler: async (ctx) => {
@@ -194,151 +241,5 @@ export const cleanupExpiredSessions = mutation({
     }
 
     return { deleted: expiredSessions.length };
-  },
-});
-
-// Check if a user exists and whether they have a password
-export const checkUserExists = query({
-  args: {
-    email: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user) {
-      return { exists: false, hasPassword: false };
-    }
-
-    return {
-      exists: true,
-      hasPassword: !!user.passwordHash,
-      name: user.name,
-    };
-  },
-});
-
-// Set password for existing user without password (migration)
-export const setPasswordForExistingUser = mutation({
-  args: {
-    email: v.string(),
-    password: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Find the user
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Check if user already has a password
-    if (user.passwordHash) {
-      throw new Error("User already has a password set. Please use sign in.");
-    }
-
-    // Validate password length
-    if (args.password.length < 8) {
-      throw new Error("Password must be at least 8 characters long");
-    }
-
-    // Hash the password (using sync version for Convex compatibility)
-    const passwordHash = bcrypt.hashSync(args.password, 10);
-
-    // Update the user with the password
-    await ctx.db.patch(user._id, {
-      passwordHash,
-      emailVerified: true, // Mark as verified since they had access
-      updatedAt: Date.now(),
-    });
-
-    // Create a session
-    const token = generateToken();
-    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-
-    await ctx.db.insert("sessions", {
-      userId: user._id,
-      token,
-      expiresAt,
-      createdAt: Date.now(),
-    });
-
-    // Return the updated user and session
-    const updatedUser = await ctx.db.get(user._id);
-    return {
-      user: updatedUser,
-      session: { token, expiresAt },
-    };
-  },
-});
-
-// Change password for authenticated user
-export const changePassword = mutation({
-  args: {
-    token: v.string(),
-    currentPassword: v.string(),
-    newPassword: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Find the session
-    const session = await ctx.db
-      .query("sessions")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .first();
-
-    if (!session) {
-      throw new Error("Invalid session. Please sign in again.");
-    }
-
-    // Check if session has expired
-    if (session.expiresAt < Date.now()) {
-      throw new Error("Session expired. Please sign in again.");
-    }
-
-    // Get the user
-    const user = await ctx.db.get(session.userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Check if user has a password
-    if (!user.passwordHash) {
-      throw new Error("No password set for this account");
-    }
-
-    // Verify the current password
-    const isCurrentPasswordValid = bcrypt.compareSync(
-      args.currentPassword,
-      user.passwordHash
-    );
-    if (!isCurrentPasswordValid) {
-      throw new Error("Current password is incorrect");
-    }
-
-    // Validate new password length
-    if (args.newPassword.length < 8) {
-      throw new Error("New password must be at least 8 characters long");
-    }
-
-    // Check that new password is different from current
-    if (args.currentPassword === args.newPassword) {
-      throw new Error("New password must be different from current password");
-    }
-
-    // Hash the new password
-    const newPasswordHash = bcrypt.hashSync(args.newPassword, 10);
-
-    // Update the user with the new password
-    await ctx.db.patch(user._id, {
-      passwordHash: newPasswordHash,
-      updatedAt: Date.now(),
-    });
-
-    return { success: true };
   },
 });

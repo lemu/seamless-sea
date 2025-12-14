@@ -1,6 +1,4 @@
 import { Navigate, useLocation } from "react-router";
-import { useAuth } from "@clerk/clerk-react";
-import { Spinner } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../hooks";
 
 interface ProtectedRouteProps {
@@ -8,21 +6,16 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isSignedIn, isLoaded: clerkLoaded } = useAuth();
-  const { user, isLoading: convexLoading } = useUser();
+  const { user, isLoading } = useUser();
   const location = useLocation();
 
-  // Show loading while Clerk or Convex data loads
-  if (!clerkLoaded || convexLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Spinner size="lg" variant="primary" showLabel loadingText="Loading..." />
-      </div>
-    );
+  // If still loading, don't redirect yet - let App.tsx show loading state
+  if (isLoading) {
+    return null;
   }
 
-  // Redirect to login if not authenticated with Clerk or no Convex user
-  if (!isSignedIn || !user) {
+  // Redirect to root (AuthGate) if not authenticated
+  if (!user) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 

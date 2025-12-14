@@ -1,5 +1,49 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
+
+// Query to get the currently authenticated user
+// NOTE: This function is deprecated - use api.auth.getCurrentUser with session token instead
+export const getCurrentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    // Get the authenticated user's ID from Convex Auth
+    const identity = await ctx.auth.getUserIdentity();
+
+    console.log("getCurrentUser - identity:", identity);
+
+    if (!identity) {
+      console.log("getCurrentUser - no identity");
+      return null;
+    }
+
+    // Extract user ID from subject
+    // Subject format: "{userId}|{accountId}"
+    const userId = identity.subject.split("|")[0];
+    console.log("getCurrentUser - extracted userId from subject:", userId);
+
+    // Get user directly by ID
+    const user = await ctx.db.get(userId as Id<"users">);
+
+    console.log("getCurrentUser - found user:", user?._id || "null");
+
+    if (!user) {
+      console.log("getCurrentUser - no user found for userId:", userId);
+      return null;
+    }
+
+    // Generate avatar URL if avatar exists
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await ctx.storage.getUrl(user.avatar);
+    }
+
+    return {
+      ...user,
+      avatarUrl
+    };
+  },
+});
 
 // Query to find user by email with avatar URL
 export const getUserByEmail = query({
@@ -29,36 +73,6 @@ export const getUserByEmail = query({
     
     console.log("Found user with avatar URL:", userWithUrl);
     return userWithUrl;
-  },
-});
-
-// Query to find user by Clerk ID (for Clerk integration)
-export const getByClerkId = query({
-  args: { clerkUserId: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkUserId))
-      .first();
-
-    if (!user) {
-      return null;
-    }
-
-    // Generate avatar URL with priority:
-    // 1. Convex storage avatar (user-uploaded)
-    // 2. Clerk-provided avatar URL
-    let avatarUrl = null;
-    if (user.avatar) {
-      avatarUrl = await ctx.storage.getUrl(user.avatar);
-    } else if (user.clerkImageUrl) {
-      avatarUrl = user.clerkImageUrl;
-    }
-
-    return {
-      ...user,
-      avatarUrl
-    };
   },
 });
 
@@ -93,6 +107,7 @@ export const generateUploadUrl = mutation({
   },
 });
 
+
 // Mutation to create test user if not exists
 export const createTestUser = mutation({
   args: {},
@@ -102,18 +117,20 @@ export const createTestUser = mutation({
       .query("users")
       .filter((q) => q.eq(q.field("email"), email))
       .first();
-    
+
     if (existingUser) {
       console.log("Test user already exists:", existingUser);
       return existingUser;
     }
-    
+
+    const now = Date.now();
     const userId = await ctx.db.insert("users", {
       name: "Rafał Lemieszewski",
       email: email,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     });
-    
+
     const newUser = await ctx.db.get(userId);
     console.log("Created test user:", newUser);
     return newUser;

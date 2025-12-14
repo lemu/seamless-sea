@@ -18,19 +18,53 @@ export const debugUser = query({
     let avatarUrl = null;
     if (user.avatar) {
       avatarUrl = await ctx.storage.getUrl(user.avatar);
-    } else if (user.clerkImageUrl) {
-      avatarUrl = user.clerkImageUrl;
     }
 
     return {
       _id: user._id,
       email: user.email,
       name: user.name,
-      clerkUserId: user.clerkUserId || "NOT SET",
       avatar: user.avatar || "NOT SET",
-      clerkImageUrl: user.clerkImageUrl || "NOT SET",
       avatarUrl: avatarUrl || "NOT SET",
-      migratedToClerk: user.migratedToClerk || false,
+      emailVerified: user.emailVerified || false,
+      createdAt: user.createdAt || "NOT SET",
+    };
+  },
+});
+
+// Debug query to check database state for fixtures
+export const checkFixtureData = query({
+  args: {},
+  handler: async (ctx) => {
+    const activityLogs = await ctx.db.query("activity_logs").take(10);
+    const contracts = await ctx.db.query("contracts").take(5);
+    const negotiations = await ctx.db.query("negotiations").take(5);
+    const fixtures = await ctx.db.query("fixtures").take(5);
+
+    return {
+      activityLogCount: activityLogs.length,
+      activityLogs: activityLogs.map(log => ({
+        entityType: log.entityType,
+        entityId: log.entityId,
+        action: log.action,
+        userId: log.userId,
+        timestamp: log.timestamp,
+      })),
+      contractCount: contracts.length,
+      contracts: contracts.map(c => ({
+        _id: c._id,
+        negotiationId: c.negotiationId,
+      })),
+      negotiationCount: negotiations.length,
+      negotiations: negotiations.map(n => ({
+        _id: n._id,
+      })),
+      fixtureCount: fixtures.length,
+      fixtures: fixtures.map(f => ({
+        _id: f._id,
+        fixtureNumber: f.fixtureNumber,
+        // Check if it references contract/negotiation
+      })),
     };
   },
 });

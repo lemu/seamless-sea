@@ -12,15 +12,13 @@ import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
-import type * as clerkSync from "../clerkSync.js";
+import type * as cleanOrphanedData from "../cleanOrphanedData.js";
+import type * as cleanUsers from "../cleanUsers.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
 import type * as debug from "../debug.js";
 import type * as fixtures from "../fixtures.js";
-import type * as http from "../http.js";
-import type * as listUnmigratedUsers from "../listUnmigratedUsers.js";
 import type * as migrations from "../migrations.js";
-import type * as migrations_linkClerkUser from "../migrations/linkClerkUser.js";
 import type * as negotiations from "../negotiations.js";
 import type * as orders from "../orders.js";
 import type * as organizations from "../organizations.js";
@@ -38,20 +36,26 @@ import type {
   FunctionReference,
 } from "convex/server";
 
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 declare const fullApi: ApiFromModules<{
   audit: typeof audit;
   auth: typeof auth;
   boards: typeof boards;
   cargo_types: typeof cargo_types;
-  clerkSync: typeof clerkSync;
+  cleanOrphanedData: typeof cleanOrphanedData;
+  cleanUsers: typeof cleanUsers;
   companies: typeof companies;
   contracts: typeof contracts;
   debug: typeof debug;
   fixtures: typeof fixtures;
-  http: typeof http;
-  listUnmigratedUsers: typeof listUnmigratedUsers;
   migrations: typeof migrations;
-  "migrations/linkClerkUser": typeof migrations_linkClerkUser;
   negotiations: typeof negotiations;
   orders: typeof orders;
   organizations: typeof organizations;
@@ -63,30 +67,14 @@ declare const fullApi: ApiFromModules<{
   vessels: typeof vessels;
   widgets: typeof widgets;
 }>;
+declare const fullApiWithMounts: typeof fullApi;
 
-/**
- * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export declare const api: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "public">
 >;
-
-/**
- * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
- */
 export declare const internal: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
 
