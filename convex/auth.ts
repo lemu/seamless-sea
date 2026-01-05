@@ -22,7 +22,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     database: authComponent.adapter(ctx),
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false, // MVP: no email verification required
+      requireEmailVerification: false,
+      autoSignIn: true, // Automatically sign in after signup
+      sendVerificationEmail: async () => {
+        // Email verification disabled - do nothing
+        return;
+      },
       sendResetPassword: async ({ user, url }) => {
         console.log("Sending password reset email to:", user.email, "URL:", url);
         try {
