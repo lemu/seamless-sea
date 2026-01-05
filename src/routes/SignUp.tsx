@@ -19,6 +19,12 @@ function SignUpPage() {
     e.preventDefault();
     setError("");
 
+    // Require invitation token for signup
+    if (!inviteToken) {
+      setError("Sign up is by invitation only. Please use your invitation link.");
+      return;
+    }
+
     // Validate passwords match
     if (password !== confirmPassword) {
       setError("Passwords do not match");
@@ -65,8 +71,15 @@ function SignUpPage() {
         <CardHeader>
           <h1 className="text-2xl font-bold text-center">Create Account</h1>
           <p className="text-sm text-[var(--color-text-secondary)] text-center mt-2">
-            Join SeamlessSea today
+            {inviteToken ? "Join SeamlessSea today" : "Invitation required"}
           </p>
+          {!inviteToken && (
+            <div className="mt-3 p-3 bg-[var(--color-warning-surface)] border border-[var(--color-warning-border)] rounded-md">
+              <p className="text-sm text-[var(--color-warning-text)] text-center">
+                Sign up is by invitation only. Please request an invitation from your administrator.
+              </p>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
