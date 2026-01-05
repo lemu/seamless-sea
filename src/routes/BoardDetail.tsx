@@ -39,13 +39,13 @@ function BoardDetail() {
   // Get user's organizations to check permissions
   const userOrganizations = useQuery(
     api.organizations.getUserOrganizations,
-    user ? { userId: user._id } : "skip",
+    user?._id ? { userId: user._id } : "skip",
   );
 
   const deleteBoard = useMutation(api.boards.deleteBoard);
 
   // Calculate ownership early for header actions
-  const isOwner = board && user ? board.userId === user._id : false;
+  const isOwner = board && user?._id ? board.userId === user._id : false;
 
   // Memoize header actions to prevent infinite re-render loop
   const headerActions = useMemo(

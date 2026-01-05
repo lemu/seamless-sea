@@ -5,17 +5,17 @@ import { UserProvider } from "./contexts/UserContext";
 import { HeaderActionsProvider, HeaderActionsContext } from "./contexts/HeaderActionsContext";
 import { useAppFrameData } from "./hooks";
 import { HeaderContent } from "./components/HeaderContent";
-import { UserProfileModal } from "./components/UserProfileModal";
 
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const context = React.useContext(HeaderActionsContext);
   const { navigationData, user, teams, isLoading } = useAppFrameData();
-  const [showProfileModal, setShowProfileModal] = React.useState(false);
 
-  // Show auth pages without AppFrame (login, signup, sign-out, test)
-  const isAuthPage = ["/", "/sign-up", "/auth/sign-out", "/test"].includes(location.pathname);
+  // Show auth pages without AppFrame (login, signup, sign-out, password reset, invitations)
+  const isAuthPage = ["/", "/sign-up", "/auth/sign-out", "/test", "/forgot-password", "/reset-password"].includes(location.pathname) ||
+    location.pathname.startsWith("/reset-password/") ||
+    location.pathname.startsWith("/invite/");
   if (isAuthPage) {
     return <main className="h-full"><Outlet /></main>;
   }
@@ -57,32 +57,13 @@ function AppContent() {
 
         // Intercept Tide-UI's hardcoded user menu URLs
         if (url === "/user/profile" || url === "user/profile") {
-          console.log("Intercepting user profile URL, opening modal");
-          // Remove focus after current event loop completes
-          requestAnimationFrame(() => {
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-          });
-          // Close any open menus with ESC key
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
-          // Wait for menu to close, then open modal
-          setTimeout(() => {
-            setShowProfileModal(true);
-          }, 150);
+          console.log("Intercepting user profile URL, navigating to user-profile page");
+          navigate("/user-profile");
           return;
         }
 
         if (url === "/organization/settings" || url === "organization/settings") {
-          console.log("Intercepting organization settings URL, redirecting to organization-settings");
-          // Remove focus after current event loop completes
-          requestAnimationFrame(() => {
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-          });
-          // Close any open menus with ESC key
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+          console.log("Intercepting organization settings URL, navigating to organization-settings page");
           navigate("/organization-settings");
           return;
         }
@@ -91,16 +72,6 @@ function AppContent() {
       }}
     >
       <Outlet />
-      {showProfileModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowProfileModal(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()}>
-            <UserProfileModal onClose={() => setShowProfileModal(false)} />
-          </div>
-        </div>
-      )}
     </AppFrame>
   );
 }

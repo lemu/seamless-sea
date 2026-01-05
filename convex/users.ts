@@ -45,6 +45,23 @@ export const getCurrentUser = query({
   },
 });
 
+// Query to get user by ID with avatar URL
+export const getUserById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+
+    // Generate avatar URL if avatar exists
+    let avatarUrl = null;
+    if (user.avatar) {
+      avatarUrl = await ctx.storage.getUrl(user.avatar);
+    }
+
+    return { ...user, avatarUrl };
+  },
+});
+
 // Query to find user by email with avatar URL
 export const getUserByEmail = query({
   args: { email: v.string() },

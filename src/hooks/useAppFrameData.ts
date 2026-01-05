@@ -1,12 +1,12 @@
 import { useLocation } from "react-router";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "./useUser";
 import type { Id } from "../../convex/_generated/dataModel";
 
 // Tide-UI AppFrame types
 export interface AppFrameUser {
-  _id: Id<"users">;
+  _id?: Id<"users">;
   name: string;
   email: string;
   avatarUrl?: string | null;
@@ -32,18 +32,10 @@ export interface AppFrameNavItem {
   }>;
 }
 
-export interface AppFrameBoard {
-  _id: Id<"boards">;
-  title: string;
-  url: string;
-  isActive: boolean;
-}
-
 export interface AppFrameNavigationData {
   main: AppFrameNavItem[];
   operations: AppFrameNavItem[];
   intelligence: AppFrameNavItem[];
-  boards: AppFrameBoard[];
   support: AppFrameNavItem[];
 }
 
@@ -57,42 +49,32 @@ export interface UseAppFrameDataReturn {
 
 /**
  * Hook to provide data for Tide-UI AppFrame component
- * Fetches user, organizations, and boards from Convex and formats them
+ * Fetches user and organizations from Convex and formats them
  * for the AppFrame component's expected shape
  */
 export function useAppFrameData(): UseAppFrameDataReturn {
   const location = useLocation();
-  const { user } = useUser();
+  const { isLoading: isConvexAuthLoading, isAuthenticated } = useConvexAuth();
+  const { user, isLoading: isUserLoading } = useUser();
   const currentPath = location.pathname;
 
   // Fetch user's organizations
   const userOrganizations = useQuery(
     api.organizations.getUserOrganizations,
-    user ? { userId: user._id } : "skip"
+    user?._id ? { userId: user._id } : "skip"
   );
 
   // Get the current active organization (first one for now)
   const currentOrganization = userOrganizations?.[0];
 
-  // Fetch user's pinned boards in current organization
-  const pinnedBoards = useQuery(
-    api.boards.getPinnedBoards,
-    user && currentOrganization?._id
-      ? {
-          userId: user._id,
-          organizationId: currentOrganization._id,
-        }
-      : "skip"
-  );
-
-  // Show loading if:
-  // 1. User query hasn't completed yet (undefined, not null which means unauthenticated)
-  // 2. Organizations query hasn't completed yet (could be [] or an array, but not undefined)
-  // 3. If we have an org, wait for boards to load
+  // Simplified loading logic:
+  // 1. Convex auth is still initializing
+  // 2. User context is still loading
+  // 3. Authenticated but waiting for organizations
   const isLoading =
-    user === undefined ||
-    (user !== null && userOrganizations === undefined) ||
-    (!!currentOrganization && pinnedBoards === undefined);
+    isConvexAuthLoading ||
+    isUserLoading ||
+    (isAuthenticated && userOrganizations === undefined);
 
   // Build navigation data
   const navigationData: AppFrameNavigationData = {
@@ -102,6 +84,12 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         icon: "house",
         url: "/home",
         isActive: currentPath === "/home",
+      },
+      {
+        title: "Boards",
+        icon: "layout-dashboard",
+        url: "/boards",
+        isActive: currentPath === "/boards" || currentPath.startsWith("/boards/"),
       },
     ],
     operations: [
@@ -180,12 +168,6 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         isActive: currentPath === "/fixtures",
       },
     ],
-    boards: (pinnedBoards || []).map((board) => ({
-      _id: board._id,
-      title: board.title,
-      url: `/boards/${board._id}`,
-      isActive: currentPath === `/boards/${board._id}`,
-    })),
     support: [
       {
         title: "Notifications",

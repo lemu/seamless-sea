@@ -37,7 +37,41 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     role: v.string(), // Trader, Broker, Admin, etc.
     createdAt: v.number(),
-  }),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_organizationId", ["organizationId"]),
+
+  // Organization Invitations
+  invitations: defineTable({
+    email: v.string(),
+    organizationId: v.id("organizations"),
+    role: v.string(), // Admin, Trader, Broker
+    token: v.string(),
+    invitedBy: v.id("users"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("expired"),
+      v.literal("revoked")
+    ),
+    expiresAt: v.number(), // 7 days from creation
+    createdAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_email", ["email"])
+    .index("by_organization", ["organizationId"]),
+
+  // Password Reset Tokens
+  password_reset_tokens: defineTable({
+    userId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(), // 1 hour from creation
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_userId", ["userId"]),
 
   // Boards table - User + Organization scoped dashboards
   boards: defineTable({

@@ -1,20 +1,23 @@
 import type { Id } from '../../convex/_generated/dataModel';
 
+// Better Auth user structure with our extensions
 export interface User {
-  _id: Id<"users">;
+  id: string; // Better Auth user ID
   name: string;
   email: string;
-  avatar?: Id<"_storage">;
+  emailVerified: boolean;
+  image?: string | null;
+  createdAt: Date;
+  updatedAt?: Date;
+  // Extensions from our users table
   avatarUrl?: string | null;
-  createdAt: number;
-  updatedAt?: number;
+  appUserId?: Id<"users">; // Our app's user ID for backwards compatibility
+  _id?: Id<"users">; // Alias for appUserId - backwards compatibility with existing code
 }
 
 export interface UserContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
-  login: (email: string) => Promise<boolean>;
-  logout: () => void;
   isLoading: boolean;
-  refreshUser: () => void;
+  logout: () => Promise<void>;
+  refreshUser?: () => void;
 }

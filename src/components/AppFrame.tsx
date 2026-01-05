@@ -11,7 +11,7 @@ import {
 
 // Type definitions
 interface User {
-  _id: Id<"users">;
+  _id?: Id<"users">;
   name: string;
   email: string;
   avatar?: string;
@@ -410,7 +410,7 @@ function AppSidebar() {
   // Fetch user's organizations
   const userOrganizations = useQuery(
     api.organizations.getUserOrganizations,
-    user ? { userId: user._id } : "skip",
+    user?._id ? { userId: user._id } : "skip",
   );
 
   // Get the current active organization (first one for now)
@@ -419,7 +419,7 @@ function AppSidebar() {
   // Fetch user's pinned boards in current organization
   const pinnedBoards = useQuery(
     api.boards.getPinnedBoards,
-    user && currentOrganization?._id
+    user?._id && currentOrganization?._id
       ? {
           userId: user._id,
           organizationId: currentOrganization._id,
@@ -452,8 +452,8 @@ function AppSidebar() {
   const [isDeletingBoard, setIsDeletingBoard] = React.useState(false);
 
   const handleCreateBoard = async (title: string) => {
-    if (!user || !currentOrganization?._id) return;
-    
+    if (!user?._id || !currentOrganization?._id) return;
+
     setIsCreatingBoard(true);
     try {
       const boardId = await createBoard({
@@ -478,13 +478,13 @@ function AppSidebar() {
 
   // Board menu handlers
   const handleUnpinBoard = async (board: MenuItem) => {
-    if (!user || !currentOrganization?._id) return;
-    
+    if (!user?._id || !currentOrganization?._id) return;
+
     try {
       // Extract board ID from URL
       const boardId = board.url.split('/').pop();
       if (!boardId) return;
-      
+
       await unpinBoard({
         boardId: boardId as Id<"boards">,
         userId: user._id,

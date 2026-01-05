@@ -1,14 +1,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { Button, Input, Card, CardHeader, CardContent } from "@rafal.lemieszewski/tide-ui";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { useUser } from "../hooks";
+import { authClient } from "../lib/auth-client";
 
 function Login() {
   const navigate = useNavigate();
-  const signIn = useMutation(api.auth.signIn);
-  const { setAuthToken } = useUser();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,13 +17,14 @@ function Login() {
     setIsLoading(true);
 
     try {
-      const result = await signIn({
+      const result = await authClient.signIn.email({
         email,
         password,
       });
 
-      // Store session token and update context
-      setAuthToken(result.session.token);
+      if (result.error) {
+        throw new Error(result.error.message || "Invalid email or password");
+      }
 
       // Navigate to home
       navigate("/home");
@@ -66,9 +63,17 @@ function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-1">
-                Password
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label htmlFor="password" className="block text-sm font-medium">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-[var(--color-primary)] hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"

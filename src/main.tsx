@@ -1,13 +1,18 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
-import { ConvexReactClient, ConvexProvider } from "convex/react";
+import { ConvexReactClient } from "convex/react";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { authClient } from "./lib/auth-client";
 import "./index.css";
 import App from "./App.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.tsx";
 import AuthGate from "./routes/AuthGate.tsx";
 import SignUpPage from "./routes/SignUp.tsx";
 import SignOut from "./routes/SignOut.tsx";
+import ForgotPassword from "./routes/ForgotPassword.tsx";
+import ResetPassword from "./routes/ResetPassword.tsx";
+import AcceptInvitation from "./routes/AcceptInvitation.tsx";
 import Home from "./routes/Home.tsx";
 import FreightPlanner from "./routes/FreightPlanner.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
@@ -46,6 +51,23 @@ const router = createBrowserRouter([
       {
         path: "auth/sign-out",
         element: <SignOut />,
+      },
+      {
+        path: "forgot-password",
+        element: <ForgotPassword />,
+      },
+      {
+        path: "reset-password/:token",
+        element: <ResetPassword />,
+      },
+      {
+        // Better Auth sends tokens as query params: /reset-password?token=...
+        path: "reset-password",
+        element: <ResetPassword />,
+      },
+      {
+        path: "invite/:token",
+        element: <AcceptInvitation />,
       },
       {
         path: "home",
@@ -193,8 +215,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConvexProvider client={convex}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
       <RouterProvider router={router} />
-    </ConvexProvider>
+    </ConvexBetterAuthProvider>
   </StrictMode>,
 );

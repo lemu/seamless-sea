@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate, Link, useSearchParams } from "react-router";
 import { Button, Input, Card, CardHeader, CardContent } from "@rafal.lemieszewski/tide-ui";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { useUser } from "../hooks";
+import { authClient } from "../lib/auth-client";
 
 function SignUpPage() {
   const navigate = useNavigate();
-  const signUp = useMutation(api.auth.signUp);
-  const { setAuthToken } = useUser();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("invite");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,18 +34,24 @@ function SignUpPage() {
     setIsLoading(true);
 
     try {
-      // Create account with bcrypt auth
-      const result = await signUp({
+      // Create account with Better Auth
+      const result = await authClient.signUp.email({
         name,
         email,
         password,
       });
 
-      // Store session token and update context
-      setAuthToken(result.session.token);
+      if (result.error) {
+        throw new Error(result.error.message || "Failed to create account");
+      }
 
-      // Navigate to home
-      navigate("/home");
+      // If there's an invite token, redirect to accept it (auto=1 triggers auto-accept)
+      if (inviteToken) {
+        navigate(`/invite/${inviteToken}?auto=1`);
+      } else {
+        // Navigate to home
+        navigate("/home");
+      }
     } catch (err) {
       console.error("Signup error:", err);
       setError(err instanceof Error ? err.message : "Failed to create account. Please try again.");

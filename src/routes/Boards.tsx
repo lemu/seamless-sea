@@ -16,14 +16,14 @@ function Boards() {
   // Get user's organizations (using first one for now)
   const userOrganizations = useQuery(
     api.organizations.getUserOrganizations,
-    user ? { userId: user._id } : "skip",
+    user?._id ? { userId: user._id } : "skip",
   );
   const currentOrganization = userOrganizations?.[0];
 
   // Get all boards for user in current organization
   const boards = useQuery(
     api.boards.getBoardsByUserAndOrg,
-    user && currentOrganization?._id
+    user?._id && currentOrganization?._id
       ? {
           userId: user._id,
           organizationId: currentOrganization._id,
@@ -34,7 +34,7 @@ function Boards() {
   // Get pinned boards to show pin status
   const pinnedBoards = useQuery(
     api.boards.getPinnedBoards,
-    user && currentOrganization?._id
+    user?._id && currentOrganization?._id
       ? {
           userId: user._id,
           organizationId: currentOrganization._id,
@@ -75,7 +75,7 @@ function Boards() {
   }
 
   const handleCreateBoard = async (title: string) => {
-    if (!user || !currentOrganization?._id) return;
+    if (!user?._id || !currentOrganization?._id) return;
 
     try {
       const boardId = await createBoard({
@@ -91,7 +91,7 @@ function Boards() {
   };
 
   const handlePinBoard = async (boardId: string) => {
-    if (!user || !currentOrganization?._id) return;
+    if (!user?._id || !currentOrganization?._id) return;
 
     try {
       await pinBoard({
@@ -106,7 +106,7 @@ function Boards() {
   };
 
   const handleUnpinBoard = async (boardId: string) => {
-    if (!user || !currentOrganization?._id) return;
+    if (!user?._id || !currentOrganization?._id) return;
 
     try {
       await unpinBoard({

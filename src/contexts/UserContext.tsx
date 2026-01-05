@@ -1,19 +1,22 @@
-import { createContext, type ReactNode, useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { createContext, type ReactNode } from "react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { authClient } from "../lib/auth-client";
 
-// User type matching bcrypt auth schema
+// User type matching Better Auth user + our extensions
 interface User {
-  _id: Id<"users">;
+  id: string; // Better Auth user ID
   name: string;
   email: string;
-  passwordHash?: string;
-  avatar?: Id<"_storage">;
+  emailVerified: boolean;
+  image?: string | null;
+  createdAt: Date;
+  updatedAt?: Date;
+  // Extensions from our users table
   avatarUrl?: string | null;
-  emailVerified?: boolean;
-  createdAt: number;
-  updatedAt?: number;
+  appUserId?: Id<"users">; // Our app's user ID for backwards compatibility
+  _id?: Id<"users">; // Alias for appUserId - backwards compatibility with existing code
 }
 
 interface UserContextType {
@@ -21,57 +24,34 @@ interface UserContextType {
   isLoading: boolean;
   logout: () => Promise<void>;
   refreshUser?: () => void;
-  setAuthToken: (token: string) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const signOut = useMutation(api.auth.signOut);
+  // Use Convex's auth state (more reliable than Better Auth's useSession for timing)
+  const { isLoading: isConvexAuthLoading, isAuthenticated } = useConvexAuth();
 
-  // Use state for token so it updates reactively
-  const [token, setToken] = useState<string | null>(() =>
-    typeof window !== "undefined" ? localStorage.getItem('session_token') : null
-  );
+  // Also get Better Auth session for user details (but don't use it for auth state)
+  const { data: session } = authClient.useSession();
 
-  // Method to update token (called after login/signup)
-  const setAuthToken = (newToken: string) => {
-    localStorage.setItem('session_token', newToken);
-    setToken(newToken);
-  };
-
-  // Listen for storage changes from logout
-  useEffect(() => {
-    const checkToken = () => {
-      const currentToken = localStorage.getItem('session_token');
-      if (currentToken !== token) {
-        setToken(currentToken);
-      }
-    };
-
-    // Check periodically in case token was removed
-    const interval = setInterval(checkToken, 1000);
-    return () => clearInterval(interval);
-  }, [token]);
-
-  // Get the current user using the session token
-  const user = useQuery(
-    api.auth.getCurrentUser,
-    token ? { token } : "skip"
+  // Get extended user data from our getCurrentUser query
+  // Only run if Convex confirms we're authenticated
+  const extendedUser = useQuery(
+    api.authQueries.getCurrentUser,
+    isAuthenticated ? {} : "skip"
   );
 
   const logout = async () => {
-    const token = localStorage.getItem('session_token');
-    if (token) {
-      try {
-        await signOut({ token });
-      } catch (err) {
-        console.error("Logout error:", err);
-      }
+    try {
+      await authClient.signOut();
+      // Redirect to home after logout
+      window.location.replace("/");
+    } catch (err) {
+      console.error("Logout error:", err);
+      // Still redirect even if there's an error
+      window.location.replace("/");
     }
-    localStorage.removeItem('session_token');
-    // Use replace to avoid beforeunload warning
-    window.location.replace("/");
   };
 
   const refreshUser = () => {
@@ -79,17 +59,46 @@ export function UserProvider({ children }: { children: ReactNode }) {
     console.log("User refresh requested (handled automatically by Convex)");
   };
 
-  // User is loading if we have a token but no user data yet
-  const isLoading = token !== null && user === undefined;
+  // Prefer extendedUser from Convex query (validated), fallback to session data
+  const user: User | null = extendedUser
+    ? {
+        id: extendedUser._id,
+        name: extendedUser.name,
+        email: extendedUser.email,
+        emailVerified: extendedUser.emailVerified ?? false,
+        image: extendedUser.image,
+        createdAt: new Date(extendedUser.createdAt),
+        updatedAt: extendedUser.updatedAt ? new Date(extendedUser.updatedAt) : undefined,
+        // Extensions from our query
+        avatarUrl: extendedUser.avatarUrl ?? null,
+        appUserId: extendedUser.appUserId,
+        _id: extendedUser.appUserId, // Alias for backwards compatibility
+      }
+    : session?.user
+      ? {
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          emailVerified: session.user.emailVerified,
+          image: session.user.image,
+          createdAt: session.user.createdAt,
+          updatedAt: session.user.updatedAt,
+          avatarUrl: null,
+          appUserId: undefined,
+          _id: undefined,
+        }
+      : null;
+
+  // Loading state: Convex auth is loading OR we're authenticated but extended data isn't loaded yet
+  const isLoading = isConvexAuthLoading || (isAuthenticated && extendedUser === undefined);
 
   return (
     <UserContext.Provider
       value={{
-        user: user || null,
+        user,
         isLoading,
         logout,
         refreshUser,
-        setAuthToken,
       }}
     >
       {children}
