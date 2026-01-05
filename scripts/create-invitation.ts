@@ -26,7 +26,7 @@ async function createInvitation() {
     });
 
     if (invitation) {
-      const inviteUrl = `https://seamless-sea.vercel.app/accept-invitation?token=${invitation.token}`;
+      const inviteUrl = `https://seamless-sea.vercel.app/invite/${invitation.token}`;
       console.log("\n🎉 Invitation URL:");
       console.log(inviteUrl);
       console.log("\nSend this link to rafal.lemieszewski@sea.live");
