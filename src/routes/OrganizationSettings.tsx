@@ -40,6 +40,13 @@ function OrganizationSettings() {
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [generatedLink, setGeneratedLink] = useState("");
 
+  // Get user's organizations
+  const userOrganizations = useQuery(
+    api.organizations.getUserOrganizations,
+    user?._id ? { userId: user._id } : "skip"
+  );
+  const currentOrganization = userOrganizations?.[0];
+
   // Dialog states
   const [removeMemberDialog, setRemoveMemberDialog] = useState<{
     open: boolean;
@@ -53,13 +60,6 @@ function OrganizationSettings() {
   }>({ open: false });
   const [isRemoving, setIsRemoving] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
-
-  // Get user's organizations
-  const userOrganizations = useQuery(
-    api.organizations.getUserOrganizations,
-    user?._id ? { userId: user._id } : "skip"
-  );
-  const currentOrganization = userOrganizations?.[0];
 
   // Get membership to check if user is admin
   const membership = useQuery(
