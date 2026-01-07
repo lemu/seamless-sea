@@ -277,42 +277,32 @@ function FixtureSidebar({
           <div className="flex-shrink-0 bg-[var(--color-surface-primary)]">
             <div className="flex items-start justify-between px-6 pb-6 pt-6">
               <div className="flex flex-col gap-1">
-                {/* Main title line with fixture ID and companies */}
+                {/* Main title line with fixture ID */}
                 <div className="flex items-center gap-2 text-[20px] font-semibold leading-6 tracking-[-0.2px] text-[var(--color-text-primary)]">
                   <span>
                     {fixture.orderId && fixture.negotiationId && fixture.orderId !== "-" && fixture.negotiationId !== "-"
                       ? `${fixture.orderId} • ${fixture.negotiationId}`
                       : fixture.cpId || fixture.fixtureId}
                   </span>
-                  <span>•</span>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <Avatar type="organization" size="xs">
-                        <AvatarImage src={fixture.chartererAvatarUrl || undefined} alt={fixture.charterer} />
-                        <AvatarFallback>{getCompanyInitials(fixture.charterer)}</AvatarFallback>
-                      </Avatar>
-                      <span className="text-body-sm font-medium">{fixture.charterer}</span>
-                    </div>
-                    <span className="text-body-sm">×</span>
-                    <div className="flex items-center gap-1">
-                      <Avatar type="organization" size="xs">
-                        <AvatarImage src={fixture.ownerAvatarUrl || undefined} alt={fixture.owner} />
-                        <AvatarFallback>{getCompanyInitials(fixture.owner)}</AvatarFallback>
-                      </Avatar>
-                      <span className="text-body-sm font-medium">{fixture.owner}</span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Metadata line with route and cargo */}
-                <div className="flex items-center gap-1 text-body-xsm text-[var(--color-text-secondary)]">
+                {/* Metadata line with companies, route, and cargo */}
+                <div className="flex flex-wrap items-center gap-1.5 text-body-xsm text-[var(--color-text-secondary)]">
+                  <span>{fixture.charterer}</span>
+                  <span>×</span>
+                  <span>{fixture.owner}</span>
                   {fixture.loadPort && fixture.dischargePort && (
                     <>
-                      <span>{fixture.loadPort.name}</span>
-                      {fixture.loadPort.countryCode && <Flag country={fixture.loadPort.countryCode.toLowerCase()} />}
+                      <span>•</span>
+                      <span>
+                        {fixture.loadPort.name}
+                        {fixture.loadPort.countryCode && `, ${fixture.loadPort.countryCode}`}
+                      </span>
                       <Icon name="arrow-right" size="sm" />
-                      <span>{fixture.dischargePort.name}</span>
-                      {fixture.dischargePort.countryCode && <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />}
+                      <span>
+                        {fixture.dischargePort.name}
+                        {fixture.dischargePort.countryCode && `, ${fixture.dischargePort.countryCode}`}
+                      </span>
                     </>
                   )}
                   {fixture.cargoType && fixture.contract?.quantity && (
@@ -703,8 +693,10 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasLoadPortChanges}>
                         <AttributesLabel>Load Port</AttributesLabel>
                         <AttributesValue>
-                          <span className="font-semibold">🇧🇷</span>
-                          Tubarao, BR
+                          {fixture.loadPort?.countryCode && (
+                            <Flag country={fixture.loadPort.countryCode.toLowerCase()} />
+                          )}
+                          {fixture.loadPort?.name}, {fixture.loadPort?.countryCode}
                           {hasLoadPortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -743,8 +735,10 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasDischargePortChanges}>
                         <AttributesLabel>Discharge Port</AttributesLabel>
                         <AttributesValue>
-                          <span className="font-semibold">🇨🇳</span>
-                          Qingdao or Tianjin, CN
+                          {fixture.dischargePort?.countryCode && (
+                            <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />
+                          )}
+                          {fixture.dischargePort?.name}, {fixture.dischargePort?.countryCode}
                           {hasDischargePortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
