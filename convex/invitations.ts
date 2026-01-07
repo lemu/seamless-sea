@@ -99,7 +99,7 @@ export const createInvitationManual = mutation({
       )
       .first();
 
-    if (!membership || membership.role !== "Admin") {
+    if (!membership || membership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can create invitations");
     }
 
@@ -403,7 +403,7 @@ export const getOrganizationInvitations = query({
       )
       .first();
 
-    if (!membership || membership.role !== "Admin") {
+    if (!membership || membership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can view organization invitations");
     }
 
@@ -455,7 +455,7 @@ export const deleteInvitation = mutation({
       )
       .first();
 
-    if (!membership || membership.role !== "Admin") {
+    if (!membership || membership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can delete invitations");
     }
 
@@ -494,7 +494,7 @@ export const revokeInvitation = mutation({
       )
       .first();
 
-    if (!membership || membership.role !== "Admin") {
+    if (!membership || membership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can revoke invitations");
     }
 

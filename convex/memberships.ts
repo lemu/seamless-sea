@@ -83,7 +83,7 @@ export const removeMember = mutation({
       )
       .first();
 
-    if (!requestingMembership || requestingMembership.role !== "Admin") {
+    if (!requestingMembership || requestingMembership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can remove members");
     }
 
@@ -94,7 +94,10 @@ export const removeMember = mutation({
         .filter((q) =>
           q.and(
             q.eq(q.field("organizationId"), membershipToRemove.organizationId),
-            q.eq(q.field("role"), "Admin")
+            q.or(
+              q.eq(q.field("role"), "Admin"),
+              q.eq(q.field("role"), "admin")
+            )
           )
         )
         .collect();
@@ -135,21 +138,24 @@ export const updateMemberRole = mutation({
       )
       .first();
 
-    if (!requestingMembership || requestingMembership.role !== "Admin") {
+    if (!requestingMembership || requestingMembership.role.toLowerCase() !== "admin") {
       throw new Error("Only admins can update member roles");
     }
 
     // Prevent downgrading the only admin
     if (
-      membershipToUpdate.role === "Admin" &&
-      args.newRole !== "Admin"
+      membershipToUpdate.role.toLowerCase() === "admin" &&
+      args.newRole.toLowerCase() !== "admin"
     ) {
       const adminCount = await ctx.db
         .query("memberships")
         .filter((q) =>
           q.and(
             q.eq(q.field("organizationId"), membershipToUpdate.organizationId),
-            q.eq(q.field("role"), "Admin")
+            q.or(
+              q.eq(q.field("role"), "Admin"),
+              q.eq(q.field("role"), "admin")
+            )
           )
         )
         .collect();
