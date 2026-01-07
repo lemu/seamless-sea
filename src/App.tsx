@@ -53,17 +53,13 @@ function AppContent() {
       headerContent={<HeaderContent />}
       headerActions={context?.actions}
       onNavigate={(url) => {
-        console.log("AppFrame onNavigate called with URL:", url);
-
         // Intercept Tide-UI's hardcoded user menu URLs
         if (url === "/user/profile" || url === "user/profile") {
-          console.log("Intercepting user profile URL, navigating to user-profile page");
           navigate("/user-profile");
           return;
         }
 
         if (url === "/organization/settings" || url === "organization/settings") {
-          console.log("Intercepting organization settings URL, navigating to organization-settings page");
           navigate("/organization-settings");
           return;
         }
