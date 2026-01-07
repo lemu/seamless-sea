@@ -26,6 +26,8 @@ import type * as invitations from "../invitations.js";
 import type * as memberships from "../memberships.js";
 import type * as migrations from "../migrations.js";
 import type * as migrations_fixMemberships from "../migrations/fixMemberships.js";
+import type * as migrations_removeUser from "../migrations/removeUser.js";
+import type * as migrations_reorderMemberships from "../migrations/reorderMemberships.js";
 import type * as migrations_updateFixturesOrg from "../migrations/updateFixturesOrg.js";
 import type * as negotiations from "../negotiations.js";
 import type * as orders from "../orders.js";
@@ -64,6 +66,8 @@ declare const fullApi: ApiFromModules<{
   memberships: typeof memberships;
   migrations: typeof migrations;
   "migrations/fixMemberships": typeof migrations_fixMemberships;
+  "migrations/removeUser": typeof migrations_removeUser;
+  "migrations/reorderMemberships": typeof migrations_reorderMemberships;
   "migrations/updateFixturesOrg": typeof migrations_updateFixturesOrg;
   negotiations: typeof negotiations;
   orders: typeof orders;
