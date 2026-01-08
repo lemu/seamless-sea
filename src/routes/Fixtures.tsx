@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   type ColumnDef,
   type SortingState,
@@ -6,6 +6,7 @@ import {
   type GroupingState,
   type ColumnOrderState,
   type ExpandedState,
+  type PaginationState,
 } from "@tanstack/react-table";
 import {
   DataTable,
@@ -1305,6 +1306,54 @@ function Fixtures() {
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
+  // Pagination state
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25, // Default page size
+  });
+  const [isPaginationLoading, setIsPaginationLoading] = useState(false);
+  const pendingPaginationRef = useRef<PaginationState | null>(null);
+  const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+
+  // Handle pagination changes and detect page size changes
+  const handlePaginationChange = (updaterOrValue: PaginationState | ((old: PaginationState) => PaginationState)) => {
+    setPagination((oldPagination) => {
+      const newPagination = typeof updaterOrValue === 'function'
+        ? updaterOrValue(oldPagination)
+        : updaterOrValue;
+
+      // Only show loading for page size changes, not page navigation
+      const pageSizeChanged = oldPagination.pageSize !== newPagination.pageSize;
+
+      if (pageSizeChanged) {
+        // Set loading state immediately
+        setIsPaginationLoading(true);
+
+        // Defer the pagination update to next tick so skeleton renders first
+        pendingPaginationRef.current = newPagination;
+        setTimeout(() => {
+          if (pendingPaginationRef.current) {
+            setPagination(pendingPaginationRef.current);
+            pendingPaginationRef.current = null;
+
+            // Clear loading after re-render completes
+            setTimeout(() => {
+              setIsPaginationLoading(false);
+            }, 300);
+          }
+        }, 0);
+
+        // Return old pagination for now (will update in setTimeout)
+        return oldPagination;
+      }
+
+      return newPagination;
+    });
+  };
+
+  // Combined loading state: show skeleton when loading data, changing page size, or switching bookmarks
+  const isTableLoading = isLoadingFixtures || isPaginationLoading || isBookmarkLoading;
+
   // Memoize columns
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(
     () => [
@@ -2309,7 +2358,15 @@ function Fixtures() {
   }, [fixtureData, activeBookmark, activeBookmarkId]);
 
   // Load bookmark state
-  const loadBookmark = (bookmark: Bookmark) => {
+  const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
+    // Show loading skeleton during bookmark transition (skip on initial mount)
+    if (showLoading) {
+      setIsBookmarkLoading(true);
+      setTimeout(() => {
+        setIsBookmarkLoading(false);
+      }, 300);
+    }
+
     setActiveBookmarkId(bookmark.id);
 
     if (bookmark.filtersState) {
@@ -2355,7 +2412,7 @@ function Fixtures() {
       (b) => b.id === activeBookmarkId
     );
     if (initialBookmark) {
-      loadBookmark(initialBookmark);
+      loadBookmark(initialBookmark, false); // Don't show loading on initial mount
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
@@ -2483,6 +2540,10 @@ function Fixtures() {
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
+    // Don't reload if clicking the same bookmark
+    if (bookmark.id === activeBookmarkId) {
+      return;
+    }
     loadBookmark(bookmark);
   };
 
@@ -2776,7 +2837,7 @@ function Fixtures() {
           <DataTable
             data={filteredData}
             columns={fixtureColumns}
-            isLoading={isLoadingFixtures}
+            isLoading={isTableLoading}
             loadingRowCount={15}
             enableGrouping={true}
             enableExpanding={true}
@@ -2785,6 +2846,8 @@ function Fixtures() {
             showHeader={false}
             groupedColumnMode="reorder"
             stickyHeader
+            enablePaginationPersistence={true}
+            storageKey="fixtures-table"
             // Group-preserving search handled via manual filtering and auto-expansion
             enableGlobalSearch={false}
             // Controlled state
@@ -2809,6 +2872,8 @@ function Fixtures() {
             onColumnOrderChange={setColumnOrder}
             columnSizing={columnSizing}
             onColumnSizingChange={setColumnSizing}
+            pagination={pagination}
+            onPaginationChange={handlePaginationChange}
             onRowClick={handleRowClick}
             isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
             footerLabel={
