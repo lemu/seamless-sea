@@ -12,7 +12,6 @@ import {
   Input,
   Label,
   Separator,
-  Icon,
   Toggle,
   toast,
 } from "@rafal.lemieszewski/tide-ui";
