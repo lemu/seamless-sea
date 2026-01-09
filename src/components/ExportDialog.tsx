@@ -77,20 +77,6 @@ export function ExportDialog<T extends Record<string, any>>({
   // Calculate selected column count
   const selectedColumnCount = columns.filter((col) => col.selected).length;
 
-  // Handle select all columns
-  const handleSelectAll = () => {
-    setColumns((prev) =>
-      prev.map((col) => ({ ...col, selected: true }))
-    );
-  };
-
-  // Handle clear all columns
-  const handleClearAll = () => {
-    setColumns((prev) =>
-      prev.map((col) => ({ ...col, selected: false }))
-    );
-  };
-
   // Handle column selection toggle
   const handleColumnToggle = (columnId: string) => {
     setColumns((prev) =>
@@ -154,49 +140,47 @@ export function ExportDialog<T extends Record<string, any>>({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Export Fixtures</DialogTitle>
+          <DialogTitle>Export fixtures</DialogTitle>
         </DialogHeader>
 
-        <DialogBody className="space-y-6">
+        <DialogBody className="space-y-4">
           {/* Format Selection */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-1">
             <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
               Format
             </Label>
-            <RadioGroup
-              value={format}
-              onValueChange={(value) => setFormat(value as ExportFormat)}
-              orientation="vertical"
-              className="gap-2"
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="csv" id="format-csv" />
-                <Label htmlFor="format-csv" className="flex items-center gap-2 cursor-pointer">
-                  <Icon name="file-text" size="sm" />
-                  CSV
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="excel" id="format-excel" />
-                <Label htmlFor="format-excel" className="flex items-center gap-2 cursor-pointer">
-                  <Icon name="file-spreadsheet" size="sm" />
-                  Excel
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="pdf" id="format-pdf" />
-                <Label htmlFor="format-pdf" className="flex items-center gap-2 cursor-pointer">
-                  <Icon name="file" size="sm" />
-                  PDF
-                </Label>
-              </div>
-            </RadioGroup>
+            <div className="flex gap-2">
+              <Toggle
+                variant="outline"
+                size="md"
+                pressed={format === "csv"}
+                onPressedChange={() => setFormat("csv")}
+              >
+                CSV
+              </Toggle>
+              <Toggle
+                variant="outline"
+                size="md"
+                pressed={format === "excel"}
+                onPressedChange={() => setFormat("excel")}
+              >
+                Excel
+              </Toggle>
+              <Toggle
+                variant="outline"
+                size="md"
+                pressed={format === "pdf"}
+                onPressedChange={() => setFormat("pdf")}
+              >
+                PDF
+              </Toggle>
+            </div>
           </div>
 
-          <Separator />
+          <Separator className="bg-[var(--color-border-primary-subtle)]" />
 
           {/* Data Scope */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-1">
             <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
               Data to export
             </Label>
@@ -204,7 +188,7 @@ export function ExportDialog<T extends Record<string, any>>({
               value={dataScope}
               onValueChange={(value) => setDataScope(value as ExportDataScope)}
               orientation="vertical"
-              className="gap-2"
+              className="gap-1"
             >
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="all" id="scope-all" />
@@ -229,18 +213,18 @@ export function ExportDialog<T extends Record<string, any>>({
             </RadioGroup>
           </div>
 
-          <Separator />
+          <Separator className="bg-[var(--color-border-primary-subtle)]" />
 
           {/* Date Range Filter */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-1">
             <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
-              Filter by Last Updated
+              Filter by last updated
             </Label>
             <RadioGroup
               value={dateRangeType}
               onValueChange={(value) => setDateRangeType(value as ExportDateRange)}
               orientation="vertical"
-              className="gap-2"
+              className="gap-1"
             >
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="all" id="date-all" />
@@ -284,33 +268,13 @@ export function ExportDialog<T extends Record<string, any>>({
             )}
           </div>
 
-          <Separator />
+          <Separator className="bg-[var(--color-border-primary-subtle)]" />
 
           {/* Column Selection */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
-                Columns ({selectedColumnCount} selected)
-              </Label>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSelectAll}
-                  className="text-[var(--color-text-secondary)]"
-                >
-                  Select All
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearAll}
-                  className="text-[var(--color-text-secondary)]"
-                >
-                  Clear All
-                </Button>
-              </div>
-            </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
+              Columns
+            </Label>
 
             <div className="flex flex-wrap gap-2">
               {columns.map((column) => (
@@ -326,8 +290,6 @@ export function ExportDialog<T extends Record<string, any>>({
               ))}
             </div>
           </div>
-
-          <Separator />
         </DialogBody>
 
         <DialogFooter>
