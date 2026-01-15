@@ -296,6 +296,28 @@ function OrganizationSettings() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSendInvitation} className="space-y-4">
+              {/* Organization selector - disabled to show which org is being used */}
+              <div>
+                <label htmlFor="organization" className="block text-sm font-medium mb-1">
+                  Organization
+                </label>
+                <Select value={currentOrganization._id} disabled>
+                  <SelectTrigger id="organization">
+                    <SelectValue placeholder={currentOrganization.name} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userOrganizations?.map((org) => (
+                      <SelectItem key={org._id} value={org._id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                  All invitations will be sent to Acme organization
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_160px_auto] sm:items-end">
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium mb-1">
@@ -336,9 +358,9 @@ function OrganizationSettings() {
                   <Button
                     type="submit"
                     variant="primary"
-                    disabled={isInviting || isGeneratingLink || !inviteEmail}
+                    disabled={true}
                   >
-                    {isInviting ? "Sending..." : "Send Email"}
+                    Send Email (Disabled)
                   </Button>
                   <Button
                     type="button"
