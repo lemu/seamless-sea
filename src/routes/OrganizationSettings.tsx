@@ -92,7 +92,6 @@ function OrganizationSettings() {
   const createInvitationManual = useMutation(api.invitations.createInvitationManual);
   const removeMember = useMutation(api.memberships.removeMember);
   const revokeInvitation = useMutation(api.invitations.revokeInvitation);
-  const deleteInvitation = useMutation(api.invitations.deleteInvitation);
   const updateMemberRole = useMutation(api.memberships.updateMemberRole);
 
   const handleSendInvitation = async (e: React.FormEvent) => {
@@ -188,20 +187,6 @@ function OrganizationSettings() {
       alert(err instanceof Error ? err.message : "Failed to revoke invitation");
     } finally {
       setIsRevoking(false);
-    }
-  };
-
-  const handleDeleteInvitation = async (invitationId: Id<"invitations">) => {
-    if (!user?._id) return;
-
-    try {
-      await deleteInvitation({
-        invitationId,
-        userId: user._id,
-      });
-    } catch (err) {
-      console.error("Delete invitation error:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete invitation");
     }
   };
 
@@ -498,7 +483,7 @@ function OrganizationSettings() {
         <Card>
           <CardHeader>
             <h2 className="text-heading-md text-[var(--color-text-primary)]">
-              Invitations
+              Pending Invitations
             </h2>
           </CardHeader>
           <CardContent>
@@ -506,28 +491,29 @@ function OrganizationSettings() {
               <div className="flex justify-center p-4">
                 <Spinner variant="primary" />
               </div>
-            ) : invitations.length === 0 ? (
+            ) : invitations.filter(inv => inv.status === "pending").length === 0 ? (
               <p className="text-body-md text-[var(--color-text-secondary)]">
-                No invitations yet.
+                No pending invitations.
               </p>
             ) : (
               <div className="space-y-3">
-                {invitations.map((invite) => (
-                  <div
-                    key={invite._id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-primary-subtle)]"
-                  >
-                    <div>
-                      <p className="text-body-md font-medium text-[var(--color-text-primary)]">
-                        {invite.email}
-                      </p>
-                      <p className="text-body-sm text-[var(--color-text-secondary)]">
-                        Invited by {invite.inviterName} as {invite.role}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(invite.status)}
-                      {invite.status === "pending" ? (
+                {invitations
+                  .filter(invite => invite.status === "pending")
+                  .map((invite) => (
+                    <div
+                      key={invite._id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-primary-subtle)]"
+                    >
+                      <div>
+                        <p className="text-body-md font-medium text-[var(--color-text-primary)]">
+                          {invite.email}
+                        </p>
+                        <p className="text-body-sm text-[var(--color-text-secondary)]">
+                          Invited by {invite.inviterName} as {invite.role}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(invite.status)}
                         <Button
                           variant="secondary"
                           size="sm"
@@ -541,18 +527,9 @@ function OrganizationSettings() {
                         >
                           Revoke
                         </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleDeleteInvitation(invite._id)}
-                        >
-                          Delete
-                        </Button>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </CardContent>
