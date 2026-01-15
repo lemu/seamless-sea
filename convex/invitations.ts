@@ -261,6 +261,18 @@ export const acceptInvitation = mutation({
       throw new Error("This invitation has expired");
     }
 
+    // Validate that the user's email matches the invitation email
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      throw new Error(
+        `This invitation is for ${invitation.email}, but you are signed in as ${user.email}. Please sign in with the correct account or contact your administrator.`
+      );
+    }
+
     // Check if user is already a member
     const existingMembership = await ctx.db
       .query("memberships")
@@ -323,6 +335,13 @@ export const acceptInvitationByEmail = mutation({
     if (Date.now() > invitation.expiresAt) {
       await ctx.db.patch(invitation._id, { status: "expired" });
       throw new Error("This invitation has expired");
+    }
+
+    // Validate that the provided email matches the invitation email
+    if (args.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      throw new Error(
+        `This invitation is for ${invitation.email}, but you are signed in as ${args.email}. Please sign in with the correct account or contact your administrator.`
+      );
     }
 
     // Look up or create user in our users table
@@ -431,6 +450,35 @@ export const getOrganizationInvitations = query({
   },
 });
 
+// Get invitations by email (for debugging/scripts)
+export const getInvitationsByEmail = query({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .collect();
+
+    // Get inviter and organization details
+    const invitationsWithDetails = await Promise.all(
+      invitations.map(async (invitation) => {
+        const inviter = await ctx.db.get(invitation.invitedBy);
+        const organization = await ctx.db.get(invitation.organizationId);
+        return {
+          ...invitation,
+          inviterName: inviter?.name,
+          inviterEmail: inviter?.email,
+          organizationName: organization?.name || "Unknown Organization",
+        };
+      })
+    );
+
+    return invitationsWithDetails;
+  },
+});
+
 // Delete invitation (admin only, for revoked/expired/accepted invitations)
 export const deleteInvitation = mutation({
   args: {
@@ -506,6 +554,22 @@ export const revokeInvitation = mutation({
       status: "revoked",
     });
 
+    return { success: true };
+  },
+});
+
+// Force delete invitation (for admin scripts/cleanup - bypasses all checks)
+export const forceDeleteInvitation = mutation({
+  args: {
+    invitationId: v.id("invitations"),
+  },
+  handler: async (ctx, args) => {
+    const invitation = await ctx.db.get(args.invitationId);
+    if (!invitation) {
+      throw new Error("Invitation not found");
+    }
+
+    await ctx.db.delete(args.invitationId);
     return { success: true };
   },
 });
