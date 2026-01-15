@@ -60,6 +60,31 @@ export const getMembership = query({
   },
 });
 
+// Get all memberships for a user
+export const getUserMemberships = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("memberships")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    const membershipsWithOrgs = await Promise.all(
+      memberships.map(async (membership) => {
+        const organization = await ctx.db.get(membership.organizationId);
+        return {
+          ...membership,
+          organizationName: organization?.name || "Unknown Organization",
+        };
+      })
+    );
+
+    return membershipsWithOrgs;
+  },
+});
+
 // Remove member from organization (admin only)
 export const removeMember = mutation({
   args: {
@@ -203,5 +228,38 @@ export const addMember = mutation({
     });
 
     return { membershipId };
+  },
+});
+
+// Force update member role (for admin scripts/migrations - bypasses permission checks)
+export const forceUpdateMemberRole = mutation({
+  args: {
+    membershipId: v.id("memberships"),
+    newRole: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const membership = await ctx.db.get(args.membershipId);
+    if (!membership) {
+      throw new Error("Membership not found");
+    }
+
+    await ctx.db.patch(args.membershipId, { role: args.newRole });
+    return { success: true };
+  },
+});
+
+// Force delete membership (for admin scripts/cleanup - bypasses all checks)
+export const forceDeleteMembership = mutation({
+  args: {
+    membershipId: v.id("memberships"),
+  },
+  handler: async (ctx, args) => {
+    const membership = await ctx.db.get(args.membershipId);
+    if (!membership) {
+      throw new Error("Membership not found");
+    }
+
+    await ctx.db.delete(args.membershipId);
+    return { success: true };
   },
 });

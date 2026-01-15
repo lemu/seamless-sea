@@ -153,3 +153,50 @@ export const createTestUser = mutation({
     return newUser;
   },
 });
+
+// Create user manually (for scripts/migrations)
+export const createUser = mutation({
+  args: {
+    email: v.string(),
+    name: v.string(),
+    emailVerified: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("email"), args.email))
+      .first();
+
+    if (existingUser) {
+      return existingUser._id;
+    }
+
+    const now = Date.now();
+    const userId = await ctx.db.insert("users", {
+      name: args.name,
+      email: args.email,
+      emailVerified: args.emailVerified || false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return userId;
+  },
+});
+
+// Force delete user (for admin scripts/cleanup - bypasses all checks)
+export const forceDeleteUser = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.delete(args.userId);
+    return { success: true };
+  },
+});

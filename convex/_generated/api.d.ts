@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as approvals from "../approvals.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as authQueries from "../authQueries.js";
@@ -15,9 +16,12 @@ import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
 import type * as cleanOrphanedData from "../cleanOrphanedData.js";
 import type * as cleanUsers from "../cleanUsers.js";
+import type * as cleanupDuplicateCompanies from "../cleanupDuplicateCompanies.js";
+import type * as cleanupOneDuplicateCompany from "../cleanupOneDuplicateCompany.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
 import type * as debug from "../debug.js";
+import type * as diagnosticAvatars from "../diagnosticAvatars.js";
 import type * as email from "../email.js";
 import type * as fixOrgData from "../fixOrgData.js";
 import type * as fixtures from "../fixtures.js";
@@ -37,6 +41,9 @@ import type * as ports from "../ports.js";
 import type * as recapManagers from "../recapManagers.js";
 import type * as routes from "../routes.js";
 import type * as seed from "../seed.js";
+import type * as signatures from "../signatures.js";
+import type * as testAvatarUrls from "../testAvatarUrls.js";
+import type * as uploadCompanyAvatars from "../uploadCompanyAvatars.js";
 import type * as users from "../users.js";
 import type * as vessels from "../vessels.js";
 import type * as widgets from "../widgets.js";
@@ -48,6 +55,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  approvals: typeof approvals;
   audit: typeof audit;
   auth: typeof auth;
   authQueries: typeof authQueries;
@@ -55,9 +63,12 @@ declare const fullApi: ApiFromModules<{
   cargo_types: typeof cargo_types;
   cleanOrphanedData: typeof cleanOrphanedData;
   cleanUsers: typeof cleanUsers;
+  cleanupDuplicateCompanies: typeof cleanupDuplicateCompanies;
+  cleanupOneDuplicateCompany: typeof cleanupOneDuplicateCompany;
   companies: typeof companies;
   contracts: typeof contracts;
   debug: typeof debug;
+  diagnosticAvatars: typeof diagnosticAvatars;
   email: typeof email;
   fixOrgData: typeof fixOrgData;
   fixtures: typeof fixtures;
@@ -77,6 +88,9 @@ declare const fullApi: ApiFromModules<{
   recapManagers: typeof recapManagers;
   routes: typeof routes;
   seed: typeof seed;
+  signatures: typeof signatures;
+  testAvatarUrls: typeof testAvatarUrls;
+  uploadCompanyAvatars: typeof uploadCompanyAvatars;
   users: typeof users;
   vessels: typeof vessels;
   widgets: typeof widgets;
