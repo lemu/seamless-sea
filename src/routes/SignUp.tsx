@@ -67,7 +67,7 @@ function SignUpPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-bold text-center">Create Account</h1>
           <p className="text-sm text-[var(--color-text-secondary)] text-center mt-2">
@@ -82,7 +82,7 @@ function SignUpPage() {
           )}
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">
                 Full Name
@@ -94,7 +94,7 @@ function SignUpPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
                 required
-                disabled={isLoading}
+                disabled={true}
                 autoComplete="name"
               />
             </div>
@@ -110,7 +110,7 @@ function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                disabled={isLoading}
+                disabled={true}
                 autoComplete="email"
               />
             </div>
@@ -126,7 +126,7 @@ function SignUpPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
                 required
-                disabled={isLoading}
+                disabled={true}
                 autoComplete="new-password"
                 minLength={8}
               />
@@ -143,7 +143,7 @@ function SignUpPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
                 required
-                disabled={isLoading}
+                disabled={true}
                 autoComplete="new-password"
                 minLength={8}
               />
@@ -159,9 +159,9 @@ function SignUpPage() {
               type="submit"
               variant="primary"
               className="w-full"
-              disabled={isLoading}
+              disabled={true}
             >
-              {isLoading ? "Creating account..." : "Create Account"}
+              Create Account (Disabled)
             </Button>
 
             <p className="text-sm text-center text-[var(--color-text-secondary)]">

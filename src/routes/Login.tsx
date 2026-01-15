@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { Button, Input, Card, CardHeader, CardContent } from "@rafal.lemieszewski/tide-ui";
+import { Button, Input, Card, CardHeader, CardContent, Tooltip, TooltipContent, TooltipTrigger } from "@rafal.lemieszewski/tide-ui";
 import { authClient } from "../lib/auth-client";
 
 function Login() {
@@ -37,7 +37,7 @@ function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-bold text-center">Sign In</h1>
           <p className="text-sm text-[var(--color-text-secondary)] text-center mt-2">
@@ -67,12 +67,16 @@ function Login() {
                 <label htmlFor="password" className="block text-sm font-medium">
                   Password
                 </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-[var(--color-primary)] hover:underline"
-                >
-                  Forgot password?
-                </Link>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-sm text-[var(--color-text-tertiary)] cursor-not-allowed">
+                      Forgot password?
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Contact admin for assistance
+                  </TooltipContent>
+                </Tooltip>
               </div>
               <Input
                 id="password"
