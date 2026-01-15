@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { Button, Input, Card, CardHeader, CardContent, Tooltip, TooltipContent, TooltipTrigger } from "@rafal.lemieszewski/tide-ui";
+import { Button, Input, Card, CardHeader, CardContent, Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@rafal.lemieszewski/tide-ui";
 import { authClient } from "../lib/auth-client";
 
 function Login() {
@@ -67,16 +67,18 @@ function Login() {
                 <label htmlFor="password" className="block text-sm font-medium">
                   Password
                 </label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="text-sm text-[var(--color-text-tertiary)] cursor-not-allowed">
-                      Forgot password?
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Contact admin for assistance
-                  </TooltipContent>
-                </Tooltip>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm text-[var(--color-text-tertiary)] cursor-not-allowed">
+                        Forgot password?
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Contact admin for assistance
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               <Input
                 id="password"
