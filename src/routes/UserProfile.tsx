@@ -221,18 +221,21 @@ function UserProfile() {
         </CardContent>
       </Card>
 
-      {/* Password Change Card */}
+      {/* Password Change Card - Disabled */}
       <Card>
         <CardHeader>
           <h2 className="text-heading-md text-[var(--color-text-primary)]">
             Change Password
           </h2>
           <p className="text-body-sm text-[var(--color-text-secondary)]">
-            Update your password to keep your account secure
+            Password changes are temporarily disabled
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
+          <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-3 mb-4">
+            Password change functionality is currently disabled. Please contact support if you need to reset your password.
+          </div>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
             <div>
               <label
                 htmlFor="currentPassword"
@@ -246,7 +249,7 @@ function UserProfile() {
                 placeholder="Enter current password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                disabled={changingPassword}
+                disabled={true}
                 required
               />
             </div>
@@ -264,7 +267,7 @@ function UserProfile() {
                 placeholder="At least 8 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                disabled={changingPassword}
+                disabled={true}
                 required
                 minLength={8}
               />
@@ -283,26 +286,14 @@ function UserProfile() {
                 placeholder="Confirm new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={changingPassword}
+                disabled={true}
                 required
                 minLength={8}
               />
             </div>
 
-            {passwordError && (
-              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
-                {passwordError}
-              </div>
-            )}
-
-            {passwordSuccess && (
-              <div className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-3">
-                {passwordSuccess}
-              </div>
-            )}
-
-            <Button type="submit" variant="primary" disabled={changingPassword}>
-              {changingPassword ? "Changing Password..." : "Change Password"}
+            <Button type="submit" variant="primary" disabled={true}>
+              Change Password (Disabled)
             </Button>
           </form>
         </CardContent>
