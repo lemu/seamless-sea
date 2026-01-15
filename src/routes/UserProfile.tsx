@@ -12,7 +12,6 @@ import {
 } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../hooks";
 import { api } from "../../convex/_generated/api";
-import { authClient } from "../lib/auth-client";
 
 function UserProfile() {
   const { user, refreshUser } = useUser();
@@ -24,9 +23,6 @@ function UserProfile() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [passwordSuccess, setPasswordSuccess] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
 
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const updateUserAvatar = useMutation(api.users.updateUserAvatar);
@@ -66,62 +62,6 @@ function UserProfile() {
       console.error("Avatar upload error:", err);
     } finally {
       setUploading(false);
-    }
-  };
-
-  // Handle password change using Better Auth
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPasswordError("");
-    setPasswordSuccess("");
-
-    // Validation
-    if (newPassword.length < 8) {
-      setPasswordError("New password must be at least 8 characters long");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match");
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setPasswordError("New password must be different from current password");
-      return;
-    }
-
-    setChangingPassword(true);
-
-    try {
-      const result = await authClient.changePassword({
-        currentPassword,
-        newPassword,
-        revokeOtherSessions: false,
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message || "Failed to change password");
-      }
-
-      setPasswordSuccess("Password changed successfully!");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      console.error("Password change error:", err);
-      if (err instanceof Error) {
-        // Handle common Better Auth errors
-        if (err.message.includes("incorrect") || err.message.includes("Invalid")) {
-          setPasswordError("Current password is incorrect");
-        } else {
-          setPasswordError(err.message);
-        }
-      } else {
-        setPasswordError("Failed to change password. Please try again.");
-      }
-    } finally {
-      setChangingPassword(false);
     }
   };
 

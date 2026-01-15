@@ -1,10 +1,8 @@
 import { useState } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Button, Input, Card, CardHeader, CardContent } from "@rafal.lemieszewski/tide-ui";
-import { authClient } from "../lib/auth-client";
 
 function SignUpPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get("invite");
 
@@ -12,58 +10,7 @@ function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    // Require invitation token for signup
-    if (!inviteToken) {
-      setError("Sign up is by invitation only. Please use your invitation link.");
-      return;
-    }
-
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    // Validate password length
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Create account with Better Auth
-      const result = await authClient.signUp.email({
-        name,
-        email,
-        password,
-      });
-
-      if (result.error) {
-        throw new Error(result.error.message || "Failed to create account");
-      }
-
-      // If there's an invite token, redirect to accept it (auto=1 triggers auto-accept)
-      if (inviteToken) {
-        navigate(`/invite/${inviteToken}?auto=1`);
-      } else {
-        // Navigate to home
-        navigate("/home");
-      }
-    } catch (err) {
-      console.error("Signup error:", err);
-      setError(err instanceof Error ? err.message : "Failed to create account. Please try again.");
-      setIsLoading(false);
-    }
-  };
+  const [error] = useState("");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
