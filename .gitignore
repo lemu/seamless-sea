@@ -20,6 +20,9 @@ dist-ssr
 # Local files
 TODO.md
 
+# Scripts directory (development/admin scripts)
+scripts/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -45,7 +45,8 @@ function OrganizationSettings() {
     api.organizations.getUserOrganizations,
     user?._id ? { userId: user._id } : "skip"
   );
-  const currentOrganization = userOrganizations?.[0];
+  // Always use Acme organization for invitations and member management
+  const currentOrganization = userOrganizations?.find(org => org.name === "Acme") || userOrganizations?.[0];
 
   // Dialog states
   const [removeMemberDialog, setRemoveMemberDialog] = useState<{
