@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,8 @@ import type {
   ExportColumn,
   ExportDateRange,
 } from "../types/export";
-import { exportData, generateFileName } from "../utils/exportHelpers";
+import { exportData, generateFileName, downloadFile } from "../utils/exportHelpers";
+import { useExportNotifications } from "../hooks";
 
 interface ExportDialogProps<T extends Record<string, any>> {
   open: boolean;
@@ -55,6 +56,12 @@ export function ExportDialog<T extends Record<string, any>>({
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [fileName, _setFileName] = useState(generateFileName("fixtures_export"));
   const [isExporting, setIsExporting] = useState(false);
+  const [lastExportBlob, setLastExportBlob] = useState<Blob | null>(null);
+  const [lastExportFileName, setLastExportFileName] = useState<string>("");
+  const [columnSearch, setColumnSearch] = useState("");
+
+  // Use export notifications hook
+  const { createExportCallbacks } = useExportNotifications();
 
   // Initialize columns state with visible columns selected
   const [columns, setColumns] = useState<ExportColumn[]>(() =>
@@ -66,6 +73,28 @@ export function ExportDialog<T extends Record<string, any>>({
     }))
   );
 
+  // Track if columns were manually modified by the user
+  const [manuallyModified, setManuallyModified] = useState(false);
+
+  // Auto-sync columns when bookmark or all scope is selected (unless manually modified)
+  useEffect(() => {
+    if ((dataScope === "bookmark" || dataScope === "all") && !manuallyModified) {
+      setColumns(prev =>
+        prev.map(col => ({
+          ...col,
+          selected: visibleColumns.includes(col.id)
+        }))
+      );
+    }
+  }, [dataScope, visibleColumns, manuallyModified]);
+
+  // Reset manual modification flag when leaving bookmark scope
+  useEffect(() => {
+    if (dataScope !== "bookmark") {
+      setManuallyModified(false);
+    }
+  }, [dataScope]);
+
   // Calculate data to export based on scope
   const dataToExport = useMemo(() => {
     if (dataScope === "filtered") return filteredData;
@@ -76,12 +105,47 @@ export function ExportDialog<T extends Record<string, any>>({
   // Calculate selected column count
   const selectedColumnCount = columns.filter((col) => col.selected).length;
 
+  // Filter columns based on search
+  const filteredColumns = useMemo(() => {
+    return columns.filter((col) =>
+      col.label.toLowerCase().includes(columnSearch.toLowerCase())
+    );
+  }, [columns, columnSearch]);
+
   // Handle column selection toggle
   const handleColumnToggle = (columnId: string) => {
+    setManuallyModified(true);
     setColumns((prev) =>
       prev.map((col) =>
         col.id === columnId ? { ...col, selected: !col.selected } : col
       )
+    );
+  };
+
+  // Handle select all columns
+  const handleSelectAll = () => {
+    setManuallyModified(true);
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, selected: true }))
+    );
+  };
+
+  // Handle deselect all columns
+  const handleDeselectAll = () => {
+    setManuallyModified(true);
+    setColumns((prev) =>
+      prev.map((col) => ({ ...col, selected: false }))
+    );
+  };
+
+  // Handle reset to bookmark columns
+  const handleResetToBookmark = () => {
+    setManuallyModified(false);
+    setColumns(prev =>
+      prev.map(col => ({
+        ...col,
+        selected: visibleColumns.includes(col.id)
+      }))
     );
   };
 
@@ -95,6 +159,14 @@ export function ExportDialog<T extends Record<string, any>>({
     setIsExporting(true);
 
     try {
+      const retryDownload = () => {
+        if (lastExportBlob && lastExportFileName) {
+          downloadFile(lastExportBlob, lastExportFileName);
+        }
+      };
+
+      const callbacks = createExportCallbacks(format, retryDownload);
+
       const options: ExportOptions = {
         format,
         dataScope,
@@ -117,19 +189,17 @@ export function ExportDialog<T extends Record<string, any>>({
         },
       };
 
-      const result = exportData(dataToExport, options);
+      const result = await exportData(dataToExport, options, callbacks);
 
-      if (result.success) {
-        toast.success("Export successful!");
+      if (result.success && result.blob) {
+        // Store for potential retry
+        setLastExportBlob(result.blob);
+        setLastExportFileName(result.fileName);
         onClose();
-      } else {
-        toast.error(`Export failed: ${result.error}`);
       }
     } catch (error) {
       console.error("Export error:", error);
-      toast.error(
-        `Export failed: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
+      // Error already handled by callbacks
     } finally {
       setIsExporting(false);
     }
@@ -137,7 +207,7 @@ export function ExportDialog<T extends Record<string, any>>({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="!max-w-lg max-h-[85vh] overflow-y-auto w-full">
         <DialogHeader>
           <DialogTitle>Export fixtures</DialogTitle>
         </DialogHeader>
@@ -270,23 +340,76 @@ export function ExportDialog<T extends Record<string, any>>({
           <Separator className="bg-[var(--color-border-primary-subtle)]" />
 
           {/* Column Selection */}
-          <div className="flex flex-col gap-1">
-            <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
-              Columns
-            </Label>
-
-            <div className="flex flex-wrap gap-2">
-              {columns.map((column) => (
-                <Toggle
-                  key={column.id}
-                  pressed={column.selected}
-                  onPressedChange={() => handleColumnToggle(column.id)}
-                  variant="outline"
+          <div className="flex flex-col gap-3">
+            {/* Header with Label and Action Buttons */}
+            <div className="flex items-center justify-between">
+              <Label className="text-label-md font-medium text-[var(--color-text-primary)]">
+                Columns
+              </Label>
+              <div className="flex gap-2">
+                {dataScope !== "all" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetToBookmark}
+                    disabled={isExporting || !bookmarkName}
+                  >
+                    Reset to Bookmark
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
                   size="sm"
+                  onClick={handleSelectAll}
+                  disabled={isExporting}
                 >
-                  {column.label}
-                </Toggle>
-              ))}
+                  Select All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDeselectAll}
+                  disabled={isExporting}
+                >
+                  Deselect All
+                </Button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <Input
+              type="search"
+              placeholder="Search columns..."
+              value={columnSearch}
+              onChange={(e) => setColumnSearch(e.target.value)}
+            />
+
+            {/* Scrollable Columns Container */}
+            <div className="relative max-h-[200px] overflow-y-auto rounded-md border border-[var(--color-border-primary-subtle)] p-4">
+              {filteredColumns.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {filteredColumns.map((column) => (
+                    <Toggle
+                      key={column.id}
+                      pressed={column.selected}
+                      onPressedChange={() => handleColumnToggle(column.id)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {column.label}
+                    </Toggle>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-[var(--color-text-tertiary)] text-label-sm">
+                  No columns found
+                </div>
+              )}
+            </div>
+
+            {/* Column Count Display */}
+            <div className="text-label-sm text-[var(--color-text-tertiary)]">
+              {selectedColumnCount} of {columns.length} columns selected
             </div>
           </div>
         </DialogBody>

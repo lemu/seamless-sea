@@ -1,17 +1,18 @@
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import type {
   ExportOptions,
   ExportResult,
   ExportColumn,
+  ExportCallbacks,
 } from "../types/export";
 
 /**
  * Download a file to the user's device
  */
-function downloadFile(blob: Blob, fileName: string): void {
+export function downloadFile(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -62,13 +63,22 @@ function selectColumns<T extends Record<string, any>>(
 }
 
 /**
+ * Helper to add artificial delay for better UX
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Export data as CSV
  */
-export function exportToCSV<T extends Record<string, any>>(
+export async function exportToCSV<T extends Record<string, any>>(
   data: T[],
-  options: ExportOptions
-): ExportResult {
+  options: ExportOptions,
+  callbacks?: ExportCallbacks
+): Promise<ExportResult> {
   try {
+    callbacks?.onProgress?.('preparing');
+    await delay(900); // Show "preparing" toast
+
     // Filter by date range if specified
     let filteredData = data;
     if (options.dateRange.type === "custom") {
@@ -82,6 +92,9 @@ export function exportToCSV<T extends Record<string, any>>(
 
     // Select and order columns
     const exportData = selectColumns(filteredData, options.columns);
+
+    callbacks?.onProgress?.('generating');
+    await delay(600); // Show "generating" toast
 
     // Generate CSV with Papa Parse
     const csv = Papa.unparse(exportData);
@@ -92,23 +105,34 @@ export function exportToCSV<T extends Record<string, any>>(
       type: "text/csv;charset=utf-8;",
     });
 
+    callbacks?.onProgress?.('ready');
+    await delay(900); // Show "ready" toast
+
     // Download file
     const fileName = `${options.fileName}.csv`;
     downloadFile(blob, fileName);
+
+    callbacks?.onComplete?.({
+      recordCount: exportData.length,
+      fileName,
+    });
 
     return {
       success: true,
       fileName,
       fileSize: blob.size,
       rowCount: exportData.length,
+      blob,
     };
   } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error("Failed to export CSV");
+    callbacks?.onError?.(errorObj);
+
     return {
       success: false,
       fileName: options.fileName,
       rowCount: 0,
-      error:
-        error instanceof Error ? error.message : "Failed to export CSV",
+      error: errorObj.message,
     };
   }
 }
@@ -116,11 +140,15 @@ export function exportToCSV<T extends Record<string, any>>(
 /**
  * Export data as Excel
  */
-export function exportToExcel<T extends Record<string, any>>(
+export async function exportToExcel<T extends Record<string, any>>(
   data: T[],
-  options: ExportOptions
-): ExportResult {
+  options: ExportOptions,
+  callbacks?: ExportCallbacks
+): Promise<ExportResult> {
   try {
+    callbacks?.onProgress?.('preparing');
+    await delay(900); // Show "preparing" toast
+
     // Filter by date range if specified
     let filteredData = data;
     if (options.dateRange.type === "custom") {
@@ -135,57 +163,81 @@ export function exportToExcel<T extends Record<string, any>>(
     // Select and order columns
     const exportData = selectColumns(filteredData, options.columns);
 
+    callbacks?.onProgress?.('generating');
+    await delay(600); // Show "generating" toast
+
     // Create workbook and worksheet
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Fixtures");
+
+    // Get column headers from first row
+    const headers = Object.keys(exportData[0] || {});
+
+    // Add header row
+    worksheet.addRow(headers);
+
+    // Add data rows
+    exportData.forEach((row) => {
+      worksheet.addRow(headers.map((header) => row[header]));
+    });
 
     // Apply Excel-specific options
     if (options.excel?.freezeHeader) {
-      worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+      worksheet.views = [
+        { state: "frozen", ySplit: 1 }
+      ];
     }
 
     if (options.excel?.autoFitColumns) {
       // Calculate column widths
-      const colWidths = Object.keys(exportData[0] || {}).map((key) => {
+      worksheet.columns = headers.map((key) => {
         const maxLength = Math.max(
           key.length,
           ...exportData.map((row) => String(row[key] || "").length)
         );
-        return { wch: Math.min(maxLength + 2, 50) };
+        return {
+          header: key,
+          key: key,
+          width: Math.min(maxLength + 2, 50)
+        };
       });
-      worksheet["!cols"] = colWidths;
     }
 
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Fixtures");
-
     // Generate Excel file
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
+    const excelBuffer = await workbook.xlsx.writeBuffer();
 
     const blob = new Blob([excelBuffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
+    callbacks?.onProgress?.('ready');
+    await delay(900); // Show "ready" toast
+
     // Download file
     const fileName = `${options.fileName}.xlsx`;
     downloadFile(blob, fileName);
+
+    callbacks?.onComplete?.({
+      recordCount: exportData.length,
+      fileName,
+    });
 
     return {
       success: true,
       fileName,
       fileSize: blob.size,
       rowCount: exportData.length,
+      blob,
     };
   } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error("Failed to export Excel");
+    callbacks?.onError?.(errorObj);
+
     return {
       success: false,
       fileName: options.fileName,
       rowCount: 0,
-      error:
-        error instanceof Error ? error.message : "Failed to export Excel",
+      error: errorObj.message,
     };
   }
 }
@@ -193,11 +245,15 @@ export function exportToExcel<T extends Record<string, any>>(
 /**
  * Export data as PDF
  */
-export function exportToPDF<T extends Record<string, any>>(
+export async function exportToPDF<T extends Record<string, any>>(
   data: T[],
-  options: ExportOptions
-): ExportResult {
+  options: ExportOptions,
+  callbacks?: ExportCallbacks
+): Promise<ExportResult> {
   try {
+    callbacks?.onProgress?.('preparing');
+    await delay(900); // Show "preparing" toast
+
     // Filter by date range if specified
     let filteredData = data;
     if (options.dateRange.type === "custom") {
@@ -211,6 +267,9 @@ export function exportToPDF<T extends Record<string, any>>(
 
     // Select and order columns
     const exportData = selectColumns(filteredData, options.columns);
+
+    callbacks?.onProgress?.('generating');
+    await delay(600); // Show "generating" toast
 
     // Create PDF document
     const orientation = options.pdf?.orientation || "landscape";
@@ -257,23 +316,34 @@ export function exportToPDF<T extends Record<string, any>>(
     // Generate blob
     const blob = doc.output("blob");
 
+    callbacks?.onProgress?.('ready');
+    await delay(900); // Show "ready" toast
+
     // Download file
     const fileName = `${options.fileName}.pdf`;
     downloadFile(blob, fileName);
+
+    callbacks?.onComplete?.({
+      recordCount: exportData.length,
+      fileName,
+    });
 
     return {
       success: true,
       fileName,
       fileSize: blob.size,
       rowCount: exportData.length,
+      blob,
     };
   } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error("Failed to export PDF");
+    callbacks?.onError?.(errorObj);
+
     return {
       success: false,
       fileName: options.fileName,
       rowCount: 0,
-      error:
-        error instanceof Error ? error.message : "Failed to export PDF",
+      error: errorObj.message,
     };
   }
 }
@@ -281,24 +351,40 @@ export function exportToPDF<T extends Record<string, any>>(
 /**
  * Main export function that delegates to format-specific exporters
  */
-export function exportData<T extends Record<string, any>>(
+export async function exportData<T extends Record<string, any>>(
   data: T[],
-  options: ExportOptions
-): ExportResult {
-  switch (options.format) {
-    case "csv":
-      return exportToCSV(data, options);
-    case "excel":
-      return exportToExcel(data, options);
-    case "pdf":
-      return exportToPDF(data, options);
-    default:
-      return {
-        success: false,
-        fileName: options.fileName,
-        rowCount: 0,
-        error: `Unsupported export format: ${options.format}`,
-      };
+  options: ExportOptions,
+  callbacks?: ExportCallbacks
+): Promise<ExportResult> {
+  try {
+    callbacks?.onStart?.();
+
+    switch (options.format) {
+      case "csv":
+        return await exportToCSV(data, options, callbacks);
+      case "excel":
+        return await exportToExcel(data, options, callbacks);
+      case "pdf":
+        return await exportToPDF(data, options, callbacks);
+      default:
+        const error = new Error(`Unsupported export format: ${options.format}`);
+        callbacks?.onError?.(error);
+        return {
+          success: false,
+          fileName: options.fileName,
+          rowCount: 0,
+          error: error.message,
+        };
+    }
+  } catch (error) {
+    const errorObj = error instanceof Error ? error : new Error("Export failed");
+    callbacks?.onError?.(errorObj);
+    return {
+      success: false,
+      fileName: options.fileName,
+      rowCount: 0,
+      error: errorObj.message,
+    };
   }
 }
 
