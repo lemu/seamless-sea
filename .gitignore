@@ -23,6 +23,9 @@ TODO.md
 # Scripts directory (development/admin scripts)
 scripts/
 
+# Documentation directory (local documentation files)
+docs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
