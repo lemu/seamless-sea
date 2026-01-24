@@ -83,6 +83,16 @@ export interface ExportOptions {
 }
 
 /**
+ * Export callbacks for progress notifications
+ */
+export interface ExportCallbacks {
+  onStart?: () => void;
+  onProgress?: (stage: 'preparing' | 'generating' | 'ready') => void;
+  onComplete?: (result: { recordCount: number; fileName: string }) => void;
+  onError?: (error: Error) => void;
+}
+
+/**
  * Export result
  */
 export interface ExportResult {
@@ -91,4 +101,5 @@ export interface ExportResult {
   fileSize?: number;
   rowCount: number;
   error?: string;
+  blob?: Blob;
 }
