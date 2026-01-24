@@ -17,11 +17,11 @@
   },
   "dependencies": {
     "@convex-dev/better-auth": "^0.10.10",
-    "@rafal.lemieszewski/tide-ui": "^0.62.0",
+    "@rafal.lemieszewski/tide-ui": "^0.63.1",
     "@types/papaparse": "^5.5.0",
     "@types/react-router": "^5.1.20",
     "bcryptjs": "^2.4.3",
-    "better-auth": "^1.4.17",
+    "better-auth": "^1.4.9",
     "clsx": "^2.1.1",
     "convex": "^1.23.0",
     "dotenv": "^17.2.3",
