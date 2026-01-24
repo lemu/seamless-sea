@@ -53,12 +53,20 @@ import {
   type FilterValue,
   type Bookmark,
 } from "@rafal.lemieszewski/tide-ui";
-import { useHeaderActions } from "../hooks";
+import { useHeaderActions, useUser } from "../hooks";
 import { ExportDialog } from "../components/ExportDialog";
 import { FormattedActivityLogDescription, ActivityLogExpandableContent } from "../components/ActivityLogDescription";
-import { useQuery } from "convex/react";
+import { ApprovalSignatureRow } from "../components/ApprovalSignatureRow";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { formatLaycanRange, formatCargo } from "../utils/dataUtils";
+import {
+  calculateFreightSavings,
+  calculateDemurrageSavings,
+  calculateDaysBetween,
+  calculateFreightVsMarket,
+} from "../utils/fixtureCalculations";
 
 // Define types for fixture structure
 interface FixtureData {
@@ -88,6 +96,92 @@ interface FixtureData {
   loadPort?: any;
   dischargePort?: any;
   cargoType?: any;
+  // Approval and signature data
+  approvals?: any[];
+  approvalSummary?: {
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+  };
+  signatures?: any[];
+  signatureSummary?: {
+    total: number;
+    signed: number;
+    pending: number;
+    rejected: number;
+  };
+
+  // Priority 1: Core Commercial Fields
+  laycanStart?: number;
+  laycanEnd?: number;
+  loadPortName?: string;
+  loadPortCountry?: string;
+  loadDeliveryType?: string;
+  dischargePortName?: string;
+  dischargePortCountry?: string;
+  dischargeRedeliveryType?: string;
+  vesselImo?: string;
+  cargoTypeName?: string;
+  cargoQuantity?: number;
+  finalFreightRate?: string | number;
+  finalDemurrageRate?: string | number;
+
+  // Priority 2: Freight & Demurrage Analytics
+  highestFreightRateIndication?: number;
+  lowestFreightRateIndication?: number;
+  firstFreightRateIndication?: number;
+  highestFreightRateLastDay?: number;
+  lowestFreightRateLastDay?: number;
+  firstFreightRateLastDay?: number;
+  freightSavingsPercent?: number; // calculated
+  marketIndex?: number;
+  marketIndexName?: string;
+  freightVsMarketPercent?: number; // calculated
+  grossFreight?: number;
+  highestDemurrageIndication?: number;
+  lowestDemurrageIndication?: number;
+  demurrageSavingsPercent?: number; // calculated
+
+  // Priority 3: Commissions
+  addressCommissionPercent?: number;
+  addressCommissionTotal?: number;
+  brokerCommissionPercent?: number;
+  brokerCommissionTotal?: number;
+
+  // Priority 4: CP Workflow Dates
+  cpDate?: number;
+  workingCopyDate?: number;
+  finalDate?: number;
+  fullySignedDate?: number;
+  daysToWorkingCopy?: number; // calculated
+  daysToFinal?: number; // calculated
+  daysToSigned?: number; // calculated
+
+  // Priority 5: Approval Status Details
+  ownerApprovalStatus?: string;
+  ownerApprovedBy?: string;
+  ownerApprovalDate?: number;
+  chartererApprovalStatus?: string;
+  chartererApprovedBy?: string;
+  chartererApprovalDate?: number;
+
+  // Priority 6: Signature Status Details
+  ownerSignatureStatus?: string;
+  ownerSignedBy?: string;
+  ownerSignatureDate?: number;
+  chartererSignatureStatus?: string;
+  chartererSignedBy?: string;
+  chartererSignatureDate?: number;
+
+  // Priority 7: User Tracking
+  dealCaptureUser?: string;
+  orderCreatedBy?: string;
+  negotiationCreatedBy?: string;
+
+  // Priority 8: Parent/Child Relationships
+  parentCpId?: string;
+  contractType?: string;
 }
 
 // Define types for change history
@@ -106,8 +200,19 @@ interface ChangeHistoryEntry {
   oldValue?: string;  // The previous value (for 'updated' action)
 }
 
-
-
+// Extended column metadata to support auto-generation of filter definitions
+declare module '@tanstack/react-table' {
+  interface ColumnMeta<TData, TValue> {
+    label: string;
+    align?: "left" | "center" | "right";
+    // Filter configuration
+    filterable?: boolean;
+    filterType?: "text" | "multiselect" | "number" | "date" | "range";
+    filterOptions?: Array<{ value: string; label: string }>;
+    filterGroup?: string;
+    filterIcon?: ({ className }: { className?: string }) => JSX.Element;
+  }
+}
 
 // Transform database contracts and recap managers to FixtureData format
 const transformFixturesToTableData = (
@@ -162,6 +267,91 @@ const transformFixturesToTableData = (
         loadPort: item.loadPort,
         dischargePort: item.dischargePort,
         cargoType: item.cargoType,
+        // Include approval and signature data
+        approvals: item.approvals,
+        approvalSummary: item.approvalSummary,
+        signatures: item.signatures,
+        signatureSummary: item.signatureSummary,
+
+        // Priority 1: Core Commercial Fields
+        laycanStart: item.negotiation?.laycanStart || item.laycanStart,
+        laycanEnd: item.negotiation?.laycanEnd || item.laycanEnd,
+        loadPortName: item.loadPort?.name,
+        loadPortCountry: item.loadPort?.country,
+        loadDeliveryType: item.negotiation?.loadDeliveryType,
+        dischargePortName: item.dischargePort?.name,
+        dischargePortCountry: item.dischargePort?.country,
+        dischargeRedeliveryType: item.negotiation?.dischargeRedeliveryType,
+        vesselImo: item.vessel?.imoNumber,
+        cargoTypeName: item.cargoType?.name,
+        cargoQuantity: item.negotiation?.quantity || item.quantity,
+        finalFreightRate: item.negotiation?.freightRate || item.freightRate,
+        finalDemurrageRate: item.negotiation?.demurrageRate || item.demurrageRate,
+
+        // Priority 2: Freight & Demurrage Analytics
+        highestFreightRateIndication: item.negotiation?.highestFreightRateIndication,
+        lowestFreightRateIndication: item.negotiation?.lowestFreightRateIndication,
+        firstFreightRateIndication: item.negotiation?.firstFreightRateIndication,
+        highestFreightRateLastDay: item.negotiation?.highestFreightRateLastDay,
+        lowestFreightRateLastDay: item.negotiation?.lowestFreightRateLastDay,
+        firstFreightRateLastDay: item.negotiation?.firstFreightRateLastDay,
+        freightSavingsPercent: calculateFreightSavings(
+          item.negotiation?.highestFreightRateIndication,
+          item.negotiation?.freightRate || item.freightRate
+        ) ?? undefined,
+        marketIndex: item.negotiation?.marketIndex,
+        marketIndexName: item.negotiation?.marketIndexName,
+        freightVsMarketPercent: calculateFreightVsMarket(
+          item.negotiation?.freightRate || item.freightRate,
+          item.negotiation?.marketIndex
+        ) ?? undefined,
+        grossFreight: item.negotiation?.grossFreight,
+        highestDemurrageIndication: item.negotiation?.highestDemurrageIndication,
+        lowestDemurrageIndication: item.negotiation?.lowestDemurrageIndication,
+        demurrageSavingsPercent: calculateDemurrageSavings(
+          item.negotiation?.highestDemurrageIndication,
+          item.negotiation?.demurrageRate || item.demurrageRate
+        ) ?? undefined,
+
+        // Priority 3: Commissions
+        addressCommissionPercent: item.negotiation?.addressCommissionPercent,
+        addressCommissionTotal: item.negotiation?.addressCommissionTotal,
+        brokerCommissionPercent: item.negotiation?.brokerCommissionPercent,
+        brokerCommissionTotal: item.negotiation?.brokerCommissionTotal,
+
+        // Priority 4: CP Workflow Dates
+        cpDate: item._creationTime,
+        workingCopyDate: item.workingCopyDate,
+        finalDate: item.finalDate,
+        fullySignedDate: item.fullySignedDate,
+        daysToWorkingCopy: calculateDaysBetween(item._creationTime, item.workingCopyDate) ?? undefined,
+        daysToFinal: calculateDaysBetween(item.workingCopyDate, item.finalDate) ?? undefined,
+        daysToSigned: calculateDaysBetween(item.finalDate, item.fullySignedDate) ?? undefined,
+
+        // Priority 5: Approval Status Details
+        ownerApprovalStatus: item.approvals?.find((a: any) => a.partyRole === 'owner')?.status,
+        ownerApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedBy?.name,
+        ownerApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedAt,
+        chartererApprovalStatus: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.status,
+        chartererApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedBy?.name,
+        chartererApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedAt,
+
+        // Priority 6: Signature Status Details
+        ownerSignatureStatus: item.signatures?.find((s: any) => s.partyRole === 'owner')?.status,
+        ownerSignedBy: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedBy?.name,
+        ownerSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedAt,
+        chartererSignatureStatus: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.status,
+        chartererSignedBy: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedBy?.name,
+        chartererSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedAt,
+
+        // Priority 7: User Tracking
+        dealCaptureUser: item.negotiation?.dealCaptureUser?.name,
+        orderCreatedBy: item.order?.createdBy?.name,
+        negotiationCreatedBy: item.negotiation?.createdBy?.name,
+
+        // Priority 8: Parent/Child Relationships
+        parentCpId: item.parentContract?.contractNumber,
+        contractType: item.contractType,
       });
     });
   });
@@ -170,13 +360,33 @@ const transformFixturesToTableData = (
 };
 
 // Helper function to format timestamp
-const formatTimestamp = (timestamp: number): string => {
-  const date = new Date(timestamp);
+const formatTimestamp = (timestamp: number | string | undefined | null): string => {
+  // Handle null/undefined
+  if (timestamp === null || timestamp === undefined) return '–';
+
+  // Convert to number if string
+  const ts = typeof timestamp === 'string' ? parseFloat(timestamp) : timestamp;
+
+  // Validate it's a number
+  if (typeof ts !== 'number' || isNaN(ts)) {
+    console.warn('Invalid timestamp:', timestamp);
+    return '–';
+  }
+
+  // Create date and validate
+  const date = new Date(ts);
+  if (isNaN(date.getTime())) {
+    console.warn('Invalid date from timestamp:', ts);
+    return '–';
+  }
+
+  // Format the date
   const day = date.getDate();
   const month = date.toLocaleString('en-US', { month: 'short' });
   const year = date.getFullYear();
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
+
   return `${day} ${month} ${year} ${hours}:${minutes}`;
 };
 
@@ -256,8 +466,6 @@ function FixtureSidebar({
       ? { entityType: "negotiation", entityId: fixture.negotiation._id }
       : "skip"
   );
-
-  const approvalStatus: any | undefined = undefined; // TODO: implement getApprovalStatus query
 
   // Combine and sort activity logs (oldest first)
   const allActivityLogs: any[] = useMemo(() => {
@@ -376,16 +584,25 @@ function FixtureSidebar({
                         </AttributesRow>
                       </AttributesItem>
 
-                      <AttributesItem>
-                        <AttributesRow>
-                          <AttributesLabel>Approval</AttributesLabel>
-                          <AttributesValue>
-                            {approvalStatus
-                              ? `${approvalStatus.summary.approved}/${approvalStatus.summary.total + approvalStatus.summary.pending} approved`
-                              : "Not started"}
-                          </AttributesValue>
-                        </AttributesRow>
-                      </AttributesItem>
+                      {/* Contract Approval */}
+                      {fixture.approvalSummary && fixture.approvals && fixture.approvalSummary.total > 0 && (
+                        <ApprovalSignatureRow
+                          label="Contract Approval"
+                          type="approval"
+                          records={fixture.approvals}
+                          summary={fixture.approvalSummary}
+                        />
+                      )}
+
+                      {/* Contract Signature */}
+                      {fixture.signatureSummary && fixture.signatures && fixture.signatureSummary.total > 0 && (
+                        <ApprovalSignatureRow
+                          label="Contract Signature"
+                          type="signature"
+                          records={fixture.signatures}
+                          summary={fixture.signatureSummary}
+                        />
+                      )}
                     </AttributesGroup>
                 </AttributesList>
               </Card>
@@ -435,14 +652,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {chartererChanges.map((entry, index) => (
+                              {chartererChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -455,7 +676,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -478,14 +700,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {brokerChanges.map((entry, index) => (
+                              {brokerChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -498,7 +724,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -521,14 +748,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {ownerChanges.map((entry, index) => (
+                              {ownerChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -541,7 +772,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -705,14 +937,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {loadPortChanges.map((entry, index) => (
+                              {loadPortChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -725,7 +961,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -747,14 +984,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {dischargePortChanges.map((entry, index) => (
+                              {dischargePortChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -767,7 +1008,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -786,14 +1028,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {cargoChanges.map((entry, index) => (
+                              {cargoChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -806,7 +1052,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -875,14 +1122,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {freightRateChanges.map((entry, index) => (
+                              {freightRateChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -895,7 +1146,8 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
@@ -914,14 +1166,18 @@ function FixtureSidebar({
                         <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
                           <div className="rounded bg-[var(--color-surface-sunken)] p-2">
                             <ActivityLog>
-                              {demurrageChanges.map((entry, index) => (
+                              {demurrageChanges.map((entry, index) => {
+                                const userName = entry.user?.name || 'System';
+                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                                return (
                                 <ActivityLogItem key={index}>
                                   <ActivityLogHeader>
                                     <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
                                     </Avatar>
                                     <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
+                                      <span className="text-body-medium-sm">{userName}</span>
                                       <span>{entry.action === 'created' ? 'set Demurrage Rate to' : 'changed Demurrage Rate from'}</span>
                                       {entry.action === 'updated' && entry.oldValue && (
                                         <>
@@ -934,26 +1190,305 @@ function FixtureSidebar({
                                     </ActivityLogDescription>
                                   </ActivityLogHeader>
                                 </ActivityLogItem>
-                              ))}
+                                );
+                              })}
                             </ActivityLog>
                           </div>
                         </AttributesContent>
                       )}
                     </AttributesItem>
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Address commission</AttributesLabel>
-                        <AttributesValue>3.75%</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {/* Gross Freight */}
+                    {fixture.negotiation?.grossFreight && (
+                      <AttributesItem>
+                        <AttributesRow>
+                          <AttributesLabel>Gross Freight</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.grossFreight.toLocaleString()}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    <AttributesItem hidden>
-                      <AttributesRow>
-                        <AttributesLabel>Broker commission</AttributesLabel>
-                        <AttributesValue>1.25%</AttributesValue>
-                      </AttributesRow>
-                    </AttributesItem>
+                    {/* Analytics - Hidden in "More details" */}
+                    {fixture.negotiation?.highestFreightRateIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Highest freight indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.highestFreightRateIndication.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.lowestFreightRateIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Lowest freight indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.lowestFreightRateIndication.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.firstFreightRateIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>First freight indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.firstFreightRateIndication.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.highestFreightRateLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Highest freight (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.highestFreightRateLastDay.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.lowestFreightRateLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Lowest freight (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.lowestFreightRateLastDay.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.firstFreightRateLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>First freight (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.firstFreightRateLastDay.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {(() => {
+                      const savings = calculateFreightSavings(
+                        fixture.negotiation?.highestFreightRateIndication,
+                        fixture.negotiation?.freightRate
+                      );
+                      if (!savings) return null;
+                      const finalRate = fixture.negotiation?.freightRate ? parseFloat(fixture.negotiation.freightRate.replace(/[^0-9.]/g, '')) : 0;
+                      const savingsAmount = (fixture.negotiation?.highestFreightRateIndication || 0) - finalRate;
+                      return (
+                        <AttributesItem hidden>
+                          <AttributesRow>
+                            <AttributesLabel>Freight savings from highest</AttributesLabel>
+                            <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
+                              ${savingsAmount.toFixed(2)} ({savings.toFixed(1)}%)
+                              <Icon name="CheckCircle" size="sm" />
+                            </AttributesValue>
+                          </AttributesRow>
+                        </AttributesItem>
+                      );
+                    })()}
+
+                    {(() => {
+                      if (!fixture.negotiation?.firstFreightRateLastDay || !fixture.negotiation?.freightRate) return null;
+                      const finalRate = parseFloat(fixture.negotiation.freightRate.replace(/[^0-9.]/g, ''));
+                      const improvement = fixture.negotiation.firstFreightRateLastDay - finalRate;
+                      const improvementPercent = (improvement / fixture.negotiation.firstFreightRateLastDay) * 100;
+                      if (improvement <= 0) return null;
+                      return (
+                        <AttributesItem hidden>
+                          <AttributesRow>
+                            <AttributesLabel>Freight last day improvement</AttributesLabel>
+                            <AttributesValue className="text-[var(--color-text-success)]">
+                              ${improvement.toFixed(2)} ({improvementPercent.toFixed(1)}%)
+                            </AttributesValue>
+                          </AttributesRow>
+                        </AttributesItem>
+                      );
+                    })()}
+
+                    {fixture.negotiation?.marketIndex && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>
+                            {fixture.negotiation.marketIndexName || "Market index"}
+                          </AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.marketIndex.toFixed(2)}/mt
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {(() => {
+                      const vsMarket = calculateFreightVsMarket(
+                        fixture.negotiation?.freightRate,
+                        fixture.negotiation?.marketIndex
+                      );
+                      if (vsMarket === null) return null;
+                      return (
+                        <AttributesItem hidden>
+                          <AttributesRow>
+                            <AttributesLabel>vs Market</AttributesLabel>
+                            <AttributesValue
+                              className={
+                                vsMarket < 0
+                                  ? "text-[var(--color-text-success)]"
+                                  : "text-[var(--color-text-danger)]"
+                              }
+                            >
+                              {vsMarket >= 0 ? '+' : ''}{vsMarket.toFixed(1)}%
+                              {vsMarket < 0 && (
+                                <Icon
+                                  name="CheckCircle"
+                                  size="sm"
+                                  className="inline ml-1"
+                                />
+                              )}
+                            </AttributesValue>
+                          </AttributesRow>
+                        </AttributesItem>
+                      );
+                    })()}
+
+                    {fixture.negotiation?.highestDemurrageIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Highest demurrage indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.highestDemurrageIndication.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.lowestDemurrageIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Lowest demurrage indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.lowestDemurrageIndication.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.firstDemurrageIndication && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>First demurrage indication</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.firstDemurrageIndication.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.highestDemurrageLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Highest demurrage (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.highestDemurrageLastDay.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.lowestDemurrageLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Lowest demurrage (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.lowestDemurrageLastDay.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.firstDemurrageLastDay && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>First demurrage (last day)</AttributesLabel>
+                          <AttributesValue>
+                            ${fixture.negotiation.firstDemurrageLastDay.toLocaleString()}/day
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {(() => {
+                      const savings = calculateDemurrageSavings(
+                        fixture.negotiation?.highestDemurrageIndication,
+                        fixture.negotiation?.demurrageRate
+                      );
+                      if (!savings) return null;
+                      const finalRate = fixture.negotiation?.demurrageRate ? parseFloat(fixture.negotiation.demurrageRate.replace(/[^0-9]/g, '')) : 0;
+                      const savingsAmount = (fixture.negotiation?.highestDemurrageIndication || 0) - finalRate;
+                      return (
+                        <AttributesItem hidden>
+                          <AttributesRow>
+                            <AttributesLabel>Demurrage savings from highest</AttributesLabel>
+                            <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
+                              ${savingsAmount.toLocaleString()} ({savings.toFixed(1)}%)
+                              <Icon name="CheckCircle" size="sm" />
+                            </AttributesValue>
+                          </AttributesRow>
+                        </AttributesItem>
+                      );
+                    })()}
+
+                    {(() => {
+                      if (!fixture.negotiation?.firstDemurrageLastDay || !fixture.negotiation?.demurrageRate) return null;
+                      const finalRate = parseFloat(fixture.negotiation.demurrageRate.replace(/[^0-9]/g, ''));
+                      const improvement = fixture.negotiation.firstDemurrageLastDay - finalRate;
+                      const improvementPercent = (improvement / fixture.negotiation.firstDemurrageLastDay) * 100;
+                      if (improvement <= 0) return null;
+                      return (
+                        <AttributesItem hidden>
+                          <AttributesRow>
+                            <AttributesLabel>Demurrage last day improvement</AttributesLabel>
+                            <AttributesValue className="text-[var(--color-text-success)]">
+                              ${improvement.toLocaleString()} ({improvementPercent.toFixed(1)}%)
+                            </AttributesValue>
+                          </AttributesRow>
+                        </AttributesItem>
+                      );
+                    })()}
+
+                    {/* Commissions - always visible */}
+                    {fixture.negotiation?.addressCommissionPercent && (
+                      <AttributesItem>
+                        <AttributesRow>
+                          <AttributesLabel>Address commission</AttributesLabel>
+                          <AttributesValue>
+                            {fixture.negotiation.addressCommissionPercent}%
+                            {fixture.negotiation.addressCommissionTotal && ` ($${fixture.negotiation.addressCommissionTotal.toLocaleString()})`}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
+
+                    {fixture.negotiation?.brokerCommissionPercent && (
+                      <AttributesItem>
+                        <AttributesRow>
+                          <AttributesLabel>Broker commission</AttributesLabel>
+                          <AttributesValue>
+                            {fixture.negotiation.brokerCommissionPercent}%
+                            {fixture.negotiation.brokerCommissionTotal && ` ($${fixture.negotiation.brokerCommissionTotal.toLocaleString()})`}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
                   </AttributesGroup>
 
                   <AttributesSeparator />
@@ -1133,6 +1668,94 @@ function FixtureSidebar({
   );
 }
 
+// Custom hook to enforce minimum skeleton display time
+function useMinimumLoadingTime(isLoading: boolean, minimumMs: number = 500) {
+  const [showLoading, setShowLoading] = useState(false);
+  const loadingStartTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isLoading) {
+      // Started loading
+      loadingStartTimeRef.current = Date.now();
+      setShowLoading(true);
+    } else if (loadingStartTimeRef.current !== null) {
+      // Finished loading - check if minimum time has elapsed
+      const elapsed = Date.now() - loadingStartTimeRef.current;
+      const remaining = minimumMs - elapsed;
+
+      if (remaining > 0) {
+        // Wait for remaining time before hiding skeleton
+        const timer = setTimeout(() => {
+          setShowLoading(false);
+          loadingStartTimeRef.current = null;
+        }, remaining);
+        return () => clearTimeout(timer);
+      } else {
+        // Minimum time already elapsed
+        setShowLoading(false);
+        loadingStartTimeRef.current = null;
+      }
+    }
+  }, [isLoading, minimumMs]);
+
+  return showLoading;
+}
+
+/**
+ * Derives filter definitions from column definitions
+ * This creates a single source of truth for both display and filtering
+ *
+ * @param columns - Column definitions with filter metadata
+ * @param optionsMap - Map of column IDs to their dynamic filter options
+ */
+function deriveFilterDefinitions<TData>(
+  columns: ColumnDef<TData>[],
+  optionsMap?: Record<string, Array<{ value: string; label: string }>>,
+): FilterDefinition[] {
+  return columns
+    .filter((col) => {
+      // Only include columns with filter metadata
+      return col.meta?.filterable === true;
+    })
+    .map((col) => {
+      const meta = col.meta!;
+      const id = ("accessorKey" in col && typeof col.accessorKey === "string")
+        ? col.accessorKey
+        : ("id" in col && typeof col.id === "string")
+        ? col.id
+        : "";
+
+      if (!id) {
+        console.warn("Column without valid id/accessorKey found:", col);
+        return null;
+      }
+
+      const filterDef: FilterDefinition = {
+        id,
+        label: meta.label,
+        type: meta.filterType || "text",
+        group: meta.filterGroup,
+      };
+
+      // Add icon if provided
+      if (meta.filterIcon) {
+        filterDef.icon = meta.filterIcon;
+      }
+
+      // Add options from metadata or options map
+      if (meta.filterType === "multiselect" || meta.filterType === "select") {
+        // Priority: 1) metadata options, 2) optionsMap, 3) undefined
+        const options = meta.filterOptions || (optionsMap && optionsMap[id]);
+        if (options) {
+          filterDef.options = options;
+        }
+      }
+
+      return filterDef;
+    })
+    .filter((def): def is FilterDefinition => def !== null);
+}
+
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
@@ -1161,11 +1784,21 @@ function Fixtures() {
   const organization = useQuery(api.organizations.getFirstOrganization);
   const organizationId = organization?._id;
 
+  // Track initial loading state to ensure skeleton shows on first load
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   // Query fixtures with enriched data (includes contracts, recaps, and company avatars)
   const fixtures = useQuery(
     api.fixtures.listEnriched,
     organizationId ? { organizationId } : "skip"
   );
+
+  // Clear initial loading once fixtures data is available
+  useEffect(() => {
+    if (fixtures !== undefined) {
+      setIsInitialLoading(false);
+    }
+  }, [fixtures]);
 
   // Detect loading state
   const isLoadingFixtures = fixtures === undefined;
@@ -1209,6 +1842,73 @@ function Fixtures() {
     });
   };
 
+  // Default column visibility - hide all new columns
+  const defaultHiddenColumns = {
+    fixtureId: false,
+    // Priority 1: Core Commercial Fields
+    laycan: false,
+    loadPortName: false,
+    loadPortCountry: false,
+    loadDeliveryType: false,
+    dischargePortName: false,
+    dischargePortCountry: false,
+    dischargeRedeliveryType: false,
+    vesselImo: false,
+    cargoTypeName: false,
+    cargoQuantity: false,
+    finalFreightRate: false,
+    finalDemurrageRate: false,
+    // Priority 2: Freight & Demurrage Analytics
+    highestFreightRateIndication: false,
+    lowestFreightRateIndication: false,
+    firstFreightRateIndication: false,
+    highestFreightRateLastDay: false,
+    lowestFreightRateLastDay: false,
+    firstFreightRateLastDay: false,
+    freightSavingsPercent: false,
+    marketIndex: false,
+    marketIndexName: false,
+    freightVsMarketPercent: false,
+    grossFreight: false,
+    highestDemurrageIndication: false,
+    lowestDemurrageIndication: false,
+    demurrageSavingsPercent: false,
+    // Priority 3: Commissions
+    addressCommissionPercent: false,
+    addressCommissionTotal: false,
+    brokerCommissionPercent: false,
+    brokerCommissionTotal: false,
+    // Priority 4: CP Workflow Dates
+    cpDate: false,
+    workingCopyDate: false,
+    finalDate: false,
+    fullySignedDate: false,
+    daysToWorkingCopy: false,
+    daysToFinal: false,
+    daysToSigned: false,
+    // Priority 5: Approval Status Details
+    ownerApprovalStatus: false,
+    ownerApprovedBy: false,
+    ownerApprovalDate: false,
+    chartererApprovalStatus: false,
+    chartererApprovedBy: false,
+    chartererApprovalDate: false,
+    // Priority 6: Signature Status Details
+    ownerSignatureStatus: false,
+    ownerSignedBy: false,
+    ownerSignatureDate: false,
+    chartererSignatureStatus: false,
+    chartererSignedBy: false,
+    chartererSignatureDate: false,
+    // Priority 7: User Tracking
+    dealCaptureUser: false,
+    orderCreatedBy: false,
+    negotiationCreatedBy: false,
+    // Priority 8: Parent/Child Relationships
+    parentCpId: false,
+    contractType: false,
+  };
+
   // System bookmarks (read-only, configured via props)
   const systemBookmarks: Bookmark[] = [
     {
@@ -1226,7 +1926,7 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: { fixtureId: false },
+        columnVisibility: defaultHiddenColumns,
         grouping: ["fixtureId"],
         columnOrder: [],
         columnSizing: {},
@@ -1247,7 +1947,7 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: { fixtureId: false },
+        columnVisibility: defaultHiddenColumns,
         grouping: ["negotiationId"],
         columnOrder: [],
         columnSizing: {},
@@ -1268,7 +1968,7 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: { fixtureId: false },
+        columnVisibility: defaultHiddenColumns,
         grouping: ["cpId"],
         columnOrder: [],
         columnSizing: {},
@@ -1279,10 +1979,50 @@ function Fixtures() {
   // Initial user bookmarks
   const initialUserBookmarks: Bookmark[] = [];
 
-  // State management
+  // Get current user
+  const { user } = useUser();
+  const userId = user?.appUserId;
+
+  // Debug: Log user state on mount and when it changes
+  useEffect(() => {
+    console.log("👤 User state:", {
+      hasUser: !!user,
+      email: user?.email,
+      appUserId: userId,
+      userObject: user
+    });
+  }, [user, userId]);
+
+  // Query bookmarks from Convex
+  const userBookmarksFromDb = useQuery(
+    api.user_bookmarks.getUserBookmarks,
+    userId ? { userId } : "skip"
+  );
+
+  // Mutation hooks
+  const createBookmarkMutation = useMutation(api.user_bookmarks.createBookmark);
+  const updateBookmarkMutation = useMutation(api.user_bookmarks.updateBookmark);
+  const renameBookmarkMutation = useMutation(api.user_bookmarks.renameBookmark);
+  const deleteBookmarkMutation = useMutation(api.user_bookmarks.deleteBookmark);
+  const setDefaultBookmarkMutation = useMutation(api.user_bookmarks.setDefaultBookmark);
+  const syncUserMutation = useMutation(api.syncUser.syncCurrentUser);
+
+  // Local state for optimistic updates
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);
   const [activeBookmarkId, setActiveBookmarkId] =
     useState<string>("system-all");
+
+  // Sync from database when loaded
+  useEffect(() => {
+    console.log("📚 Bookmarks sync effect:", {
+      userId,
+      userBookmarksFromDb,
+      count: userBookmarksFromDb?.length
+    });
+    if (userBookmarksFromDb) {
+      setBookmarks(userBookmarksFromDb);
+    }
+  }, [userBookmarksFromDb, userId]);
 
   // Filters state
   const [activeFilters, setActiveFilters] = useState<
@@ -1300,7 +2040,78 @@ function Fixtures() {
 
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    // Hide all new columns by default
+    // Priority 1: Core Commercial Fields
+    laycan: false,
+    loadPortName: false,
+    loadPortCountry: false,
+    loadDeliveryType: false,
+    dischargePortName: false,
+    dischargePortCountry: false,
+    dischargeRedeliveryType: false,
+    vesselImo: false,
+    cargoTypeName: false,
+    cargoQuantity: false,
+    finalFreightRate: false,
+    finalDemurrageRate: false,
+
+    // Priority 2: Freight & Demurrage Analytics
+    highestFreightRateIndication: false,
+    lowestFreightRateIndication: false,
+    firstFreightRateIndication: false,
+    highestFreightRateLastDay: false,
+    lowestFreightRateLastDay: false,
+    firstFreightRateLastDay: false,
+    freightSavingsPercent: false,
+    marketIndex: false,
+    marketIndexName: false,
+    freightVsMarketPercent: false,
+    grossFreight: false,
+    highestDemurrageIndication: false,
+    lowestDemurrageIndication: false,
+    demurrageSavingsPercent: false,
+
+    // Priority 3: Commissions
+    addressCommissionPercent: false,
+    addressCommissionTotal: false,
+    brokerCommissionPercent: false,
+    brokerCommissionTotal: false,
+
+    // Priority 4: CP Workflow Dates
+    cpDate: false,
+    workingCopyDate: false,
+    finalDate: false,
+    fullySignedDate: false,
+    daysToWorkingCopy: false,
+    daysToFinal: false,
+    daysToSigned: false,
+
+    // Priority 5: Approval Status Details
+    ownerApprovalStatus: false,
+    ownerApprovedBy: false,
+    ownerApprovalDate: false,
+    chartererApprovalStatus: false,
+    chartererApprovedBy: false,
+    chartererApprovalDate: false,
+
+    // Priority 6: Signature Status Details
+    ownerSignatureStatus: false,
+    ownerSignedBy: false,
+    ownerSignatureDate: false,
+    chartererSignatureStatus: false,
+    chartererSignedBy: false,
+    chartererSignatureDate: false,
+
+    // Priority 7: User Tracking
+    dealCaptureUser: false,
+    orderCreatedBy: false,
+    negotiationCreatedBy: false,
+
+    // Priority 8: Parent/Child Relationships
+    parentCpId: false,
+    contractType: false,
+  });
   const [grouping, setGrouping] = useState<GroupingState>([]);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
@@ -1352,7 +2163,10 @@ function Fixtures() {
   };
 
   // Combined loading state: show skeleton when loading data, changing page size, or switching bookmarks
-  const isTableLoading = isLoadingFixtures || isPaginationLoading || isBookmarkLoading;
+  const isTableLoading = isLoadingFixtures || isPaginationLoading || isBookmarkLoading || isInitialLoading;
+
+  // Enforce minimum skeleton display time (500ms) for better UX
+  const showTableSkeleton = useMinimumLoadingTime(isTableLoading, 500);
 
   // Memoize columns
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(
@@ -1360,7 +2174,14 @@ function Fixtures() {
       {
         accessorKey: "fixtureId",
         header: "Fixture ID",
-        meta: { label: "Fixture ID", align: "left" },
+        meta: {
+          label: "Fixture ID",
+          align: "left",
+          filterable: true,
+          filterType: "text",
+          filterGroup: "Core",
+          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1413,7 +2234,14 @@ function Fixtures() {
       {
         accessorKey: "orderId",
         header: "Order ID",
-        meta: { label: "Order ID", align: "left" },
+        meta: {
+          label: "Order ID",
+          align: "left",
+          filterable: true,
+          filterType: "text",
+          filterGroup: "Core",
+          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row, table }: any) => {
@@ -1495,7 +2323,14 @@ function Fixtures() {
       {
         accessorKey: "negotiationId",
         header: "Negotiation ID",
-        meta: { label: "Negotiation ID", align: "left" },
+        meta: {
+          label: "Negotiation ID",
+          align: "left",
+          filterable: true,
+          filterType: "text",
+          filterGroup: "Core",
+          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+        },
         enableGrouping: true,
         cell: ({ row }: any) => {
           const negotiationId = row.getValue("negotiationId") as string;
@@ -1545,7 +2380,14 @@ function Fixtures() {
       {
         accessorKey: "cpId",
         header: "CP ID",
-        meta: { label: "CP ID", align: "left" },
+        meta: {
+          label: "CP ID",
+          align: "left",
+          filterable: true,
+          filterType: "text",
+          filterGroup: "Core",
+          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1605,7 +2447,14 @@ function Fixtures() {
       {
         accessorKey: "status",
         header: "Status",
-        meta: { label: "Status", align: "left" },
+        meta: {
+          label: "Status",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Status",
+          filterIcon: ({ className }) => <Icon name="file-text" className={className} />,
+        },
         enableGrouping: true,
         cell: ({ row }: any) => {
           const status = row.getValue("status") as string;
@@ -1640,7 +2489,14 @@ function Fixtures() {
       {
         accessorKey: "vessels",
         header: "Vessel Name",
-        meta: { label: "Vessel Name", align: "left" },
+        meta: {
+          label: "Vessel Name",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Vessel",
+          filterIcon: ({ className }) => <Icon name="ship" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1675,7 +2531,14 @@ function Fixtures() {
       {
         accessorKey: "owner",
         header: "Owner",
-        meta: { label: "Owner", align: "left" },
+        meta: {
+          label: "Owner",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="building" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1744,7 +2607,14 @@ function Fixtures() {
       {
         accessorKey: "broker",
         header: "Broker",
-        meta: { label: "Broker", align: "left" },
+        meta: {
+          label: "Broker",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="briefcase" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1813,7 +2683,14 @@ function Fixtures() {
       {
         accessorKey: "charterer",
         header: "Charterer",
-        meta: { label: "Charterer", align: "left" },
+        meta: {
+          label: "Charterer",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+        },
         enableGrouping: true,
         enableGlobalFilter: true,
         cell: ({ row }: any) => {
@@ -1928,6 +2805,1159 @@ function Fixtures() {
           );
         },
       },
+
+      // Priority 1: Core Commercial Fields
+      {
+        id: "laycan",
+        header: "Laycan",
+        size: 150,
+        meta: { label: "Laycan", align: "left" },
+        enableGrouping: false,
+        cell: ({ row }) => {
+          const start = row.original.laycanStart;
+          const end = row.original.laycanEnd;
+          if (!start || !end) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">–</div>
+            );
+          }
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {formatLaycanRange(start, end)}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "loadPortName",
+        header: "Load Port",
+        size: 150,
+        meta: {
+          label: "Load Port",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
+        },
+        enableGrouping: true,
+        enableGlobalFilter: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "loadPortCountry",
+        header: "Load Country",
+        size: 130,
+        meta: {
+          label: "Load Country",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue, row }) => {
+          const value = getValue<string>();
+          const countryCode = row.original.loadPort?.countryCode;
+          return (
+            <div className="flex items-center gap-2">
+              {countryCode && <Flag country={countryCode} />}
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "loadDeliveryType",
+        header: "Load Delivery Type",
+        size: 150,
+        meta: {
+          label: "Load Delivery Type",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="truck" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "dischargePortName",
+        header: "Discharge Port",
+        size: 150,
+        meta: {
+          label: "Discharge Port",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
+        },
+        enableGrouping: true,
+        enableGlobalFilter: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "dischargePortCountry",
+        header: "Discharge Country",
+        size: 150,
+        meta: {
+          label: "Discharge Country",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue, row }) => {
+          const value = getValue<string>();
+          const countryCode = row.original.dischargePort?.countryCode;
+          return (
+            <div className="flex items-center gap-2">
+              {countryCode && <Flag country={countryCode} />}
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "dischargeRedeliveryType",
+        header: "Discharge Redelivery Type",
+        size: 180,
+        meta: {
+          label: "Discharge Redelivery Type",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Location",
+          filterIcon: ({ className }) => <Icon name="truck" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "vesselImo",
+        header: "Vessel IMO",
+        size: 120,
+        meta: { label: "Vessel IMO", align: "left" },
+        enableGrouping: false,
+        enableGlobalFilter: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "cargoTypeName",
+        header: "Cargo Type",
+        size: 140,
+        meta: {
+          label: "Cargo Type",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Cargo",
+          filterIcon: ({ className }) => <Icon name="package" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "cargoQuantity",
+        header: "Cargo Quantity (mt)",
+        size: 150,
+        meta: {
+          label: "Cargo Quantity (mt)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Cargo",
+          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? value.toLocaleString() : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "finalFreightRate",
+        header: "Final Freight Rate",
+        size: 150,
+        meta: { label: "Final Freight Rate", align: "right" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string | number>();
+          const numValue = typeof value === 'string' ? parseFloat(value) : value;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {numValue ? `$${numValue.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "finalDemurrageRate",
+        header: "Final Demurrage Rate",
+        size: 170,
+        meta: { label: "Final Demurrage Rate", align: "right" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string | number>();
+          const numValue = typeof value === 'string' ? parseFloat(value) : value;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {numValue ? `$${numValue.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+
+      // Priority 2: Freight & Demurrage Analytics
+      {
+        accessorKey: "highestFreightRateIndication",
+        header: "Highest Freight ($/mt)",
+        size: 170,
+        meta: {
+          label: "Highest Freight ($/mt)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "lowestFreightRateIndication",
+        header: "Lowest Freight ($/mt)",
+        size: 170,
+        meta: {
+          label: "Lowest Freight ($/mt)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "firstFreightRateIndication",
+        header: "First Freight ($/mt)",
+        size: 160,
+        meta: {
+          label: "First Freight ($/mt)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "highestFreightRateLastDay",
+        header: "Highest Freight (Last Day)",
+        size: 190,
+        meta: {
+          label: "Highest Freight (Last Day)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "lowestFreightRateLastDay",
+        header: "Lowest Freight (Last Day)",
+        size: 190,
+        meta: {
+          label: "Lowest Freight (Last Day)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "firstFreightRateLastDay",
+        header: "First Freight (Last Day)",
+        size: 180,
+        meta: {
+          label: "First Freight (Last Day)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "freightSavingsPercent",
+        header: "Freight Savings %",
+        size: 150,
+        meta: {
+          label: "Freight Savings %",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
+          return (
+            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
+              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "marketIndex",
+        header: "Market Index ($/mt)",
+        size: 160,
+        meta: {
+          label: "Market Index ($/mt)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "marketIndexName",
+        header: "Index Name",
+        size: 140,
+        meta: {
+          label: "Index Name",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "freightVsMarketPercent",
+        header: "Freight vs Market %",
+        size: 160,
+        meta: {
+          label: "Freight vs Market %",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          const color = value < 0 ? "text-[var(--green-600)]" : value > 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
+          return (
+            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
+              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "grossFreight",
+        header: "Gross Freight",
+        size: 140,
+        meta: {
+          label: "Gross Freight",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "highestDemurrageIndication",
+        header: "Highest Demurrage ($/pd)",
+        size: 190,
+        meta: {
+          label: "Highest Demurrage ($/pd)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "lowestDemurrageIndication",
+        header: "Lowest Demurrage ($/pd)",
+        size: 190,
+        meta: {
+          label: "Lowest Demurrage ($/pd)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "demurrageSavingsPercent",
+        header: "Demurrage Savings %",
+        size: 170,
+        meta: {
+          label: "Demurrage Savings %",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Freight & Demurrage",
+          filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
+          return (
+            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
+              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+            </div>
+          );
+        },
+      },
+
+      // Priority 3: Commissions
+      {
+        accessorKey: "addressCommissionPercent",
+        header: "Address Commission %",
+        size: 170,
+        meta: {
+          label: "Address Commission %",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Commissions",
+          filterIcon: ({ className }) => <Icon name="percent" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `${value.toFixed(2)}%` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "addressCommissionTotal",
+        header: "Address Commission ($)",
+        size: 170,
+        meta: {
+          label: "Address Commission ($)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Commissions",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "brokerCommissionPercent",
+        header: "Broker Commission %",
+        size: 170,
+        meta: {
+          label: "Broker Commission %",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Commissions",
+          filterIcon: ({ className }) => <Icon name="percent" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `${value.toFixed(2)}%` : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "brokerCommissionTotal",
+        header: "Broker Commission ($)",
+        size: 170,
+        meta: {
+          label: "Broker Commission ($)",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Commissions",
+          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+            </div>
+          );
+        },
+      },
+
+      // Priority 4: CP Workflow Dates
+      {
+        accessorKey: "cpDate",
+        header: "CP Date",
+        size: 140,
+        meta: {
+          label: "CP Date",
+          align: "left",
+          filterable: true,
+          filterType: "date",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "workingCopyDate",
+        header: "Working Copy Date",
+        size: 160,
+        meta: {
+          label: "Working Copy Date",
+          align: "left",
+          filterable: true,
+          filterType: "date",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "finalDate",
+        header: "Final Date",
+        size: 130,
+        meta: {
+          label: "Final Date",
+          align: "left",
+          filterable: true,
+          filterType: "date",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "fullySignedDate",
+        header: "Fully Signed Date",
+        size: 160,
+        meta: {
+          label: "Fully Signed Date",
+          align: "left",
+          filterable: true,
+          filterType: "date",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "daysToWorkingCopy",
+        header: "Days: CP → Working Copy",
+        size: 180,
+        meta: {
+          label: "Days: CP → Working Copy",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "daysToFinal",
+        header: "Days: Working Copy → Final",
+        size: 200,
+        meta: {
+          label: "Days: Working Copy → Final",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "daysToSigned",
+        header: "Days: Final → Signed",
+        size: 170,
+        meta: {
+          label: "Days: Final → Signed",
+          align: "right",
+          filterable: true,
+          filterType: "number",
+          filterGroup: "Date & Time",
+          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+            </div>
+          );
+        },
+      },
+
+      // Priority 5: Approval Status Details
+      {
+        accessorKey: "ownerApprovalStatus",
+        header: "Owner Approval",
+        size: 140,
+        meta: {
+          label: "Owner Approval",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Status",
+          filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "ownerApprovedBy",
+        header: "Owner Approved By",
+        size: 160,
+        meta: { label: "Owner Approved By", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "ownerApprovalDate",
+        header: "Owner Approval Date",
+        size: 170,
+        meta: { label: "Owner Approval Date", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererApprovalStatus",
+        header: "Charterer Approval",
+        size: 160,
+        meta: {
+          label: "Charterer Approval",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Status",
+          filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererApprovedBy",
+        header: "Charterer Approved By",
+        size: 180,
+        meta: { label: "Charterer Approved By", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererApprovalDate",
+        header: "Charterer Approval Date",
+        size: 190,
+        meta: { label: "Charterer Approval Date", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+
+      // Priority 6: Signature Status Details
+      {
+        accessorKey: "ownerSignatureStatus",
+        header: "Owner Signature",
+        size: 150,
+        meta: {
+          label: "Owner Signature",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Status",
+          filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "ownerSignedBy",
+        header: "Owner Signed By",
+        size: 150,
+        meta: { label: "Owner Signed By", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "ownerSignatureDate",
+        header: "Owner Signature Date",
+        size: 170,
+        meta: { label: "Owner Signature Date", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererSignatureStatus",
+        header: "Charterer Signature",
+        size: 170,
+        meta: {
+          label: "Charterer Signature",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Status",
+          filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererSignedBy",
+        header: "Charterer Signed By",
+        size: 170,
+        meta: { label: "Charterer Signed By", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "chartererSignatureDate",
+        header: "Charterer Signature Date",
+        size: 190,
+        meta: { label: "Charterer Signature Date", align: "left" },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "–"}
+            </div>
+          );
+        },
+      },
+
+      // Priority 7: User Tracking
+      {
+        accessorKey: "dealCaptureUser",
+        header: "Deal Capture",
+        size: 140,
+        meta: {
+          label: "Deal Capture",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "orderCreatedBy",
+        header: "Order Created By",
+        size: 160,
+        meta: {
+          label: "Order Created By",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "negotiationCreatedBy",
+        header: "Neg. Created By",
+        size: 160,
+        meta: {
+          label: "Neg. Created By",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Parties",
+          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+
+      // Priority 8: Parent/Child Relationships
+      {
+        accessorKey: "parentCpId",
+        header: "Parent CP",
+        size: 130,
+        meta: { label: "Parent CP", align: "left" },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
+              {value || "–"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "contractType",
+        header: "Contract Type",
+        size: 140,
+        meta: {
+          label: "Contract Type",
+          align: "left",
+          filterable: true,
+          filterType: "multiselect",
+          filterGroup: "Contract",
+          filterIcon: ({ className }) => <Icon name="file-check" className={className} />,
+        },
+        enableGrouping: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          const displayValue = value === "voyage-charter" ? "Voyage charter"
+            : value === "time-charter" ? "TC"
+            : value === "coa" ? "COA"
+            : value || "–";
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {displayValue}
+            </div>
+          );
+        },
+      },
     ],
     [setSelectedFixture, columnVisibility, globalSearchTerms],
   );
@@ -2037,75 +4067,223 @@ function Fixtures() {
       .map((s) => ({ value: s, label: s }));
   }, [fixtureData]);
 
+  // Priority 1: Core Commercial unique values
+  const uniqueLoadPorts = useMemo(() => {
+    const ports = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.loadPortName) ports.add(fixture.loadPortName);
+    });
+    return Array.from(ports)
+      .sort()
+      .map((p) => ({ value: p, label: p }));
+  }, [fixtureData]);
+
+  const uniqueLoadCountries = useMemo(() => {
+    const countries = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.loadPortCountry) countries.add(fixture.loadPortCountry);
+    });
+    return Array.from(countries)
+      .sort()
+      .map((c) => ({ value: c, label: c }));
+  }, [fixtureData]);
+
+  const uniqueLoadDeliveryTypes = useMemo(() => {
+    const types = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.loadDeliveryType) types.add(fixture.loadDeliveryType);
+    });
+    return Array.from(types)
+      .sort()
+      .map((t) => ({ value: t, label: t }));
+  }, [fixtureData]);
+
+  const uniqueDischargePorts = useMemo(() => {
+    const ports = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.dischargePortName) ports.add(fixture.dischargePortName);
+    });
+    return Array.from(ports)
+      .sort()
+      .map((p) => ({ value: p, label: p }));
+  }, [fixtureData]);
+
+  const uniqueDischargeCountries = useMemo(() => {
+    const countries = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.dischargePortCountry) countries.add(fixture.dischargePortCountry);
+    });
+    return Array.from(countries)
+      .sort()
+      .map((c) => ({ value: c, label: c }));
+  }, [fixtureData]);
+
+  const uniqueDischargeRedeliveryTypes = useMemo(() => {
+    const types = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.dischargeRedeliveryType) types.add(fixture.dischargeRedeliveryType);
+    });
+    return Array.from(types)
+      .sort()
+      .map((t) => ({ value: t, label: t }));
+  }, [fixtureData]);
+
+  const uniqueCargoTypes = useMemo(() => {
+    const types = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.cargoTypeName) types.add(fixture.cargoTypeName);
+    });
+    return Array.from(types)
+      .sort()
+      .map((t) => ({ value: t, label: t }));
+  }, [fixtureData]);
+
+  // Keep marketIndexName (string filter)
+  const uniqueMarketIndexNames = useMemo(() => {
+    const names = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.marketIndexName) names.add(fixture.marketIndexName);
+    });
+    return Array.from(names)
+      .sort()
+      .map((n) => ({ value: n, label: n }));
+  }, [fixtureData]);
+
+  // Priority 5 & 6: Approval and Signature statuses
+  const uniqueOwnerApprovalStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.ownerApprovalStatus) statuses.add(fixture.ownerApprovalStatus);
+    });
+    return Array.from(statuses)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [fixtureData]);
+
+  const uniqueChartererApprovalStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.chartererApprovalStatus) statuses.add(fixture.chartererApprovalStatus);
+    });
+    return Array.from(statuses)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [fixtureData]);
+
+  const uniqueOwnerSignatureStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.ownerSignatureStatus) statuses.add(fixture.ownerSignatureStatus);
+    });
+    return Array.from(statuses)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [fixtureData]);
+
+  const uniqueChartererSignatureStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.chartererSignatureStatus) statuses.add(fixture.chartererSignatureStatus);
+    });
+    return Array.from(statuses)
+      .sort()
+      .map((s) => ({ value: s, label: s }));
+  }, [fixtureData]);
+
+  // Priority 7: User Tracking
+  const uniqueDealCaptureUsers = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.dealCaptureUser) users.add(fixture.dealCaptureUser);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
+  const uniqueOrderCreatedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.orderCreatedBy) users.add(fixture.orderCreatedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
+  const uniqueNegotiationCreatedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.negotiationCreatedBy) users.add(fixture.negotiationCreatedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
   // Define filter definitions
   const filterDefinitions: FilterDefinition[] = useMemo(
-    () => [
-      {
-        id: "vessels",
-        label: "Vessel",
-        icon: ({ className }) => <Icon name="ship" className={className} />,
-        type: "multiselect",
-        options: uniqueVessels,
-      },
-      {
-        id: "status",
-        label: "Status",
-        icon: ({ className }) => (
-          <Icon name="file-text" className={className} />
-        ),
-        type: "multiselect",
-        options: uniqueStatuses,
-      },
-      {
-        id: "stage",
-        label: "Stage",
-        icon: ({ className }) => <Icon name="layers" className={className} />,
-        type: "multiselect",
-        options: uniqueStages,
-      },
-      {
-        id: "typeOfContract",
-        label: "Contract Type",
-        icon: ({ className }) => (
-          <Icon name="file-check" className={className} />
-        ),
-        type: "multiselect",
-        options: uniqueContractTypes,
-      },
-      {
-        id: "approvalStatus",
-        label: "Approval Status",
-        icon: ({ className }) => (
-          <Icon name="check-circle" className={className} />
-        ),
-        type: "multiselect",
-        options: uniqueApprovalStatuses,
-      },
-      {
-        id: "owner",
-        label: "Owner",
-        icon: ({ className }) => <Icon name="building" className={className} />,
-        type: "multiselect",
-        options: uniqueOwners,
-      },
-      {
-        id: "broker",
-        label: "Broker",
-        icon: ({ className }) => (
-          <Icon name="briefcase" className={className} />
-        ),
-        type: "multiselect",
-        options: uniqueBrokers,
-      },
-      {
-        id: "charterer",
-        label: "Charterer",
-        icon: ({ className }) => <Icon name="user" className={className} />,
-        type: "multiselect",
-        options: uniqueCharterers,
-      },
-    ],
+    () => {
+      // Create options map for dynamic filter values
+      const optionsMap: Record<string, Array<{ value: string; label: string }>> = {
+        vessels: uniqueVessels,
+        status: uniqueStatuses,
+        owner: uniqueOwners,
+        broker: uniqueBrokers,
+        charterer: uniqueCharterers,
+        loadPortName: uniqueLoadPorts,
+        loadPortCountry: uniqueLoadCountries,
+        loadDeliveryType: uniqueLoadDeliveryTypes,
+        dischargePortName: uniqueDischargePorts,
+        dischargePortCountry: uniqueDischargeCountries,
+        dischargeRedeliveryType: uniqueDischargeRedeliveryTypes,
+        cargoTypeName: uniqueCargoTypes,
+        marketIndexName: uniqueMarketIndexNames,
+        ownerApprovalStatus: uniqueOwnerApprovalStatuses,
+        chartererApprovalStatus: uniqueChartererApprovalStatuses,
+        ownerSignatureStatus: uniqueOwnerSignatureStatuses,
+        chartererSignatureStatus: uniqueChartererSignatureStatuses,
+        dealCaptureUser: uniqueDealCaptureUsers,
+        orderCreatedBy: uniqueOrderCreatedBy,
+        negotiationCreatedBy: uniqueNegotiationCreatedBy,
+        contractType: uniqueContractTypes,
+      };
+
+      // Derive filters from column definitions
+      const derivedFilters = deriveFilterDefinitions(fixtureColumns, optionsMap);
+
+      // Add special filters that don't have corresponding visible columns
+      const specialFilters: FilterDefinition[] = [
+        {
+          id: "stage",
+          label: "Stage",
+          icon: ({ className }) => <Icon name="layers" className={className} />,
+          type: "multiselect",
+          options: uniqueStages,
+          group: "Status",
+        },
+        {
+          id: "typeOfContract",
+          label: "Contract Type",
+          icon: ({ className }) => <Icon name="file-check" className={className} />,
+          type: "multiselect",
+          options: uniqueContractTypes,
+          group: "Contract",
+        },
+        {
+          id: "approvalStatus",
+          label: "Approval Status",
+          icon: ({ className }) => <Icon name="check-circle" className={className} />,
+          type: "multiselect",
+          options: uniqueApprovalStatuses,
+          group: "Status",
+        },
+      ];
+
+      return [...derivedFilters, ...specialFilters];
+    },
     [
+      fixtureColumns,
       uniqueVessels,
       uniqueStatuses,
       uniqueStages,
@@ -2114,6 +4292,21 @@ function Fixtures() {
       uniqueOwners,
       uniqueBrokers,
       uniqueCharterers,
+      uniqueLoadPorts,
+      uniqueLoadCountries,
+      uniqueLoadDeliveryTypes,
+      uniqueDischargePorts,
+      uniqueDischargeCountries,
+      uniqueDischargeRedeliveryTypes,
+      uniqueCargoTypes,
+      uniqueMarketIndexNames,
+      uniqueOwnerApprovalStatuses,
+      uniqueChartererApprovalStatuses,
+      uniqueOwnerSignatureStatuses,
+      uniqueChartererSignatureStatuses,
+      uniqueDealCaptureUsers,
+      uniqueOrderCreatedBy,
+      uniqueNegotiationCreatedBy,
     ],
   );
 
@@ -2135,7 +4328,8 @@ function Fixtures() {
         for (const [filterId, filterValue] of Object.entries(
           bookmark.filtersState.activeFilters,
         )) {
-          if (Array.isArray(filterValue) && filterValue.length > 0) {
+          // Handle multiselect filters (arrays of strings)
+          if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
             const fixtureValue = String(
               fixture[filterId as keyof typeof fixture] || "",
             );
@@ -2143,6 +4337,50 @@ function Fixtures() {
               fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
             );
             if (!match) return false;
+          }
+
+          // Handle number filters (single number or range)
+          if (typeof filterValue === 'number') {
+            const fixtureValue = fixture[filterId as keyof typeof fixture];
+            if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
+              return false;
+            }
+          }
+
+          if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
+            const [min, max] = filterValue as [number, number];
+            const fixtureValue = fixture[filterId as keyof typeof fixture];
+            if (typeof fixtureValue === 'number') {
+              if (fixtureValue < min || fixtureValue > max) {
+                return false;
+              }
+            } else {
+              return false;
+            }
+          }
+
+          // Handle date filters (single date or range)
+          if (filterValue instanceof Date) {
+            const fixtureValue = fixture[filterId as keyof typeof fixture];
+            if (typeof fixtureValue === 'number') {
+              const fixtureDate = new Date(fixtureValue);
+              if (fixtureDate.toDateString() !== filterValue.toDateString()) {
+                return false;
+              }
+            }
+          }
+
+          if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
+            const [startDate, endDate] = filterValue as [Date, Date];
+            const fixtureValue = fixture[filterId as keyof typeof fixture];
+            if (typeof fixtureValue === 'number') {
+              const fixtureDate = new Date(fixtureValue);
+              if (fixtureDate < startDate || fixtureDate > endDate) {
+                return false;
+              }
+            } else {
+              return false;
+            }
           }
         }
       }
@@ -2178,6 +4416,11 @@ function Fixtures() {
             fixture.owner,
             fixture.broker,
             fixture.charterer,
+            fixture.loadPortName,
+            fixture.dischargePortName,
+            fixture.vesselImo,
+            fixture.cargoTypeName,
+            fixture.dealCaptureUser,
           ].filter(Boolean).join(' '))
           .join(' ')
           .toLowerCase();
@@ -2208,6 +4451,11 @@ function Fixtures() {
           fixture.owner,
           fixture.broker,
           fixture.charterer,
+          fixture.loadPortName,
+          fixture.dischargePortName,
+          fixture.vesselImo,
+          fixture.cargoTypeName,
+          fixture.dealCaptureUser,
         ]
           .join(" ")
           .toLowerCase();
@@ -2340,7 +4588,8 @@ function Fixtures() {
 
       // Apply saved filters from bookmark
       for (const [filterId, filterValue] of Object.entries(savedFilters)) {
-        if (Array.isArray(filterValue) && filterValue.length > 0) {
+        // Handle multiselect filters (arrays of strings)
+        if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
           const fixtureValue = String(
             fixture[filterId as keyof typeof fixture] || "",
           );
@@ -2348,6 +4597,50 @@ function Fixtures() {
             fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
           );
           if (!match) return false;
+        }
+
+        // Handle number filters (single number or range)
+        if (typeof filterValue === 'number') {
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
+            return false;
+          }
+        }
+
+        if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
+          const [min, max] = filterValue as [number, number];
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            if (fixtureValue < min || fixtureValue > max) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        }
+
+        // Handle date filters (single date or range)
+        if (filterValue instanceof Date) {
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            const fixtureDate = new Date(fixtureValue);
+            if (fixtureDate.toDateString() !== filterValue.toDateString()) {
+              return false;
+            }
+          }
+        }
+
+        if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
+          const [startDate, endDate] = filterValue as [Date, Date];
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            const fixtureDate = new Date(fixtureValue);
+            if (fixtureDate < startDate || fixtureDate > endDate) {
+              return false;
+            }
+          } else {
+            return false;
+          }
         }
       }
 
@@ -2468,7 +4761,8 @@ function Fixtures() {
 
       // Apply active filters (from Filters sidebar)
       for (const [filterId, filterValue] of Object.entries(activeFilters)) {
-        if (Array.isArray(filterValue) && filterValue.length > 0) {
+        // Handle multiselect filters (arrays of strings)
+        if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
           const fixtureValue = String(
             fixture[filterId as keyof typeof fixture] || "",
           );
@@ -2476,6 +4770,50 @@ function Fixtures() {
             fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
           );
           if (!match) return false;
+        }
+
+        // Handle number filters (single number or range)
+        if (typeof filterValue === 'number') {
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
+            return false;
+          }
+        }
+
+        if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
+          const [min, max] = filterValue as [number, number];
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            if (fixtureValue < min || fixtureValue > max) {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        }
+
+        // Handle date filters (single date or range)
+        if (filterValue instanceof Date) {
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            const fixtureDate = new Date(fixtureValue);
+            if (fixtureDate.toDateString() !== filterValue.toDateString()) {
+              return false;
+            }
+          }
+        }
+
+        if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
+          const [startDate, endDate] = filterValue as [Date, Date];
+          const fixtureValue = fixture[filterId as keyof typeof fixture];
+          if (typeof fixtureValue === 'number') {
+            const fixtureDate = new Date(fixtureValue);
+            if (fixtureDate < startDate || fixtureDate > endDate) {
+              return false;
+            }
+          } else {
+            return false;
+          }
         }
       }
 
@@ -2575,18 +4913,20 @@ function Fixtures() {
         setGrouping([]);
         setColumnOrder([]);
         setColumnSizing({});
-      }
+        }
     }
   };
 
   const handleSave = async (action: "update" | "create", name?: string) => {
-    const newState: Bookmark = {
-      id: action === "create" ? `user-${Date.now()}` : activeBookmarkId!,
-      name: name || activeBookmark?.name || "New Bookmark",
-      type: "user",
-      createdAt: action === "create" ? new Date() : activeBookmark!.createdAt,
-      updatedAt: new Date(),
-      count: filteredData.length,
+    console.log("💾 handleSave called:", { action, name, userId, hasUser: !!user });
+
+    if (!userId) {
+      console.error("❌ User not authenticated - userId:", userId);
+      alert("Cannot save bookmark: Your account needs to be synced. Please click the 'Sync Account' button at the top of the page.");
+      return;
+    }
+
+    const bookmarkData = {
       filtersState: {
         activeFilters,
         pinnedFilters,
@@ -2599,24 +4939,96 @@ function Fixtures() {
         columnOrder,
         columnSizing,
       },
+      count: filteredData.length,
     };
 
-    if (action === "create") {
-      setBookmarks([...bookmarks, newState]);
-      setActiveBookmarkId(newState.id);
-    } else {
-      setBookmarks(bookmarks.map((b) => (b.id === newState.id ? newState : b)));
+    try {
+      if (action === "create") {
+        // Optimistic update
+        const tempId = `temp-${Date.now()}`;
+        const optimisticBookmark: Bookmark = {
+          id: tempId,
+          name: name || "New Bookmark",
+          type: "user",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          count: filteredData.length,
+          filtersState: bookmarkData.filtersState,
+          tableState: bookmarkData.tableState,
+        };
+
+        setBookmarks([...bookmarks, optimisticBookmark]);
+        setActiveBookmarkId(tempId);
+
+        // Create in database
+        console.log("🔄 Creating bookmark in database...", bookmarkData);
+        const newBookmark = await createBookmarkMutation({
+          userId,
+          name: name || "New Bookmark",
+          ...bookmarkData,
+        });
+        console.log("✅ Bookmark created successfully:", newBookmark);
+
+        // Replace temp with real bookmark
+        setBookmarks((prev) =>
+          prev.map((b) => (b.id === tempId ? newBookmark : b))
+        );
+        setActiveBookmarkId(newBookmark.id);
+      } else {
+        // Update existing
+        const bookmarkId = activeBookmarkId as Id<"user_bookmarks">;
+
+        // Optimistic update
+        setBookmarks((prev) =>
+          prev.map((b) =>
+            b.id === bookmarkId
+              ? { ...b, ...bookmarkData, updatedAt: Date.now() }
+              : b
+          )
+        );
+
+        // Update in database
+        await updateBookmarkMutation({
+          bookmarkId,
+          ...bookmarkData,
+        });
+      }
+    } catch (error) {
+      console.error("❌ Failed to save bookmark:", error);
+      console.error("Error details:", error instanceof Error ? error.message : error);
+      // Revert optimistic update
+      if (userBookmarksFromDb) {
+        setBookmarks(userBookmarksFromDb);
+      }
     }
   };
 
   const handleRename = async (id: string, newName: string) => {
-    setBookmarks(
-      bookmarks.map((b) => (b.id === id ? { ...b, name: newName } : b)),
+    // Optimistic update
+    setBookmarks((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, name: newName } : b))
     );
+
+    try {
+      await renameBookmarkMutation({
+        bookmarkId: id as Id<"user_bookmarks">,
+        newName,
+      });
+    } catch (error) {
+      console.error("Failed to rename bookmark:", error);
+      // Revert optimistic update
+      if (userBookmarksFromDb) {
+        setBookmarks(userBookmarksFromDb);
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
-    setBookmarks(bookmarks.filter((b) => b.id !== id));
+    // Optimistic update
+    const previousBookmarks = bookmarks;
+    setBookmarks((prev) => prev.filter((b) => b.id !== id));
+
+    // Handle active bookmark change
     if (activeBookmarkId === id) {
       const firstAvailable =
         systemBookmarksWithCounts[0] ||
@@ -2625,15 +5037,41 @@ function Fixtures() {
         loadBookmark(firstAvailable);
       }
     }
+
+    try {
+      await deleteBookmarkMutation({
+        bookmarkId: id as Id<"user_bookmarks">,
+      });
+    } catch (error) {
+      console.error("Failed to delete bookmark:", error);
+      // Revert optimistic update
+      setBookmarks(previousBookmarks);
+    }
   };
 
   const handleSetDefault = async (id: string) => {
-    setBookmarks(
-      bookmarks.map((b) => ({
+    if (!userId) return;
+
+    // Optimistic update
+    setBookmarks((prev) =>
+      prev.map((b) => ({
         ...b,
         isDefault: b.id === id,
-      })),
+      }))
     );
+
+    try {
+      await setDefaultBookmarkMutation({
+        userId,
+        bookmarkId: id as Id<"user_bookmarks">,
+      });
+    } catch (error) {
+      console.error("Failed to set default bookmark:", error);
+      // Revert optimistic update
+      if (userBookmarksFromDb) {
+        setBookmarks(userBookmarksFromDb);
+      }
+    }
   };
 
   // Handle pinned filters change
@@ -2679,7 +5117,46 @@ function Fixtures() {
 
   return (
     <>
-      <div className="m-6 flex flex-col gap-[var(--space-lg)]">
+      <div className="p-6 flex flex-col gap-[var(--space-lg)] max-w-full min-w-0">
+        {/* Sync Account Banner (only show if user is authenticated but no userId) */}
+        {user && !userId && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-800">Account Sync Required</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                Your account needs to be synced to save bookmarks. Click the button to sync now.
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={async () => {
+                if (!user?.email || !user?.name) {
+                  alert("Unable to sync: missing user information");
+                  return;
+                }
+                try {
+                  const result = await syncUserMutation({
+                    email: user.email,
+                    name: user.name,
+                  });
+                  console.log("✅ Sync result:", result);
+                  alert("Account synced successfully! The page will reload in 2 seconds...");
+                  // Use a hard reload with cache clearing
+                  setTimeout(() => {
+                    window.location.href = window.location.href;
+                  }, 2000);
+                } catch (error) {
+                  console.error("❌ Sync error:", error);
+                  alert("Failed to sync account. Please try again or contact support.");
+                }
+              }}
+            >
+              Sync Account
+            </Button>
+          </div>
+        )}
+
         {/* Bookmarks Tabs Row + Filters Row */}
         <Bookmarks
           variant="tabs"
@@ -2687,6 +5164,7 @@ function Fixtures() {
           systemBookmarks={systemBookmarksWithCounts}
           activeBookmarkId={activeBookmarkId}
           isDirty={isDirty}
+          isLoading={isLoadingFixtures}
           onSelect={handleBookmarkSelect}
           onRevert={handleRevert}
           onSave={handleSave}
@@ -2795,11 +5273,12 @@ function Fixtures() {
               }}
               columns={fixtureColumns
                 .filter(
-                  (col): col is typeof col & { accessorKey: string } =>
-                    "accessorKey" in col && typeof col.accessorKey === "string",
+                  (col): col is typeof col & ({ accessorKey: string } | { id: string }) =>
+                    ("accessorKey" in col && typeof col.accessorKey === "string") ||
+                    ("id" in col && typeof col.id === "string" && !col.id.startsWith("select") && !col.id.startsWith("expand")),
                 )
                 .map((col) => ({
-                  id: col.accessorKey,
+                  id: ("accessorKey" in col ? col.accessorKey : col.id) as string,
                   label: ((col.meta as any)?.label || col.header) as string,
                 }))}
               visibleColumns={Object.entries(columnVisibility)
@@ -2808,12 +5287,18 @@ function Fixtures() {
                 .concat(
                   fixtureColumns
                     .filter(
-                      (col): col is typeof col & { accessorKey: string } =>
-                        "accessorKey" in col &&
-                        typeof col.accessorKey === "string" &&
-                        columnVisibility[col.accessorKey] === undefined,
+                      (col): col is typeof col & ({ accessorKey: string } | { id: string }) => {
+                        const colId = ("accessorKey" in col ? col.accessorKey : "id" in col ? col.id : null) as string | null;
+                        return (
+                          colId !== null &&
+                          typeof colId === "string" &&
+                          !colId.startsWith("select") &&
+                          !colId.startsWith("expand") &&
+                          columnVisibility[colId] === undefined
+                        );
+                      },
                     )
-                    .map((col) => col.accessorKey),
+                    .map((col) => ("accessorKey" in col ? col.accessorKey : col.id) as string),
                 )}
               onColumnVisibilityChange={(columnId, visible) => {
                 setColumnVisibility((prev) => {
@@ -2833,12 +5318,11 @@ function Fixtures() {
         </Bookmarks>
 
         {/* Data Table */}
-        <div className="fixtures-table">
+        <div className="fixtures-table w-full max-w-full min-w-0">
           <DataTable
             data={filteredData}
             columns={fixtureColumns}
-            isLoading={isTableLoading}
-            loadingRowCount={15}
+            isLoading={showTableSkeleton}
             enableGrouping={true}
             enableExpanding={true}
             enableResponsiveWrapper={true}
