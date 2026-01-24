@@ -1756,6 +1756,43 @@ function deriveFilterDefinitions<TData>(
     .filter((def): def is FilterDefinition => def !== null);
 }
 
+/**
+ * Deep equality comparison for bookmark state
+ * Handles objects, arrays, and primitives with proper order-insensitive object comparison
+ */
+function deepEqual(a: any, b: any): boolean {
+  // Same reference or both primitive and equal
+  if (a === b) return true;
+
+  // Null/undefined checks
+  if (a == null || b == null) return false;
+  if (typeof a !== typeof b) return false;
+
+  // Array comparison (order matters for arrays)
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, idx) => deepEqual(val, b[idx]));
+  }
+
+  // Object comparison (order-insensitive)
+  if (typeof a === 'object' && typeof b === 'object') {
+    const keysA = Object.keys(a).sort();
+    const keysB = Object.keys(b).sort();
+
+    // Different number of keys
+    if (keysA.length !== keysB.length) return false;
+
+    // Different key names
+    if (!keysA.every((key, idx) => key === keysB[idx])) return false;
+
+    // Recursively compare values
+    return keysA.every(key => deepEqual(a[key], b[key]));
+  }
+
+  // Primitive types that aren't equal
+  return false;
+}
+
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
@@ -4504,9 +4541,10 @@ function Fixtures() {
 
     const savedFiltersState = activeBookmark.filtersState || {
       activeFilters: {},
-      pinnedFilters: [],
       globalSearchTerms: [],
+      pinnedFilters: [],
     };
+
     const savedTableState = activeBookmark.tableState || {
       sorting: [],
       columnVisibility: {},
@@ -4515,27 +4553,33 @@ function Fixtures() {
       columnSizing: {},
     };
 
-    // Compare filters state
-    let filtersMatch =
-      JSON.stringify(activeFilters) ===
-        JSON.stringify(savedFiltersState.activeFilters) &&
-      JSON.stringify(globalSearchTerms) ===
-        JSON.stringify(savedFiltersState.globalSearchTerms);
+    // Build current filters state for comparison
+    const currentFiltersState = {
+      activeFilters,
+      globalSearchTerms,
+      ...(activeBookmark.type === "user" && { pinnedFilters }),
+    };
 
-    // For user bookmarks, also compare pinned filters
-    if (activeBookmark.type === "user") {
-      filtersMatch =
-        filtersMatch &&
-        JSON.stringify(pinnedFilters) ===
-          JSON.stringify(savedFiltersState.pinnedFilters);
-    }
+    const savedFiltersToCompare = {
+      activeFilters: savedFiltersState.activeFilters,
+      globalSearchTerms: savedFiltersState.globalSearchTerms,
+      ...(activeBookmark.type === "user" && { pinnedFilters: savedFiltersState.pinnedFilters }),
+    };
 
-    // Compare table state
-    const tableMatch =
-      JSON.stringify(sorting) === JSON.stringify(savedTableState.sorting) &&
-      JSON.stringify(columnVisibility) ===
-        JSON.stringify(savedTableState.columnVisibility) &&
-      JSON.stringify(grouping) === JSON.stringify(savedTableState.grouping);
+    // Compare filters using deep equality
+    const filtersMatch = deepEqual(currentFiltersState, savedFiltersToCompare);
+
+    // Build current table state for comparison (include ALL properties)
+    const currentTableState = {
+      sorting,
+      columnVisibility,
+      grouping,
+      columnOrder,
+      columnSizing,
+    };
+
+    // Compare table state using deep equality
+    const tableMatch = deepEqual(currentTableState, savedTableState);
 
     return !filtersMatch || !tableMatch;
   }, [
@@ -4546,6 +4590,8 @@ function Fixtures() {
     sorting,
     columnVisibility,
     grouping,
+    columnOrder,
+    columnSizing,
   ]);
 
   // Calculate bookmark data (data filtered by bookmark's saved filters only)
