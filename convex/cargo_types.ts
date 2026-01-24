@@ -24,6 +24,18 @@ export const seedCargoTypesInternal = async (ctx: MutationCtx) => {
     const createdCargoTypes = [];
 
     for (const cargoType of cargoTypesData) {
+      // Check if cargo type already exists by name
+      const existingCargoType = await ctx.db
+        .query("cargo_types")
+        .filter((q) => q.eq(q.field("name"), cargoType.name))
+        .first();
+
+      if (existingCargoType) {
+        console.log(`✓ Cargo type already exists: ${cargoType.name} (${existingCargoType._id})`);
+        createdCargoTypes.push({ name: cargoType.name, id: existingCargoType._id });
+        continue;
+      }
+
       const cargoTypeId = await ctx.db.insert("cargo_types", {
         name: cargoType.name,
         category: cargoType.category,
@@ -31,6 +43,7 @@ export const seedCargoTypesInternal = async (ctx: MutationCtx) => {
         isActive: true,
         createdAt: now,
       });
+      console.log(`+ Created cargo type: ${cargoType.name} (${cargoTypeId})`);
       createdCargoTypes.push({ name: cargoType.name, id: cargoTypeId });
     }
 

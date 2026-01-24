@@ -298,6 +298,18 @@ export const seedVesselsInternal = async (ctx: MutationCtx) => {
     const createdVessels = [];
 
     for (const vesselData of allVessels) {
+      // Check if vessel already exists by IMO number (unique identifier)
+      const existingVessel = await ctx.db
+        .query("vessels")
+        .filter((q) => q.eq(q.field("imoNumber"), vesselData.imoNumber))
+        .first();
+
+      if (existingVessel) {
+        console.log(`✓ Vessel already exists: ${vesselData.name} (${existingVessel._id})`);
+        createdVessels.push({ name: vesselData.name, id: existingVessel._id });
+        continue;
+      }
+
       const vesselId = await ctx.db.insert("vessels", {
         ...vesselData,
         isVerified: true,
@@ -306,6 +318,7 @@ export const seedVesselsInternal = async (ctx: MutationCtx) => {
         createdAt: now,
         updatedAt: now,
       });
+      console.log(`+ Created vessel: ${vesselData.name} (${vesselId})`);
       createdVessels.push({ name: vesselData.name, id: vesselId });
     }
 

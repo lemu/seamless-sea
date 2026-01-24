@@ -78,6 +78,23 @@ export const seedRoutesInternal = async (ctx: MutationCtx) => {
     const createdRoutes = [];
 
     for (const route of routesData) {
+      // Check if route already exists by loadPortId + dischargePortId combination
+      const existingRoute = await ctx.db
+        .query("routes")
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("loadPortId"), route.loadPortId),
+            q.eq(q.field("dischargePortId"), route.dischargePortId)
+          )
+        )
+        .first();
+
+      if (existingRoute) {
+        console.log(`✓ Route already exists: ${route.name} (${existingRoute._id})`);
+        createdRoutes.push({ name: route.name, id: existingRoute._id });
+        continue;
+      }
+
       const routeId = await ctx.db.insert("routes", {
         name: route.name,
         loadPortId: route.loadPortId,
@@ -87,6 +104,7 @@ export const seedRoutesInternal = async (ctx: MutationCtx) => {
         isActive: true,
         createdAt: now,
       });
+      console.log(`+ Created route: ${route.name} (${routeId})`);
       createdRoutes.push({ name: route.name, id: routeId });
     }
 

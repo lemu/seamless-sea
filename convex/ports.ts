@@ -33,6 +33,18 @@ export const seedPortsInternal = async (ctx: MutationCtx) => {
   const createdPorts = [];
 
   for (const port of portsData) {
+    // Check if port already exists by unlocode (unique identifier)
+    const existingPort = await ctx.db
+      .query("ports")
+      .filter((q) => q.eq(q.field("unlocode"), port.unlocode))
+      .first();
+
+    if (existingPort) {
+      console.log(`✓ Port already exists: ${port.name} (${existingPort._id})`);
+      createdPorts.push({ name: port.name, id: existingPort._id });
+      continue;
+    }
+
     const portId = await ctx.db.insert("ports", {
       name: port.name,
       unlocode: port.unlocode,
@@ -45,6 +57,7 @@ export const seedPortsInternal = async (ctx: MutationCtx) => {
       createdBy: systemUser._id,
       createdAt: now,
     });
+    console.log(`+ Created port: ${port.name} (${portId})`);
     createdPorts.push({ name: port.name, id: portId });
   }
 

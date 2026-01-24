@@ -50,51 +50,54 @@ export const seedCompaniesInternal = async (ctx: MutationCtx) => {
 
   const createdCompanies = [];
 
-  // Create charterers
-  for (const name of charterers) {
+  // Helper function to get or create a company
+  const getOrCreateCompany = async (
+    name: string,
+    companyType: "shipping-company" | "broker" | "operator",
+    role: "owner" | "charterer" | "broker"
+  ) => {
+    // Check if company already exists
+    const existingCompany = await ctx.db
+      .query("companies")
+      .filter((q) => q.eq(q.field("name"), name))
+      .first();
+
+    if (existingCompany) {
+      console.log(`✓ Company already exists: ${name} (${existingCompany._id})`);
+      return existingCompany._id;
+    }
+
+    // Create new company
     const companyId = await ctx.db.insert("companies", {
       name,
       displayName: name,
-      companyType: "shipping-company",
-      roles: ["charterer"],
+      companyType,
+      roles: [role],
       isVerified: true,
       isActive: true,
       createdBy: systemUser._id,
       createdAt: now,
       updatedAt: now,
     });
+    console.log(`+ Created company: ${name} (${companyId})`);
+    return companyId;
+  };
+
+  // Create or get charterers
+  for (const name of charterers) {
+    const companyId = await getOrCreateCompany(name, "shipping-company", "charterer");
     createdCompanies.push({ name, id: companyId, role: "charterer" });
   }
 
-  // Create brokers
+  // Create or get brokers
   for (const name of brokers) {
-    const companyId = await ctx.db.insert("companies", {
-      name,
-      displayName: name,
-      companyType: "broker",
-      roles: ["broker"],
-      isVerified: true,
-      isActive: true,
-      createdBy: systemUser._id,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const companyId = await getOrCreateCompany(name, "broker", "broker");
     createdCompanies.push({ name, id: companyId, role: "broker" });
   }
 
-  // Create owners
+  // Create or get owners
   for (const name of owners) {
-    const companyId = await ctx.db.insert("companies", {
-      name,
-      displayName: name,
-      companyType: "shipping-company",
-      roles: ["owner"],
-      isVerified: true,
-      isActive: true,
-      createdBy: systemUser._id,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const companyId = await getOrCreateCompany(name, "shipping-company", "owner");
     createdCompanies.push({ name, id: companyId, role: "owner" });
   }
 

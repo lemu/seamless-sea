@@ -207,6 +207,98 @@ export const listEnriched = query({
                 : null,
             };
 
+            // Get contract approvals
+            const approvals = await ctx.db
+              .query("contract_approvals")
+              .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+              .collect();
+
+            // Enrich approvals with company and user data
+            const enrichedApprovals = await Promise.all(
+              approvals.map(async (approval) => {
+                const company = await ctx.db.get(approval.companyId);
+                let user = null;
+                let userAvatarUrl = null;
+
+                if (approval.approvedBy) {
+                  user = await ctx.db.get(approval.approvedBy);
+                  if (user?.avatar) {
+                    userAvatarUrl = await ctx.storage.getUrl(user.avatar);
+                  }
+                }
+
+                let companyAvatarUrl = null;
+                if (company?.avatar) {
+                  companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
+                }
+
+                return {
+                  ...approval,
+                  company,
+                  companyAvatarUrl,
+                  user,
+                  userAvatarUrl,
+                };
+              })
+            );
+
+            // Calculate approval summary
+            const approvalSummary = {
+              total: approvals.length,
+              approved: approvals.filter((a) => a.status === "approved").length,
+              pending: approvals.filter((a) => a.status === "pending").length,
+              rejected: approvals.filter((a) => a.status === "rejected").length,
+            };
+
+            // Get contract signatures
+            const signatures = await ctx.db
+              .query("contract_signatures")
+              .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+              .collect();
+
+            // Enrich signatures with company and user data
+            const enrichedSignatures = await Promise.all(
+              signatures.map(async (signature) => {
+                const company = await ctx.db.get(signature.companyId);
+                let user = null;
+                let userAvatarUrl = null;
+
+                if (signature.signedBy) {
+                  user = await ctx.db.get(signature.signedBy);
+                  if (user?.avatar) {
+                    userAvatarUrl = await ctx.storage.getUrl(user.avatar);
+                  }
+                }
+
+                let companyAvatarUrl = null;
+                if (company?.avatar) {
+                  companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
+                }
+
+                let documentUrl = null;
+                if (signature.documentStorageId) {
+                  documentUrl = await ctx.storage.getUrl(signature.documentStorageId);
+                }
+
+                return {
+                  ...signature,
+                  company,
+                  companyAvatarUrl,
+                  user,
+                  userAvatarUrl,
+                  documentUrl,
+                };
+              })
+            );
+
+            // Calculate signature summary
+            const signatureSummary = {
+              total: signatures.length,
+              signed: signatures.filter((s) => s.status === "signed").length,
+              pending: signatures.filter((s) => s.status === "pending").length,
+              rejected: signatures.filter((s) => s.status === "rejected").length,
+            };
+
             return {
               ...contract,
               owner: ownerWithAvatar,
@@ -218,6 +310,10 @@ export const listEnriched = query({
               cargoType,
               negotiation,
               order,
+              approvals: enrichedApprovals,
+              approvalSummary,
+              signatures: enrichedSignatures,
+              signatureSummary,
             };
           })
         );
@@ -455,11 +551,49 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     throw new Error("No organization found. Please seed organizations first.");
   }
 
-  // Get system user for audit trail
-  const systemUser = await ctx.db.query("users").first();
-  if (!systemUser) {
-    throw new Error("No users found. Please create a user first.");
-  }
+  const now = Date.now();
+
+  // Create dedicated seed users for consistent activity logs across all instances
+  const seedUsers = await Promise.all([
+    ctx.db.insert("users", {
+      name: "John Smith",
+      email: "john.smith@seamless-sea.test",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    ctx.db.insert("users", {
+      name: "Sarah Johnson",
+      email: "sarah.johnson@seamless-sea.test",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    ctx.db.insert("users", {
+      name: "Michael Chen",
+      email: "michael.chen@seamless-sea.test",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    ctx.db.insert("users", {
+      name: "Emily Rodriguez",
+      email: "emily.rodriguez@seamless-sea.test",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    }),
+    ctx.db.insert("users", {
+      name: "David Kim",
+      email: "david.kim@seamless-sea.test",
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    }),
+  ]);
+
+  // Helper to randomly select a seed user for variety
+  const randomUser = () => seedUsers[Math.floor(Math.random() * seedUsers.length)];
 
   // Get reference data
   const companies = await ctx.db.query("companies").collect();
@@ -522,6 +656,171 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       freightRate: `$${(15 + Math.random() * 15).toFixed(2)}/mt`,
       demurrageRate: `$${Math.floor(8000 + Math.random() * 7000)}/day`,
       laycanDuration: 3,
+    };
+  };
+
+  // Helper: Get delivery terms based on cargo category
+  const getDeliveryTerms = (cargoCategory: string) => {
+    if (cargoCategory === "Dry Bulk") {
+      const terms = ["FIO", "FIOS", "FIO Trimmed", "FIOST"];
+      const term = terms[Math.floor(Math.random() * terms.length)];
+      return { load: term, discharge: term };
+    } else if (cargoCategory === "Tanker") {
+      return { load: "Free In", discharge: "Free Out" };
+    } else if (cargoCategory === "Container") {
+      return { load: "Liner Terms", discharge: "Liner Terms" };
+    } else {
+      return { load: "FIO", discharge: "FIO" };
+    }
+  };
+
+  // Helper: Get market index name based on vessel class
+  const getMarketIndexName = (vesselClass: string | undefined) => {
+    if (!vesselClass) return "Baltic Dry Index";
+
+    if (vesselClass.includes("Capesize") || vesselClass.includes("Valemax") || vesselClass.includes("VLOC")) {
+      const indices = ["Baltic Capesize Index", "BCI C5 (W Australia-China)", "BCI C3 (Tubarao-Qingdao)"];
+      return indices[Math.floor(Math.random() * indices.length)];
+    } else if (vesselClass.includes("VLCC") || vesselClass.includes("TI class")) {
+      const indices = ["TD3C (MEG-China)", "TD1 (MEG-US Gulf)", "TD2 (MEG-Singapore)"];
+      return indices[Math.floor(Math.random() * indices.length)];
+    } else if (vesselClass.includes("Aframax")) {
+      const indices = ["TD6 (Black Sea-Med)", "TD7 (North Sea-Cont)", "TD17 (Baltic-UKC)"];
+      return indices[Math.floor(Math.random() * indices.length)];
+    } else if (vesselClass.includes("Ever") || vesselClass.includes("MSC") || vesselClass.includes("HMM") || vesselClass.includes("OOCL")) {
+      return "SCFI (Shanghai Containerized Freight Index)";
+    } else {
+      return "Baltic Dry Index";
+    }
+  };
+
+  // Helper: Get commission rates by vessel type
+  const getCommissionRates = (vesselClass: string | undefined) => {
+    if (!vesselClass) return { address: 3.75, broker: 1.25 };
+
+    // Container ships have lower commissions
+    if (vesselClass.includes("Ever") || vesselClass.includes("MSC") || vesselClass.includes("HMM") || vesselClass.includes("OOCL") || vesselClass.includes("ONE")) {
+      return { address: 2.5, broker: 1.0 };
+    }
+    // Specialty vessels (Valemax, VLOC) have higher commissions
+    else if (vesselClass.includes("Valemax") || vesselClass.includes("VLOC")) {
+      return { address: 5.0, broker: 2.5 };
+    }
+    // Standard (dry bulk, tankers)
+    else {
+      return { address: 3.75, broker: 1.25 };
+    }
+  };
+
+  // Helper: Add contract workflow dates based on status
+  const addContractWorkflowDates = (status: string, createdTime: number) => {
+    // Speed variation: 20% fast, 60% normal, 20% slow
+    const speedRand = Math.random();
+    const speedMultiplier = speedRand < 0.2 ? 0.5 : speedRand < 0.8 ? 1.0 : 1.5;
+
+    const dates: any = {};
+
+    if (status === "working-copy" || status === "final") {
+      // Draft → Working Copy: 1-2 days
+      const workingCopyDelay = (1 + Math.random()) * 24 * 60 * 60 * 1000 * speedMultiplier;
+      dates.workingCopyDate = createdTime + workingCopyDelay;
+    }
+
+    if (status === "final") {
+      // Working Copy → Final: 2-4 days
+      const workingCopyDelay = (1 + Math.random()) * 24 * 60 * 60 * 1000 * speedMultiplier;
+      dates.workingCopyDate = createdTime + workingCopyDelay;
+
+      const finalDelay = (2 + Math.random() * 2) * 24 * 60 * 60 * 1000 * speedMultiplier;
+      dates.finalDate = dates.workingCopyDate + finalDelay;
+
+      // 50% chance of being fully signed
+      if (Math.random() < 0.5) {
+        // Final → Fully Signed: 0.5-1.5 days
+        const signedDelay = (0.5 + Math.random()) * 24 * 60 * 60 * 1000 * speedMultiplier;
+        dates.fullySignedDate = dates.finalDate + signedDelay;
+      }
+    }
+
+    return dates;
+  };
+
+  // Helper: Generate freight analytics from final rate
+  const generateFreightAnalytics = (finalRate: string, vesselClass: string | undefined) => {
+    const finalRateNum = parseFloat(finalRate.replace(/[^0-9.]/g, ""));
+
+    // Negotiation started high and came down
+    const highestRate = finalRateNum * (1.1 + Math.random() * 0.2); // 10-30% higher
+    const lowestRate = finalRateNum * (1 - Math.random() * 0.05); // 0-5% lower
+    const firstRate = finalRateNum * (1.1 + Math.random() * 0.15); // 10-25% higher
+
+    // Last day rates (tighter range)
+    const highestLastDay = finalRateNum * (1.05 + Math.random() * 0.1); // 5-15% higher
+    const lowestLastDay = finalRateNum * (1 - Math.random() * 0.02); // 0-2% lower
+    const firstLastDay = finalRateNum * (1.05 + Math.random() * 0.08); // 5-13% higher
+
+    // Market index (slightly higher than final rate)
+    const marketIndex = finalRateNum * (1 + Math.random() * 0.05); // 0-5% above final
+    const marketIndexName = getMarketIndexName(vesselClass);
+
+    return {
+      highestFreightRateIndication: highestRate,
+      lowestFreightRateIndication: lowestRate,
+      firstFreightRateIndication: firstRate,
+      highestFreightRateLastDay: highestLastDay,
+      lowestFreightRateLastDay: lowestLastDay,
+      firstFreightRateLastDay: firstLastDay,
+      marketIndex,
+      marketIndexName,
+    };
+  };
+
+  // Helper: Generate demurrage analytics from final rate
+  const generateDemurrageAnalytics = (finalRate: string) => {
+    const finalRateNum = parseFloat(finalRate.replace(/[^0-9.]/g, ""));
+
+    // Negotiation started high and came down
+    const highestRate = finalRateNum * (1.1 + Math.random() * 0.25); // 10-35% higher
+    const lowestRate = finalRateNum * (1 - Math.random() * 0.1); // 0-10% lower
+    const firstRate = finalRateNum * (1.1 + Math.random() * 0.2); // 10-30% higher
+
+    // Last day rates (tighter range)
+    const highestLastDay = finalRateNum * (1.05 + Math.random() * 0.1); // 5-15% higher
+    const lowestLastDay = finalRateNum * (1 - Math.random() * 0.05); // 0-5% lower
+    const firstLastDay = finalRateNum * (1.05 + Math.random() * 0.08); // 5-13% higher
+
+    return {
+      highestDemurrageIndication: highestRate,
+      lowestDemurrageIndication: lowestRate,
+      firstDemurrageIndication: firstRate,
+      highestDemurrageLastDay: highestLastDay,
+      lowestDemurrageLastDay: lowestLastDay,
+      firstDemurrageLastDay: firstLastDay,
+    };
+  };
+
+  // Helper: Calculate commissions and gross freight
+  const calculateCommissionsAndGrossFreight = (
+    freightRate: string,
+    quantity: number,
+    vesselClass: string | undefined
+  ) => {
+    const rateNum = parseFloat(freightRate.replace(/[^0-9.]/g, ""));
+    const commissionRates = getCommissionRates(vesselClass);
+
+    // Calculate gross freight
+    const grossFreight = rateNum * quantity;
+
+    // Calculate commission totals
+    const addressCommissionTotal = (grossFreight * commissionRates.address) / 100;
+    const brokerCommissionTotal = (grossFreight * commissionRates.broker) / 100;
+
+    return {
+      grossFreight,
+      addressCommissionPercent: commissionRates.address,
+      addressCommissionTotal,
+      brokerCommissionPercent: commissionRates.broker,
+      brokerCommissionTotal,
     };
   };
 
@@ -697,7 +996,7 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       oldValue,
       newValue,
       changeReason: reason,
-      userId: systemUser._id,
+      userId: randomUser(),
       timestamp,
     });
   };
@@ -722,13 +1021,12 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
         value: statusValue,
         label: statusLabel,
       },
-      userId: systemUser._id,
+      userId: randomUser(),
       timestamp,
       expandable: expandable ? { data: expandable } : undefined,
     });
   };
 
-  const now = Date.now();
   const fixturesCreated = [];
 
   // Create 140 fixtures with realistic progression
@@ -860,6 +1158,27 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       const initialDemurrageRate = `$${Math.floor(parseInt(demurrageRate.replace(/[^0-9]/g, '')) * 0.85)}/day`;
       const initialLaycanStart = laycanStart - 7 * 24 * 60 * 60 * 1000;
 
+      // Add analytics for fixed negotiations
+      if (isTradeFlow && negotiationId && negotiationStatus === "fixed") {
+        const freightAnalytics = generateFreightAnalytics(freightRate, vessel.vesselClass);
+        const demurrageAnalytics = generateDemurrageAnalytics(demurrageRate);
+        const deliveryTerms = getDeliveryTerms(cargoType.category);
+        const commissionsAndGrossFreight = calculateCommissionsAndGrossFreight(
+          freightRate,
+          quantity,
+          vessel.vesselClass
+        );
+
+        await ctx.db.patch(negotiationId, {
+          ...freightAnalytics,
+          ...demurrageAnalytics,
+          ...commissionsAndGrossFreight,
+          loadDeliveryType: deliveryTerms.load,
+          dischargeRedeliveryType: deliveryTerms.discharge,
+        });
+      }
+
+      const contractCreationTime = startTime + (showFullProgression ? 7 : 4) * 24 * 60 * 60 * 1000;
       const contractId = await ctx.db.insert("contracts", {
         contractNumber,
         fixtureId,
@@ -884,7 +1203,8 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
         quantity,
         quantityUnit: "MT",
         status: contractStatus,
-        createdAt: startTime + (showFullProgression ? 7 : 4) * 24 * 60 * 60 * 1000,
+        ...addContractWorkflowDates(contractStatus, contractCreationTime),
+        createdAt: contractCreationTime,
         updatedAt: now,
       });
 
@@ -909,7 +1229,6 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       const selectedChanges = shuffled.slice(0, numFieldChanges);
 
       // Create field changes with timestamps spread during contract phase
-      const contractCreationTime = startTime + (showFullProgression ? 7 : 4) * 24 * 60 * 60 * 1000;
       for (let k = 0; k < selectedChanges.length; k++) {
         const change = selectedChanges[k];
         const changeTimestamp = contractCreationTime + (k * 0.5 + 0.5) * 24 * 60 * 60 * 1000; // Spread over days
