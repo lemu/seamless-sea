@@ -59,7 +59,7 @@ function ForgotPassword() {
   if (isSubmitted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Check Your Email</h1>
           </CardHeader>

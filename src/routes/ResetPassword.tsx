@@ -142,7 +142,7 @@ function ResetPassword() {
   if (!isBetterAuthToken && customToken && tokenVerification === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-4">
               <Spinner size="lg" variant="primary" />
@@ -158,7 +158,7 @@ function ResetPassword() {
   if (!isBetterAuthToken && customToken && !tokenVerification?.valid) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Invalid Reset Link</h1>
           </CardHeader>
@@ -188,7 +188,7 @@ function ResetPassword() {
   if (!isBetterAuthToken && !customToken) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Invalid Reset Link</h1>
           </CardHeader>
@@ -218,7 +218,7 @@ function ResetPassword() {
   if (isSuccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Password Reset Successful</h1>
           </CardHeader>

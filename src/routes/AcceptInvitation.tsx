@@ -83,7 +83,7 @@ function AcceptInvitation() {
   if (invitation === undefined || isUserLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-4">
               <Spinner size="lg" variant="primary" />
@@ -99,7 +99,7 @@ function AcceptInvitation() {
   if (!invitation) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Invalid Invitation</h1>
           </CardHeader>
@@ -124,7 +124,7 @@ function AcceptInvitation() {
   if (isSuccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Welcome to {invitation.organizationName}!</h1>
           </CardHeader>
@@ -147,7 +147,7 @@ function AcceptInvitation() {
   if (invitation.status !== "pending") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">
               {invitation.status === "accepted" ? "Invitation Already Accepted" : "Invitation Expired"}
@@ -178,7 +178,7 @@ function AcceptInvitation() {
   if (Date.now() > invitation.expiresAt) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">Invitation Expired</h1>
           </CardHeader>
@@ -203,7 +203,7 @@ function AcceptInvitation() {
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface-secondary)] p-6">
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <h1 className="text-2xl font-bold text-center">You're Invited!</h1>
           </CardHeader>

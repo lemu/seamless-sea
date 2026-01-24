@@ -1425,7 +1425,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
                 </Avatar>
                 {/* User Avatar Overlay */}
                 <div className="absolute -right-1 -bottom-1 rounded-full border-2 border-white">
-                  <Avatar size="xs">
+                  <Avatar size="sm">
                     <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                     <AvatarFallback>
                       {getUserInitials(user.name)}
@@ -1461,7 +1461,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
               </Avatar>
               {/* User Avatar Overlay - bigger */}
               <div className="absolute -right-0.5 -bottom-0.5 rounded-full border border-white">
-                <Avatar size="xs">
+                <Avatar size="sm">
                   <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                   <AvatarFallback>
                     {getUserInitials(user.name)}
