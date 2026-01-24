@@ -252,3 +252,169 @@ export const listByCounterparty = query({
     return negotiations.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
+
+/**
+ * Calculate analytics for a negotiation from activity log history
+ * This should be called when a negotiation reaches "firm" or "fixed" status
+ */
+export const calculateAnalytics = mutation({
+  args: {
+    negotiationId: v.id("negotiations"),
+  },
+  handler: async (ctx, args) => {
+    const negotiation = await ctx.db.get(args.negotiationId);
+    if (!negotiation) {
+      throw new Error("Negotiation not found");
+    }
+
+    // Get all activity logs for this negotiation
+    const activityLogs = await ctx.db
+      .query("activity_logs")
+      .withIndex("by_entity", (q) =>
+        q.eq("entityType", "negotiation").eq("entityId", negotiation._id)
+      )
+      .collect();
+
+    // Sort by timestamp
+    const sortedLogs = activityLogs.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Extract freight rates and demurrage values from activity logs
+    // Activity logs with expandable data may contain freight/demurrage information
+    const freightRates: Array<{ value: number; timestamp: number }> = [];
+    const demurrageRates: Array<{ value: number; timestamp: number }> = [];
+
+    for (const log of sortedLogs) {
+      // Check if expandable data contains rate information
+      if (log.expandable?.data) {
+        for (const item of log.expandable.data) {
+          // Look for freight rate entries
+          if (
+            item.label.toLowerCase().includes("freight") ||
+            item.label.toLowerCase().includes("rate")
+          ) {
+            const numericValue = parseFloat(item.value.replace(/[^0-9.]/g, ""));
+            if (!isNaN(numericValue)) {
+              freightRates.push({
+                value: numericValue,
+                timestamp: log.timestamp,
+              });
+            }
+          }
+          // Look for demurrage entries
+          if (item.label.toLowerCase().includes("demurrage")) {
+            const numericValue = parseFloat(item.value.replace(/[^0-9.]/g, ""));
+            if (!isNaN(numericValue)) {
+              demurrageRates.push({
+                value: numericValue,
+                timestamp: log.timestamp,
+              });
+            }
+          }
+        }
+      }
+
+      // Also check if the negotiation's freightRate/demurrageRate fields have numeric values
+      if (log.timestamp && negotiation.freightRate) {
+        const freightNum = parseFloat(
+          negotiation.freightRate.replace(/[^0-9.]/g, "")
+        );
+        if (!isNaN(freightNum) && freightRates.length === 0) {
+          freightRates.push({ value: freightNum, timestamp: log.timestamp });
+        }
+      }
+
+      if (log.timestamp && negotiation.demurrageRate) {
+        const demurrageNum = parseFloat(
+          negotiation.demurrageRate.replace(/[^0-9.]/g, "")
+        );
+        if (!isNaN(demurrageNum) && demurrageRates.length === 0) {
+          demurrageRates.push({
+            value: demurrageNum,
+            timestamp: log.timestamp,
+          });
+        }
+      }
+    }
+
+    // Calculate analytics for freight rates
+    let highestFreightRateIndication: number | undefined;
+    let lowestFreightRateIndication: number | undefined;
+    let firstFreightRateIndication: number | undefined;
+    let highestFreightRateLastDay: number | undefined;
+    let lowestFreightRateLastDay: number | undefined;
+    let firstFreightRateLastDay: number | undefined;
+
+    if (freightRates.length > 0) {
+      const values = freightRates.map((r) => r.value);
+      highestFreightRateIndication = Math.max(...values);
+      lowestFreightRateIndication = Math.min(...values);
+      firstFreightRateIndication = freightRates[0].value;
+
+      // Get last day's rates (last 24 hours of activity)
+      const lastTimestamp = freightRates[freightRates.length - 1].timestamp;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const lastDayRates = freightRates.filter(
+        (r) => r.timestamp >= lastTimestamp - oneDayMs
+      );
+
+      if (lastDayRates.length > 0) {
+        const lastDayValues = lastDayRates.map((r) => r.value);
+        highestFreightRateLastDay = Math.max(...lastDayValues);
+        lowestFreightRateLastDay = Math.min(...lastDayValues);
+        firstFreightRateLastDay = lastDayRates[0].value;
+      }
+    }
+
+    // Calculate analytics for demurrage rates
+    let highestDemurrageIndication: number | undefined;
+    let lowestDemurrageIndication: number | undefined;
+    let firstDemurrageIndication: number | undefined;
+    let highestDemurrageLastDay: number | undefined;
+    let lowestDemurrageLastDay: number | undefined;
+    let firstDemurrageLastDay: number | undefined;
+
+    if (demurrageRates.length > 0) {
+      const values = demurrageRates.map((r) => r.value);
+      highestDemurrageIndication = Math.max(...values);
+      lowestDemurrageIndication = Math.min(...values);
+      firstDemurrageIndication = demurrageRates[0].value;
+
+      // Get last day's rates
+      const lastTimestamp = demurrageRates[demurrageRates.length - 1].timestamp;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const lastDayRates = demurrageRates.filter(
+        (r) => r.timestamp >= lastTimestamp - oneDayMs
+      );
+
+      if (lastDayRates.length > 0) {
+        const lastDayValues = lastDayRates.map((r) => r.value);
+        highestDemurrageLastDay = Math.max(...lastDayValues);
+        lowestDemurrageLastDay = Math.min(...lastDayValues);
+        firstDemurrageLastDay = lastDayRates[0].value;
+      }
+    }
+
+    // Update the negotiation with calculated analytics
+    await ctx.db.patch(args.negotiationId, {
+      highestFreightRateIndication,
+      lowestFreightRateIndication,
+      firstFreightRateIndication,
+      highestFreightRateLastDay,
+      lowestFreightRateLastDay,
+      firstFreightRateLastDay,
+      highestDemurrageIndication,
+      lowestDemurrageIndication,
+      firstDemurrageIndication,
+      highestDemurrageLastDay,
+      lowestDemurrageLastDay,
+      firstDemurrageLastDay,
+      updatedAt: Date.now(),
+    });
+
+    return {
+      message: "Analytics calculated successfully",
+      freightRatesFound: freightRates.length,
+      demurrageRatesFound: demurrageRates.length,
+    };
+  },
+});
