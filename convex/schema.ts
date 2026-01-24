@@ -258,6 +258,7 @@ export default defineSchema({
       v.literal("withdrawn")
     ),
     approvalStatus: v.optional(v.string()),
+    createdByUserId: v.optional(v.id("users")), // User who created the order
     createdAt: v.number(),
     updatedAt: v.number(),
     distributedAt: v.optional(v.number()),
@@ -319,6 +320,43 @@ export default defineSchema({
       v.literal("on-subs-amendment")
     ),
     personInChargeId: v.optional(v.id("users")),
+
+    // Delivery Types
+    loadDeliveryType: v.optional(v.string()), // "Free In", "Free Out", "FIO", etc.
+    dischargeRedeliveryType: v.optional(v.string()),
+
+    // User Tracking
+    dealCaptureUserId: v.optional(v.id("users")), // Person who captured the deal
+
+    // Freight Rate Analytics (computed from negotiation history)
+    highestFreightRateIndication: v.optional(v.number()),
+    lowestFreightRateIndication: v.optional(v.number()),
+    firstFreightRateIndication: v.optional(v.number()),
+    highestFreightRateLastDay: v.optional(v.number()),
+    lowestFreightRateLastDay: v.optional(v.number()),
+    firstFreightRateLastDay: v.optional(v.number()),
+
+    // Demurrage Analytics (computed from negotiation history)
+    highestDemurrageIndication: v.optional(v.number()),
+    lowestDemurrageIndication: v.optional(v.number()),
+    firstDemurrageIndication: v.optional(v.number()),
+    highestDemurrageLastDay: v.optional(v.number()),
+    lowestDemurrageLastDay: v.optional(v.number()),
+    firstDemurrageLastDay: v.optional(v.number()),
+
+    // Market Comparison
+    marketIndex: v.optional(v.number()), // Market rate for comparison
+    marketIndexName: v.optional(v.string()), // e.g., "Baltic Dry Index"
+
+    // Commission Details
+    addressCommissionPercent: v.optional(v.number()),
+    addressCommissionTotal: v.optional(v.number()),
+    brokerCommissionPercent: v.optional(v.number()),
+    brokerCommissionTotal: v.optional(v.number()),
+
+    // Gross Freight
+    grossFreight: v.optional(v.number()),
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -371,6 +409,15 @@ export default defineSchema({
     ),
     approvalStatus: v.optional(v.string()),
     signedAt: v.optional(v.number()),
+
+    // CP Workflow Dates (for timeline tooltips)
+    workingCopyDate: v.optional(v.number()), // When moved to Working Copy
+    finalDate: v.optional(v.number()), // When finalized
+    fullySignedDate: v.optional(v.number()), // When all parties signed
+
+    // CP URL
+    cpUrl: v.optional(v.string()), // Link to the CP document
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -448,6 +495,11 @@ export default defineSchema({
     ),
     approvalStatus: v.optional(v.string()),
     documentStorageId: v.optional(v.id("_storage")),
+
+    // Workflow Dates (for timeline tooltips)
+    workingCopyDate: v.optional(v.number()),
+    finalDate: v.optional(v.number()),
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -471,6 +523,96 @@ export default defineSchema({
   })
     .index("by_recap", ["recapManagerId"])
     .index("by_status", ["status"]),
+
+  // Contract Approvals - Flexible party approval system for contracts
+  contract_approvals: defineTable({
+    contractId: v.id("contracts"),
+    partyRole: v.string(), // "owner", "charterer", "broker", etc.
+    companyId: v.id("companies"),
+    approvedBy: v.optional(v.id("users")), // User who approved
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    approvedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_contract", ["contractId"])
+    .index("by_status", ["status"])
+    .index("by_company", ["companyId"]),
+
+  // Contract Signatures - Flexible party signature system for contracts
+  contract_signatures: defineTable({
+    contractId: v.id("contracts"),
+    partyRole: v.string(), // "owner", "charterer", "broker", etc.
+    companyId: v.id("companies"),
+    signedBy: v.optional(v.id("users")), // User who signed
+    status: v.union(
+      v.literal("pending"),
+      v.literal("signed"),
+      v.literal("rejected")
+    ),
+    signingMethod: v.optional(v.string()), // "DocuSign", "Manual", "Wet Ink", etc.
+    signedAt: v.optional(v.number()),
+    documentStorageId: v.optional(v.id("_storage")), // Signed document
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_contract", ["contractId"])
+    .index("by_status", ["status"])
+    .index("by_company", ["companyId"]),
+
+  // Addenda Approvals - Flexible party approval system for addenda
+  addenda_approvals: defineTable({
+    addendaId: v.string(), // Store as string to handle both contract_addenda and recap_addenda IDs
+    addendaType: v.union(
+      v.literal("contract"),
+      v.literal("recap")
+    ),
+    partyRole: v.string(),
+    companyId: v.id("companies"),
+    approvedBy: v.optional(v.id("users")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    approvedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_addenda", ["addendaId"])
+    .index("by_status", ["status"])
+    .index("by_company", ["companyId"]),
+
+  // Addenda Signatures - Flexible party signature system for addenda
+  addenda_signatures: defineTable({
+    addendaId: v.string(), // Store as string to handle both contract_addenda and recap_addenda IDs
+    addendaType: v.union(
+      v.literal("contract"),
+      v.literal("recap")
+    ),
+    partyRole: v.string(),
+    companyId: v.id("companies"),
+    signedBy: v.optional(v.id("users")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("signed"),
+      v.literal("rejected")
+    ),
+    signingMethod: v.optional(v.string()),
+    signedAt: v.optional(v.number()),
+    documentStorageId: v.optional(v.id("_storage")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_addenda", ["addendaId"])
+    .index("by_status", ["status"])
+    .index("by_company", ["companyId"]),
 
   // Field Changes - Complete audit trail
   field_changes: defineTable({
@@ -571,5 +713,34 @@ export default defineSchema({
   })
     .index("by_load_port", ["loadPortId"])
     .index("by_discharge_port", ["dischargePortId"]),
+
+  // User Bookmarks - Persistent user bookmarks for Fixtures table
+  user_bookmarks: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    isDefault: v.boolean(),
+    count: v.optional(v.number()),
+
+    // Filters State - nested object
+    filtersState: v.optional(v.object({
+      activeFilters: v.any(), // Record<string, FilterValue> - complex type
+      pinnedFilters: v.array(v.string()),
+      globalSearchTerms: v.array(v.string()),
+    })),
+
+    // Table State - nested object
+    tableState: v.optional(v.object({
+      sorting: v.any(), // TanStack Table types
+      columnVisibility: v.any(),
+      grouping: v.any(),
+      columnOrder: v.any(),
+      columnSizing: v.any(),
+    })),
+
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_user_and_default", ["userId", "isDefault"]),
 
 });

@@ -19,6 +19,374 @@ function generateLaycan(): { start: number; end: number } {
   return { start: startDate, end: endDate };
 }
 
+// Helper to create approval/signature records for a contract
+async function createContractApprovalsAndSignatures(
+  ctx: MutationCtx,
+  contractId: Id<"contracts">,
+  ownerId: Id<"companies">,
+  chartererId: Id<"companies">,
+  brokerId: Id<"companies"> | undefined,
+  contractStatus: string,
+  userId: Id<"users">,
+  counterpartyUserId: Id<"users">,
+  baseTime: number
+) {
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  // Determine approval/signature status based on contract status
+  let ownerApprovalStatus: "pending" | "approved" | "rejected" = "pending";
+  let chartererApprovalStatus: "pending" | "approved" | "rejected" = "pending";
+  let ownerSignatureStatus: "pending" | "signed" | "rejected" = "pending";
+  let chartererSignatureStatus: "pending" | "signed" | "rejected" = "pending";
+
+  if (contractStatus === "working-copy" || contractStatus === "final") {
+    // Both parties approved
+    ownerApprovalStatus = "approved";
+    chartererApprovalStatus = "approved";
+  }
+
+  if (contractStatus === "final") {
+    // Both parties signed
+    ownerSignatureStatus = "signed";
+    chartererSignatureStatus = "signed";
+  } else if (contractStatus === "working-copy") {
+    // Random: one party signed, other pending OR both pending
+    if (Math.random() < 0.5) {
+      ownerSignatureStatus = "signed";
+    }
+  }
+
+  // Create owner approval
+  const ownerApprovalId = await ctx.db.insert("contract_approvals", {
+    contractId,
+    partyRole: "owner",
+    companyId: ownerId,
+    status: ownerApprovalStatus,
+    approvedBy: ownerApprovalStatus === "approved" ? counterpartyUserId : undefined,
+    approvedAt: ownerApprovalStatus === "approved" ? baseTime - 2 * DAY : undefined,
+    createdAt: baseTime - 3 * DAY,
+    updatedAt: baseTime - (ownerApprovalStatus === "approved" ? 2 : 3) * DAY,
+  });
+
+  // Create charterer approval
+  const chartererApprovalId = await ctx.db.insert("contract_approvals", {
+    contractId,
+    partyRole: "charterer",
+    companyId: chartererId,
+    status: chartererApprovalStatus,
+    approvedBy: chartererApprovalStatus === "approved" ? userId : undefined,
+    approvedAt: chartererApprovalStatus === "approved" ? baseTime - 2 * DAY + 4 * HOUR : undefined,
+    createdAt: baseTime - 3 * DAY,
+    updatedAt: baseTime - (chartererApprovalStatus === "approved" ? 2 : 3) * DAY,
+  });
+
+  // Create owner signature
+  const ownerSignatureId = await ctx.db.insert("contract_signatures", {
+    contractId,
+    partyRole: "owner",
+    companyId: ownerId,
+    status: ownerSignatureStatus,
+    signedBy: ownerSignatureStatus === "signed" ? counterpartyUserId : undefined,
+    signedAt: ownerSignatureStatus === "signed" ? baseTime - 1 * DAY : undefined,
+    signingMethod: ownerSignatureStatus === "signed" ? randomItem(["DocuSign", "Manual", "Wet Ink"]) : undefined,
+    createdAt: baseTime - 2 * DAY,
+    updatedAt: baseTime - (ownerSignatureStatus === "signed" ? 1 : 2) * DAY,
+  });
+
+  // Create charterer signature
+  const chartererSignatureId = await ctx.db.insert("contract_signatures", {
+    contractId,
+    partyRole: "charterer",
+    companyId: chartererId,
+    status: chartererSignatureStatus,
+    signedBy: chartererSignatureStatus === "signed" ? userId : undefined,
+    signedAt: chartererSignatureStatus === "signed" ? baseTime - 1 * DAY + 3 * HOUR : undefined,
+    signingMethod: chartererSignatureStatus === "signed" ? randomItem(["DocuSign", "Manual", "Wet Ink"]) : undefined,
+    createdAt: baseTime - 2 * DAY,
+    updatedAt: baseTime - (chartererSignatureStatus === "signed" ? 1 : 2) * DAY,
+  });
+
+  // Optionally create broker approval/signature (30% chance)
+  if (brokerId && Math.random() < 0.3) {
+    await ctx.db.insert("contract_approvals", {
+      contractId,
+      partyRole: "broker",
+      companyId: brokerId,
+      status: ownerApprovalStatus, // Same as owner
+      approvedBy: ownerApprovalStatus === "approved" ? userId : undefined,
+      approvedAt: ownerApprovalStatus === "approved" ? baseTime - 2 * DAY + 2 * HOUR : undefined,
+      createdAt: baseTime - 3 * DAY,
+      updatedAt: baseTime - (ownerApprovalStatus === "approved" ? 2 : 3) * DAY,
+    });
+  }
+
+  // Add activity log entries for approvals/signatures
+  if (ownerApprovalStatus === "approved") {
+    await logActivity(
+      ctx,
+      "contract",
+      contractId,
+      "approved",
+      "Owner approved the contract",
+      { value: "contract-approved", label: "Contract approved" },
+      undefined,
+      counterpartyUserId,
+      baseTime - 2 * DAY
+    );
+  }
+
+  if (chartererApprovalStatus === "approved") {
+    await logActivity(
+      ctx,
+      "contract",
+      contractId,
+      "approved",
+      "Charterer approved the contract",
+      { value: "contract-approved", label: "Contract approved" },
+      undefined,
+      userId,
+      baseTime - 2 * DAY + 4 * HOUR
+    );
+  }
+
+  if (ownerSignatureStatus === "signed") {
+    await logActivity(
+      ctx,
+      "contract",
+      contractId,
+      "signed",
+      "Owner signed the contract via " + (ownerSignatureStatus === "signed" ? randomItem(["DocuSign", "Manual", "Wet Ink"]) : ""),
+      { value: "contract-signed", label: "Contract signed" },
+      undefined,
+      counterpartyUserId,
+      baseTime - 1 * DAY
+    );
+  }
+
+  if (chartererSignatureStatus === "signed") {
+    await logActivity(
+      ctx,
+      "contract",
+      contractId,
+      "signed",
+      "Charterer signed the contract via " + randomItem(["DocuSign", "Manual", "Wet Ink"]),
+      { value: "contract-signed", label: "Contract signed" },
+      undefined,
+      userId,
+      baseTime - 1 * DAY + 3 * HOUR
+    );
+  }
+}
+
+// Helper to add workflow dates to contract
+async function addWorkflowDatesToContract(
+  ctx: MutationCtx,
+  contractId: Id<"contracts">,
+  contractStatus: string,
+  createdTime: number
+) {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  let workingCopyDate: number | undefined;
+  let finalDate: number | undefined;
+  let fullySignedDate: number | undefined;
+
+  if (contractStatus === "working-copy" || contractStatus === "final") {
+    workingCopyDate = createdTime + 1 * DAY;
+  }
+
+  if (contractStatus === "final") {
+    finalDate = createdTime + 3 * DAY;
+    fullySignedDate = createdTime + 4 * DAY;
+  }
+
+  await ctx.db.patch(contractId, {
+    workingCopyDate,
+    finalDate,
+    fullySignedDate,
+  });
+}
+
+// Helper to add analytics data to negotiation
+async function addAnalyticsToNegotiation(
+  ctx: MutationCtx,
+  negotiationId: Id<"negotiations">,
+  finalFreightRate: string,
+  finalDemurrageRate: string,
+  baseFreightRate: number
+) {
+  // Generate realistic freight rate progression
+  const finalRate = parseFloat(finalFreightRate.replace(/[^0-9.]/g, ""));
+
+  // Negotiation started high and came down
+  const highestRate = finalRate * (1 + Math.random() * 0.2); // 10-30% higher
+  const lowestRate = finalRate * (1 - Math.random() * 0.05); // 0-5% lower
+  const firstRate = finalRate * (1 + Math.random() * 0.15); // 10-25% higher
+
+  // Last day rates
+  const highestLastDay = finalRate * (1 + Math.random() * 0.1); // 5-15% higher
+  const lowestLastDay = finalRate * (1 - Math.random() * 0.02); // 0-2% lower
+  const firstLastDay = finalRate * (1 + Math.random() * 0.08); // 5-13% higher
+
+  // Similar for demurrage
+  const finalDemurrage = parseFloat(finalDemurrageRate.replace(/[^0-9.]/g, ""));
+  const highestDemurrage = finalDemurrage * (1 + Math.random() * 0.25);
+  const lowestDemurrage = finalDemurrage * (1 - Math.random() * 0.1);
+  const firstDemurrage = finalDemurrage * (1 + Math.random() * 0.2);
+
+  // Market index (slightly higher than final rate)
+  const marketIndex = finalRate * (1 + Math.random() * 0.05); // 0-5% above final
+
+  // Commissions
+  const addressCommission = 3.75;
+  const brokerCommission = 1.25;
+
+  // Calculate gross freight
+  const cargoQuantity = 150000; // Average cargo size
+  const grossFreight = finalRate * cargoQuantity;
+  const addressCommissionTotal = (grossFreight * addressCommission) / 100;
+  const brokerCommissionTotal = (grossFreight * brokerCommission) / 100;
+
+  await ctx.db.patch(negotiationId, {
+    highestFreightRateIndication: highestRate,
+    lowestFreightRateIndication: lowestRate,
+    firstFreightRateIndication: firstRate,
+    highestFreightRateLastDay: highestLastDay,
+    lowestFreightRateLastDay: lowestLastDay,
+    firstFreightRateLastDay: firstLastDay,
+    highestDemurrageIndication: highestDemurrage,
+    lowestDemurrageIndication: lowestDemurrage,
+    firstDemurrageIndication: firstDemurrage,
+    highestDemurrageLastDay: finalDemurrage * 1.1,
+    lowestDemurrageLastDay: finalDemurrage * 0.95,
+    firstDemurrageLastDay: finalDemurrage * 1.08,
+    marketIndex,
+    marketIndexName: "Baltic Dry Index",
+    addressCommissionPercent: addressCommission,
+    addressCommissionTotal: addressCommissionTotal,
+    brokerCommissionPercent: brokerCommission,
+    brokerCommissionTotal: brokerCommissionTotal,
+    grossFreight,
+    loadDeliveryType: randomItem(["Free In", "Free Out", "FIO", "FIOS", "Liner Terms"]),
+    dischargeRedeliveryType: randomItem(["Free In", "Free Out", "FIO", "FIOS", "Liner Terms"]),
+    dealCaptureUserId: undefined, // Will be set by user context
+  });
+}
+
+// ========================================
+// HELPER: CREATE DUMMY ORDER FOR OUT-OF-TRADE CONTRACT
+// ========================================
+async function createDummyOrderForContract(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  userId: Id<"users">,
+  baseTime: number
+): Promise<Id<"orders">> {
+  const orderNumber = `ORD${Math.floor(10000 + Math.random() * 90000)}`;
+
+  return await ctx.db.insert("orders", {
+    orderNumber,
+    organizationId,
+    type: "charter" as const,
+    stage: "negotiating" as const,
+    status: "distributed" as const,
+    createdByUserId: userId,
+    createdAt: baseTime - (2 * 24 * 60 * 60 * 1000), // 2 days before contract
+    updatedAt: baseTime - (1 * 24 * 60 * 60 * 1000),
+  });
+}
+
+// ========================================
+// HELPER: CREATE DUMMY NEGOTIATION WITH ANALYTICS
+// ========================================
+async function createDummyNegotiationForContract(
+  ctx: MutationCtx,
+  orderId: Id<"orders">,
+  userId: Id<"users">,
+  counterpartyId: Id<"companies">,
+  contract: {
+    loadPortId: Id<"ports">;
+    dischargePortId: Id<"ports">;
+    cargoTypeId: Id<"cargo_types">;
+    vesselId: Id<"vessels">;
+    quantity: number;
+    laycanStart: number;
+    laycanEnd: number;
+    freightRate: string;
+    demurrageRate: string;
+  },
+  baseTime: number
+): Promise<Id<"negotiations">> {
+  const negotiationNumber = `NEG${Math.floor(10000 + Math.random() * 90000)}`;
+
+  // Parse existing freight/demurrage rates
+  const freightRateNum = parseFloat(contract.freightRate.replace(/[^0-9.]/g, ''));
+  const demurrageRateNum = parseInt(contract.demurrageRate.replace(/[^0-9]/g, ''));
+
+  // Generate realistic analytics (simulate negotiation history)
+  const highestFreight = freightRateNum * 1.15; // 15% higher initially
+  const lowestFreight = freightRateNum * 0.95;  // 5% lower at some point
+  const firstFreight = freightRateNum * 1.08;   // Started 8% higher
+
+  const highestDemurrage = demurrageRateNum * 1.20; // 20% higher initially
+  const lowestDemurrage = demurrageRateNum * 0.90;  // 10% lower at some point
+
+  // Market index (slightly above final rate)
+  const marketIndex = freightRateNum * 1.03;
+
+  // Calculate gross freight
+  const grossFreight = freightRateNum * contract.quantity;
+
+  // Calculate commission totals
+  const addressCommTotal = grossFreight * 0.0375; // 3.75%
+  const brokerCommTotal = grossFreight * 0.0125;  // 1.25%
+
+  return await ctx.db.insert("negotiations", {
+    negotiationNumber,
+    orderId,
+    counterpartyId,
+    vesselId: contract.vesselId,
+
+    // Delivery types
+    loadDeliveryType: randomItem(["FIOS", "FIO", "Liner Terms", "Berth Terms"]),
+    dischargeRedeliveryType: randomItem(["FIOS", "FIO", "Liner Terms", "Berth Terms"]),
+
+    // Final rates
+    freightRate: contract.freightRate,
+    demurrageRate: contract.demurrageRate,
+
+    // Analytics - Freight
+    highestFreightRateIndication: highestFreight,
+    lowestFreightRateIndication: lowestFreight,
+    firstFreightRateIndication: firstFreight,
+    highestFreightRateLastDay: freightRateNum * 1.05,
+    lowestFreightRateLastDay: freightRateNum * 0.98,
+    firstFreightRateLastDay: freightRateNum * 1.02,
+    marketIndex: marketIndex,
+    marketIndexName: randomItem(["Baltic Panamax Index", "Baltic Capesize Index", "Baltic Supramax Index"]),
+    grossFreight: grossFreight,
+
+    // Analytics - Demurrage
+    highestDemurrageIndication: highestDemurrage,
+    lowestDemurrageIndication: lowestDemurrage,
+    firstDemurrageIndication: demurrageRateNum * 1.10,
+
+    // Commissions
+    addressCommissionPercent: 3.75,
+    addressCommissionTotal: addressCommTotal,
+    brokerCommissionPercent: 1.25,
+    brokerCommissionTotal: brokerCommTotal,
+
+    // User tracking
+    dealCaptureUserId: userId,
+
+    status: "fixed" as const,
+    createdAt: baseTime - (1.5 * 24 * 60 * 60 * 1000), // 1.5 days before contract
+    updatedAt: baseTime - (1 * 24 * 60 * 60 * 1000),
+  });
+}
+
 // ========================================
 // SCENARIO GENERATORS
 // ========================================
@@ -1023,6 +1391,31 @@ export async function migrateTradeDeskDataInternal(
 
         contracts.push(contractId);
 
+        // Add workflow dates to contract
+        await addWorkflowDatesToContract(ctx, contractId, statusCombination.contractStatus!, contractCreatedTime);
+
+        // Create approval/signature records for contract
+        await createContractApprovalsAndSignatures(
+          ctx,
+          contractId,
+          negotiationOwner._id,
+          orderCharterer._id,
+          broker._id,
+          statusCombination.contractStatus!,
+          userId,
+          userId, // Using same user for both parties in sample data
+          contractCreatedTime
+        );
+
+        // Add analytics data to negotiation
+        await addAnalyticsToNegotiation(
+          ctx,
+          negotiationId,
+          `$${(Math.random() * 20 + 15).toFixed(2)}/mt`,
+          `$${Math.floor(Math.random() * 30000) + 40000}/day`,
+          Math.random() * 20 + 15
+        );
+
         // Generate field changes for this contract (85% chance of having 3-5 changes)
         const shouldCreateChanges = Math.random() < 0.85;
         console.log(`[Field Changes] Contract ${contracts.length}: shouldCreateChanges=${shouldCreateChanges}`);
@@ -1170,11 +1563,23 @@ export async function migrateFixturesDataInternal(
 
     const fixtureCreatedTime = baseNow - daysAgoOffset * DAY - Math.floor(Math.random() * 12) * HOUR;
     const fixtureUpdatedTime = fixtureCreatedTime + Math.floor(Math.random() * (daysAgoOffset * DAY * 0.5));
+    const contractCreatedTime = fixtureCreatedTime + Math.floor(Math.random() * 2) * DAY;
+    const contractUpdatedTime = contractCreatedTime + Math.floor(Math.random() * (daysAgoOffset * DAY * 0.3));
 
+    // Create dummy order for this Out-of-Trade contract FIRST (so we can link fixture to it)
+    const orderId = await createDummyOrderForContract(
+      ctx,
+      organization._id,
+      _userId,
+      contractCreatedTime
+    );
+
+    // Now create fixture with orderId link
     const fixtureId: Id<"fixtures"> = await ctx.db.insert("fixtures", {
       fixtureNumber,
       title: `${cargoType.name} ${loadPort.name} to ${dischargePort.name}`,
       organizationId: organization._id,
+      orderId,  // Link to the dummy order
       status: fixtureStatus,
       createdAt: fixtureCreatedTime,
       updatedAt: fixtureUpdatedTime,
@@ -1182,13 +1587,39 @@ export async function migrateFixturesDataInternal(
 
     fixtures.push(fixtureId);
 
-    const contractCreatedTime = fixtureCreatedTime + Math.floor(Math.random() * 2) * DAY;
-    const contractUpdatedTime = contractCreatedTime + Math.floor(Math.random() * (daysAgoOffset * DAY * 0.3));
+    // Prepare contract data for negotiation creation
+    const quantity = Math.floor(Math.random() * 100000) + 100000;
+    const freightRate = `$${(Math.random() * 20 + 15).toFixed(2)}/mt`;
+    const demurrageRate = `$${Math.floor(Math.random() * 30000) + 40000}/day`;
 
+    const contractData = {
+      loadPortId: loadPort._id,
+      dischargePortId: dischargePort._id,
+      cargoTypeId: cargoType._id,
+      vesselId: vessel._id,
+      quantity,
+      laycanStart: laycan.start,
+      laycanEnd: laycan.end,
+      freightRate,
+      demurrageRate,
+    };
+
+    // Create dummy negotiation with analytics
+    const negotiationId = await createDummyNegotiationForContract(
+      ctx,
+      orderId,
+      _userId,
+      charterer._id,
+      contractData,
+      contractCreatedTime
+    );
+
+    // Now create contract WITH order and negotiation links
     const contractId = await ctx.db.insert("contracts", {
       contractNumber: `CP${10000 + contractCounter}`,
       fixtureId,
-      // orderId and negotiationId omitted - these are direct contracts without negotiations
+      orderId,            // NOW LINKED
+      negotiationId,      // NOW LINKED
       contractType: randomItem(["voyage-charter", "time-charter", "coa"] as const),
       ownerId: owner._id,
       chartererId: charterer._id,
@@ -1198,14 +1629,14 @@ export async function migrateFixturesDataInternal(
       dischargePortId: dischargePort._id,
       laycanStart: laycan.start,
       laycanEnd: laycan.end,
-      freightRate: `$${(Math.random() * 20 + 15).toFixed(2)}/mt`,
+      freightRate,
       freightRateType: "per-tonne",
-      demurrageRate: `$${Math.floor(Math.random() * 30000) + 40000}/day`,
+      demurrageRate,
       despatchRate: `$${Math.floor(Math.random() * 15000) + 20000}/day`,
       addressCommission: "3.75%",
       brokerCommission: "1.25%",
       cargoTypeId: cargoType._id,
-      quantity: Math.floor(Math.random() * 100000) + 100000,
+      quantity,
       quantityUnit: cargoType.unitType,
       status: contractStatus,
       approvalStatus,
@@ -1215,6 +1646,22 @@ export async function migrateFixturesDataInternal(
 
     contracts.push(contractId);
     contractCounter++;
+
+    // Add workflow dates to contract
+    await addWorkflowDatesToContract(ctx, contractId, contractStatus, contractCreatedTime);
+
+    // Create approval/signature records for contract
+    await createContractApprovalsAndSignatures(
+      ctx,
+      contractId,
+      owner._id,
+      charterer._id,
+      broker._id,
+      contractStatus,
+      _userId,
+      _userId, // Using same user for both parties in sample data
+      contractCreatedTime
+    );
 
     // Generate field changes for this contract (85% chance of having 3-5 changes)
     const shouldCreateChangesOOT = Math.random() < 0.85;
@@ -2197,6 +2644,254 @@ export const clearAllTradingData = mutation({
     return {
       success: true,
       message: "All trading data cleared including vessels",
+    };
+  },
+});
+
+/**
+ * Backfill existing contracts with approval/signature data and analytics
+ * This mutation parses activity logs to extract historical approval/signature events
+ * and creates records in the new tables
+ */
+export const backfillFixtureData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🔄 Starting backfill migration...");
+
+    let contractsProcessed = 0;
+    let approvalsCreated = 0;
+    let signaturesCreated = 0;
+    let negotiationsProcessed = 0;
+
+    // Get all contracts
+    const contracts = await ctx.db.query("contracts").collect();
+
+    for (const contract of contracts) {
+      // Get activity logs for this contract
+      const activityLogs = await ctx.db
+        .query("activity_logs")
+        .withIndex("by_entity", (q) =>
+          q.eq("entityType", "contract").eq("entityId", contract._id)
+        )
+        .collect();
+
+      // Sort logs by timestamp
+      const sortedLogs = activityLogs.sort((a, b) => a.timestamp - b.timestamp);
+
+      // Extract workflow dates from activity logs
+      let workingCopyDate: number | undefined;
+      let finalDate: number | undefined;
+      let fullySignedDate: number | undefined;
+
+      for (const log of sortedLogs) {
+        if (
+          log.status &&
+          log.status.value === "contract-working-copy" &&
+          !workingCopyDate
+        ) {
+          workingCopyDate = log.timestamp;
+        }
+        if (log.status && log.status.value === "contract-final" && !finalDate) {
+          finalDate = log.timestamp;
+        }
+        if (log.status && log.status.value === "contract-fully-signed" && !fullySignedDate) {
+          fullySignedDate = log.timestamp;
+        }
+      }
+
+      // Update contract with workflow dates if found
+      if (workingCopyDate || finalDate || fullySignedDate) {
+        await ctx.db.patch(contract._id, {
+          workingCopyDate,
+          finalDate,
+          fullySignedDate,
+        });
+      }
+
+      // Check if approvals/signatures already exist
+      const existingApprovals = await ctx.db
+        .query("contract_approvals")
+        .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+        .collect();
+
+      const existingSignatures = await ctx.db
+        .query("contract_signatures")
+        .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
+        .collect();
+
+      // Only create if they don't exist
+      if (existingApprovals.length === 0 && existingSignatures.length === 0) {
+        // Parse activity logs for approval/signature events
+        const approvalEvents = sortedLogs.filter(
+          (log) =>
+            log.action === "approved" ||
+            log.description.toLowerCase().includes("approval")
+        );
+
+        const signatureEvents = sortedLogs.filter(
+          (log) =>
+            log.action === "signed" ||
+            log.description.toLowerCase().includes("sign")
+        );
+
+        // Create approval records based on contract parties
+        const now = Date.now();
+        const approvalStatus =
+          contract.status === "final" ? "approved" : "pending";
+
+        if (contract.ownerId) {
+          await ctx.db.insert("contract_approvals", {
+            contractId: contract._id,
+            partyRole: "owner",
+            companyId: contract.ownerId,
+            status: approvalStatus,
+            approvedBy: undefined, // Historical data - user unknown
+            approvedAt:
+              approvalStatus === "approved" ? workingCopyDate || now : undefined,
+            createdAt: contract.createdAt,
+            updatedAt: now,
+          });
+          approvalsCreated++;
+        }
+
+        if (contract.chartererId) {
+          await ctx.db.insert("contract_approvals", {
+            contractId: contract._id,
+            partyRole: "charterer",
+            companyId: contract.chartererId,
+            status: approvalStatus,
+            approvedBy: undefined, // Historical data - user unknown
+            approvedAt:
+              approvalStatus === "approved" ? workingCopyDate || now : undefined,
+            createdAt: contract.createdAt,
+            updatedAt: now,
+          });
+          approvalsCreated++;
+        }
+
+        // Create signature records based on contract parties
+        const signatureStatus =
+          contract.status === "final" ? "signed" : "pending";
+
+        if (contract.ownerId) {
+          await ctx.db.insert("contract_signatures", {
+            contractId: contract._id,
+            partyRole: "owner",
+            companyId: contract.ownerId,
+            status: signatureStatus,
+            signedBy: undefined, // Historical data - user unknown
+            signedAt:
+              signatureStatus === "signed" ? finalDate || now : undefined,
+            signingMethod:
+              signatureStatus === "signed" ? "Manual" : undefined,
+            createdAt: contract.createdAt,
+            updatedAt: now,
+          });
+          signaturesCreated++;
+        }
+
+        if (contract.chartererId) {
+          await ctx.db.insert("contract_signatures", {
+            contractId: contract._id,
+            partyRole: "charterer",
+            companyId: contract.chartererId,
+            status: signatureStatus,
+            signedBy: undefined, // Historical data - user unknown
+            signedAt:
+              signatureStatus === "signed" ? finalDate || now : undefined,
+            signingMethod:
+              signatureStatus === "signed" ? "Manual" : undefined,
+            createdAt: contract.createdAt,
+            updatedAt: now,
+          });
+          signaturesCreated++;
+        }
+      }
+
+      contractsProcessed++;
+    }
+
+    // Recompute analytics for all negotiations
+    const negotiations = await ctx.db.query("negotiations").collect();
+
+    for (const negotiation of negotiations) {
+      // Check if analytics already exist
+      if (
+        !negotiation.highestFreightRateIndication &&
+        !negotiation.lowestFreightRateIndication
+      ) {
+        // Get activity logs for this negotiation
+        const negotiationLogs = await ctx.db
+          .query("activity_logs")
+          .withIndex("by_entity", (q) =>
+            q.eq("entityType", "negotiation").eq("entityId", negotiation._id)
+          )
+          .collect();
+
+        // Extract freight rates from logs (simplified - real implementation would parse expandable data)
+        const freightRates: Array<{ value: number; timestamp: number }> = [];
+        const demurrageRates: Array<{ value: number; timestamp: number }> = [];
+
+        // If we have current freight/demurrage rates, use them as baseline
+        if (negotiation.freightRate) {
+          const freightNum = parseFloat(
+            negotiation.freightRate.replace(/[^0-9.]/g, "")
+          );
+          if (!isNaN(freightNum)) {
+            freightRates.push({
+              value: freightNum,
+              timestamp: negotiation.updatedAt,
+            });
+          }
+        }
+
+        if (negotiation.demurrageRate) {
+          const demurrageNum = parseFloat(
+            negotiation.demurrageRate.replace(/[^0-9.]/g, "")
+          );
+          if (!isNaN(demurrageNum)) {
+            demurrageRates.push({
+              value: demurrageNum,
+              timestamp: negotiation.updatedAt,
+            });
+          }
+        }
+
+        // Calculate analytics if we have data
+        if (freightRates.length > 0) {
+          const values = freightRates.map((r) => r.value);
+          await ctx.db.patch(negotiation._id, {
+            highestFreightRateIndication: Math.max(...values),
+            lowestFreightRateIndication: Math.min(...values),
+            firstFreightRateIndication: freightRates[0].value,
+            updatedAt: Date.now(),
+          });
+        }
+
+        if (demurrageRates.length > 0) {
+          const values = demurrageRates.map((r) => r.value);
+          await ctx.db.patch(negotiation._id, {
+            highestDemurrageIndication: Math.max(...values),
+            lowestDemurrageIndication: Math.min(...values),
+            firstDemurrageIndication: demurrageRates[0].value,
+            updatedAt: Date.now(),
+          });
+        }
+
+        negotiationsProcessed++;
+      }
+    }
+
+    console.log(
+      `✅ Backfill complete: ${contractsProcessed} contracts, ${approvalsCreated} approvals, ${signaturesCreated} signatures, ${negotiationsProcessed} negotiations`
+    );
+
+    return {
+      success: true,
+      contractsProcessed,
+      approvalsCreated,
+      signaturesCreated,
+      negotiationsProcessed,
     };
   },
 });
