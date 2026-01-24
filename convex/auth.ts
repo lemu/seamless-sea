@@ -6,6 +6,7 @@ import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { betterAuth } from "better-auth";
 import { Resend } from "resend";
+import authConfig from "./auth.config";
 
 const siteUrl = process.env.SITE_URL!;
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -93,7 +94,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     },
     plugins: [
       crossDomain({ siteUrl }),
-      convex(),
+      convex({ authConfig }),
     ],
   });
 };

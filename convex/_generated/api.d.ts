@@ -17,11 +17,14 @@ import type * as cargo_types from "../cargo_types.js";
 import type * as cleanOrphanedData from "../cleanOrphanedData.js";
 import type * as cleanUsers from "../cleanUsers.js";
 import type * as cleanupDuplicateCompanies from "../cleanupDuplicateCompanies.js";
+import type * as cleanupJwks from "../cleanupJwks.js";
 import type * as cleanupOneDuplicateCompany from "../cleanupOneDuplicateCompany.js";
 import type * as companies from "../companies.js";
 import type * as contracts from "../contracts.js";
 import type * as debug from "../debug.js";
+import type * as diagnosticAuth from "../diagnosticAuth.js";
 import type * as diagnosticAvatars from "../diagnosticAvatars.js";
+import type * as diagnosticUser from "../diagnosticUser.js";
 import type * as email from "../email.js";
 import type * as fixOrgData from "../fixOrgData.js";
 import type * as fixtures from "../fixtures.js";
@@ -42,8 +45,10 @@ import type * as recapManagers from "../recapManagers.js";
 import type * as routes from "../routes.js";
 import type * as seed from "../seed.js";
 import type * as signatures from "../signatures.js";
+import type * as syncUser from "../syncUser.js";
 import type * as testAvatarUrls from "../testAvatarUrls.js";
 import type * as uploadCompanyAvatars from "../uploadCompanyAvatars.js";
+import type * as user_bookmarks from "../user_bookmarks.js";
 import type * as users from "../users.js";
 import type * as vessels from "../vessels.js";
 import type * as widgets from "../widgets.js";
@@ -64,11 +69,14 @@ declare const fullApi: ApiFromModules<{
   cleanOrphanedData: typeof cleanOrphanedData;
   cleanUsers: typeof cleanUsers;
   cleanupDuplicateCompanies: typeof cleanupDuplicateCompanies;
+  cleanupJwks: typeof cleanupJwks;
   cleanupOneDuplicateCompany: typeof cleanupOneDuplicateCompany;
   companies: typeof companies;
   contracts: typeof contracts;
   debug: typeof debug;
+  diagnosticAuth: typeof diagnosticAuth;
   diagnosticAvatars: typeof diagnosticAvatars;
+  diagnosticUser: typeof diagnosticUser;
   email: typeof email;
   fixOrgData: typeof fixOrgData;
   fixtures: typeof fixtures;
@@ -89,8 +97,10 @@ declare const fullApi: ApiFromModules<{
   routes: typeof routes;
   seed: typeof seed;
   signatures: typeof signatures;
+  syncUser: typeof syncUser;
   testAvatarUrls: typeof testAvatarUrls;
   uploadCompanyAvatars: typeof uploadCompanyAvatars;
+  user_bookmarks: typeof user_bookmarks;
   users: typeof users;
   vessels: typeof vessels;
   widgets: typeof widgets;
@@ -1032,6 +1042,7 @@ export declare const components: {
         "query",
         "internal",
         {
+          join?: any;
           limit?: number;
           model:
             | "user"
@@ -1085,6 +1096,7 @@ export declare const components: {
         "query",
         "internal",
         {
+          join?: any;
           model:
             | "user"
             | "session"
@@ -1122,12 +1134,6 @@ export declare const components: {
               | null;
           }>;
         },
-        any
-      >;
-      migrationRemoveUserId: FunctionReference<
-        "mutation",
-        "internal",
-        { userId: string },
         any
       >;
       updateMany: FunctionReference<
@@ -2100,14 +2106,8 @@ export declare const components: {
       >;
     };
     adapterTest: {
-      count: FunctionReference<"query", "internal", any, any>;
-      create: FunctionReference<"mutation", "internal", any, any>;
-      delete: FunctionReference<"mutation", "internal", any, any>;
-      deleteMany: FunctionReference<"mutation", "internal", any, any>;
-      findMany: FunctionReference<"query", "internal", any, any>;
-      findOne: FunctionReference<"query", "internal", any, any>;
-      update: FunctionReference<"mutation", "internal", any, any>;
-      updateMany: FunctionReference<"mutation", "internal", any, any>;
+      runCustomTests: FunctionReference<"action", "internal", any, any>;
+      runTests: FunctionReference<"action", "internal", any, any>;
     };
   };
 };
