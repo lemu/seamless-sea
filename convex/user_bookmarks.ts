@@ -2,45 +2,94 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
 export const getUserBookmarks = query({
-  args: { userId: v.id("users") },
+  args: {
+    userId: v.id("users"),
+    organizationId: v.optional(v.id("organizations")),
+  },
   handler: async (ctx, args) => {
-    const bookmarks = await ctx.db
-      .query("user_bookmarks")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .order("desc")
-      .collect();
+    let bookmarks;
+    if (args.organizationId !== undefined) {
+      const orgId = args.organizationId;
+      bookmarks = await ctx.db
+        .query("user_bookmarks")
+        .withIndex("by_user_org", (q) =>
+          q.eq("userId", args.userId).eq("organizationId", orgId)
+        )
+        .order("asc")
+        .collect();
+    } else {
+      bookmarks = await ctx.db
+        .query("user_bookmarks")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .order("asc")
+        .collect();
+    }
 
     return bookmarks.map((bookmark) => ({
       id: bookmark._id,
       name: bookmark.name,
       type: "user" as const,
       isDefault: bookmark.isDefault,
+      organizationId: bookmark.organizationId,
       createdAt: bookmark.createdAt,
       updatedAt: bookmark.updatedAt,
       count: bookmark.count,
       filtersState: bookmark.filtersState,
       tableState: bookmark.tableState,
+      isShared: bookmark.isShared,
+      sharedWithOrganization: bookmark.sharedWithOrganization,
     }));
+  },
+});
+
+// Get bookmark by ID (for URL loading)
+export const getById = query({
+  args: { bookmarkId: v.id("user_bookmarks") },
+  handler: async (ctx, args) => {
+    const bookmark = await ctx.db.get(args.bookmarkId);
+    if (!bookmark) return null;
+
+    return {
+      id: bookmark._id,
+      name: bookmark.name,
+      type: "user" as const,
+      isDefault: bookmark.isDefault,
+      organizationId: bookmark.organizationId,
+      userId: bookmark.userId,
+      createdAt: bookmark.createdAt,
+      updatedAt: bookmark.updatedAt,
+      count: bookmark.count,
+      filtersState: bookmark.filtersState,
+      tableState: bookmark.tableState,
+      isShared: bookmark.isShared,
+      sharedWithOrganization: bookmark.sharedWithOrganization,
+    };
   },
 });
 
 export const createBookmark = mutation({
   args: {
     userId: v.id("users"),
+    organizationId: v.id("organizations"),
     name: v.string(),
     filtersState: v.optional(v.any()),
     tableState: v.optional(v.any()),
     count: v.optional(v.number()),
+    isShared: v.optional(v.boolean()),
+    sharedWithOrganization: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     const bookmarkId = await ctx.db.insert("user_bookmarks", {
       userId: args.userId,
+      organizationId: args.organizationId,
       name: args.name,
       isDefault: false,
       filtersState: args.filtersState,
       tableState: args.tableState,
       count: args.count,
+      isShared: args.isShared,
+      sharedWithOrganization: args.sharedWithOrganization,
       createdAt: now,
       updatedAt: now,
     });
@@ -53,11 +102,14 @@ export const createBookmark = mutation({
       name: bookmark.name,
       type: "user" as const,
       isDefault: bookmark.isDefault,
+      organizationId: bookmark.organizationId,
       createdAt: bookmark.createdAt,
       updatedAt: bookmark.updatedAt,
       count: bookmark.count,
       filtersState: bookmark.filtersState,
       tableState: bookmark.tableState,
+      isShared: bookmark.isShared,
+      sharedWithOrganization: bookmark.sharedWithOrganization,
     };
   },
 });

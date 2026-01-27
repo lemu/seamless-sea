@@ -67,6 +67,8 @@ import {
   calculateDaysBetween,
   calculateFreightVsMarket,
 } from "../utils/fixtureCalculations";
+import { useFixtureUrlState } from "../hooks/useFixtureUrlState";
+import { serializeFilters, deserializeFilters, areFiltersEqual } from "../utils/filterSerialization";
 
 // Define types for fixture structure
 interface FixtureData {
@@ -200,17 +202,13 @@ interface ChangeHistoryEntry {
   oldValue?: string;  // The previous value (for 'updated' action)
 }
 
-// Extended column metadata to support auto-generation of filter definitions
+// Extend tide-ui's ColumnMeta with our custom filter properties
 declare module '@tanstack/react-table' {
   interface ColumnMeta<TData, TValue> {
-    label: string;
-    align?: "left" | "center" | "right";
-    // Filter configuration
+    // Custom filter properties (not in tide-ui)
     filterable?: boolean;
-    filterType?: "text" | "multiselect" | "number" | "date" | "range";
-    filterOptions?: Array<{ value: string; label: string }>;
     filterGroup?: string;
-    filterIcon?: ({ className }: { className?: string }) => JSX.Element;
+    filterIcon?: (props: { className?: string }) => React.ReactElement;
   }
 }
 
@@ -234,6 +232,27 @@ const transformFixturesToTableData = (
     allContracts.forEach((item: any) => {
       const isContract = item.source === "contract";
       const contractNumber = isContract ? item.contractNumber : item.recapNumber;
+
+      // DEBUG: Log first 3 contracts to see what data is available
+      if (tableData.length < 3) {
+        console.log('🔍 Contract/Recap data:', {
+          contractNumber,
+          source: item.source,
+          hasVessel: !!item.vessel,
+          hasLoadPort: !!item.loadPort,
+          hasDischargePort: !!item.dischargePort,
+          hasCargoType: !!item.cargoType,
+          hasNegotiation: !!item.negotiation,
+          loadDeliveryType: item.loadDeliveryType,
+          dischargeRedeliveryType: item.dischargeRedeliveryType,
+          negotiationLoadDeliveryType: item.negotiation?.loadDeliveryType,
+          negotiationDischargeRedeliveryType: item.negotiation?.dischargeRedeliveryType,
+          vesselImo: item.vessel?.imoNumber,
+          loadPortName: item.loadPort?.name,
+          dischargePortName: item.dischargePort?.name,
+          cargoTypeName: item.cargoType?.name,
+        });
+      }
 
       tableData.push({
         id: item._id,
@@ -278,10 +297,10 @@ const transformFixturesToTableData = (
         laycanEnd: item.negotiation?.laycanEnd || item.laycanEnd,
         loadPortName: item.loadPort?.name,
         loadPortCountry: item.loadPort?.country,
-        loadDeliveryType: item.negotiation?.loadDeliveryType,
+        loadDeliveryType: item.negotiation?.loadDeliveryType || item.loadDeliveryType,
         dischargePortName: item.dischargePort?.name,
         dischargePortCountry: item.dischargePort?.country,
-        dischargeRedeliveryType: item.negotiation?.dischargeRedeliveryType,
+        dischargeRedeliveryType: item.negotiation?.dischargeRedeliveryType || item.dischargeRedeliveryType,
         vesselImo: item.vessel?.imoNumber,
         cargoTypeName: item.cargoType?.name,
         cargoQuantity: item.negotiation?.quantity || item.quantity,
@@ -353,6 +372,22 @@ const transformFixturesToTableData = (
         parentCpId: item.parentContract?.contractNumber,
         contractType: item.contractType,
       });
+
+      // DEBUG: Log the actual values being pushed for first 3 rows
+      if (tableData.length <= 3) {
+        const lastRow = tableData[tableData.length - 1];
+        console.log('✅ Pushed to tableData:', {
+          contractNumber,
+          loadDeliveryType: lastRow.loadDeliveryType,
+          dischargeRedeliveryType: lastRow.dischargeRedeliveryType,
+          loadPortName: lastRow.loadPortName,
+          dischargePortName: lastRow.dischargePortName,
+          vesselImo: lastRow.vesselImo,
+          cargoTypeName: lastRow.cargoTypeName,
+          loadPortCountry: lastRow.loadPortCountry,
+          dischargePortCountry: lastRow.dischargePortCountry,
+        });
+      }
     });
   });
 
@@ -1730,20 +1765,32 @@ function deriveFilterDefinitions<TData>(
         return null;
       }
 
+      // Map filterVariant to FilterDefinition.type
+      // FilterVariant includes "text" and "boolean" which FilterDefinition doesn't support
+      const filterType = meta.filterVariant === "text"
+        ? "multiselect" // Map text to multiselect for free-form text filtering
+        : meta.filterVariant || "multiselect";
+
+      // Skip boolean type filters as they're not supported by Filters component
+      if (filterType === "boolean") {
+        return null;
+      }
+
+      // Default icon if not provided
+      const defaultIcon = ({ className }: { className?: string }) => (
+        <Icon name="filter" className={className} />
+      );
+
       const filterDef: FilterDefinition = {
         id,
-        label: meta.label,
-        type: meta.filterType || "text",
+        label: meta.label || id,
+        type: filterType as 'multiselect' | 'select' | 'combobox' | 'number' | 'date',
+        icon: meta.filterIcon || defaultIcon,
         group: meta.filterGroup,
       };
 
-      // Add icon if provided
-      if (meta.filterIcon) {
-        filterDef.icon = meta.filterIcon;
-      }
-
       // Add options from metadata or options map
-      if (meta.filterType === "multiselect" || meta.filterType === "select") {
+      if (meta.filterVariant === "multiselect" || meta.filterVariant === "select") {
         // Priority: 1) metadata options, 2) optionsMap, 3) undefined
         const options = meta.filterOptions || (optionsMap && optionsMap[id]);
         if (options) {
@@ -1821,30 +1868,65 @@ function Fixtures() {
   const organization = useQuery(api.organizations.getFirstOrganization);
   const organizationId = organization?._id;
 
+  // URL state management for shareable links
+  const { state: urlState, setState: setUrlState } = useFixtureUrlState();
+
+  // Parse filters from URL
+  const parsedFilters = useMemo(() =>
+    deserializeFilters(urlState.filters || ''),
+    [urlState.filters]
+  );
+
+  // Parse sorting from URL
+  const [sortField, sortDirection] = urlState.sort.split(':');
+  const parsedSorting = useMemo(() =>
+    sortField ? [{ field: sortField, direction: sortDirection as 'asc' | 'desc' }] : [],
+    [sortField, sortDirection]
+  );
+
+  // Parse search terms from URL
+  const parsedSearchTerms = useMemo(() =>
+    urlState.search?.split(',').filter(Boolean) || [],
+    [urlState.search]
+  );
+
   // Track initial loading state to ensure skeleton shows on first load
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Query fixtures with enriched data (includes contracts, recaps, and company avatars)
-  const fixtures = useQuery(
-    api.fixtures.listEnriched,
-    organizationId ? { organizationId } : "skip"
+  // Track cursor history for "previous page" navigation
+  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+
+  // Server-side query with pagination, filtering, sorting, and search
+  const fixturesResponse = useQuery(
+    api.fixtures.listPaginated,
+    organizationId ? {
+      organizationId,
+      cursor: urlState.cursor || undefined,
+      limit: urlState.limit,
+      filters: parsedFilters,
+      sorting: parsedSorting,
+      searchTerms: parsedSearchTerms,
+    } : "skip"
   );
+
+  // Extract data from response
+  const fixtureData = useMemo(() => {
+    if (!fixturesResponse?.items) return [];
+    return transformFixturesToTableData(fixturesResponse.items);
+  }, [fixturesResponse?.items]);
+
+  const nextCursor = fixturesResponse?.nextCursor;
+  const hasMore = fixturesResponse?.hasMore;
 
   // Clear initial loading once fixtures data is available
   useEffect(() => {
-    if (fixtures !== undefined) {
+    if (fixturesResponse !== undefined) {
       setIsInitialLoading(false);
     }
-  }, [fixtures]);
+  }, [fixturesResponse]);
 
   // Detect loading state
-  const isLoadingFixtures = fixtures === undefined;
-
-  // Transform database data to fixture format
-  const fixtureData = useMemo(() => {
-    if (!fixtures) return [];
-    return transformFixturesToTableData(fixtures);
-  }, [fixtures]);
+  const isLoadingFixtures = fixturesResponse === undefined;
 
   // Helper function to highlight search terms in text
   const highlightSearchTerms = (text: string, terms: string[]) => {
@@ -2049,6 +2131,15 @@ function Fixtures() {
   const [activeBookmarkId, setActiveBookmarkId] =
     useState<string>("system-all");
 
+  // Helper to convert Convex bookmarks (with number timestamps) to tide-ui Bookmarks (with Date objects)
+  const convertBookmarkTimestamps = (bookmarks: any[]): Bookmark[] => {
+    return bookmarks.map(b => ({
+      ...b,
+      createdAt: new Date(b.createdAt),
+      updatedAt: new Date(b.updatedAt),
+    }));
+  };
+
   // Sync from database when loaded
   useEffect(() => {
     console.log("📚 Bookmarks sync effect:", {
@@ -2057,7 +2148,7 @@ function Fixtures() {
       count: userBookmarksFromDb?.length
     });
     if (userBookmarksFromDb) {
-      setBookmarks(userBookmarksFromDb);
+      setBookmarks(convertBookmarkTimestamps(userBookmarksFromDb));
     }
   }, [userBookmarksFromDb, userId]);
 
@@ -2154,45 +2245,63 @@ function Fixtures() {
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
-  // Pagination state
+  // Pagination state (pageIndex tracked for UI, but actual fetching uses cursors)
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 25, // Default page size
+    pageSize: urlState.limit, // Sync with URL state
   });
   const [isPaginationLoading, setIsPaginationLoading] = useState(false);
-  const pendingPaginationRef = useRef<PaginationState | null>(null);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
 
-  // Handle pagination changes and detect page size changes
+  // Sync page size with URL state
+  useEffect(() => {
+    if (pagination.pageSize !== urlState.limit) {
+      setPagination(prev => ({ ...prev, pageSize: urlState.limit }));
+    }
+  }, [urlState.limit]);
+
+  // Handle pagination changes with cursor-based navigation
   const handlePaginationChange = (updaterOrValue: PaginationState | ((old: PaginationState) => PaginationState)) => {
     setPagination((oldPagination) => {
       const newPagination = typeof updaterOrValue === 'function'
         ? updaterOrValue(oldPagination)
         : updaterOrValue;
 
-      // Only show loading for page size changes, not page navigation
+      // Check if page size changed
       const pageSizeChanged = oldPagination.pageSize !== newPagination.pageSize;
 
       if (pageSizeChanged) {
-        // Set loading state immediately
+        // Update page size in URL and reset to first page
+        setUrlState({
+          limit: newPagination.pageSize,
+          cursor: null, // Reset to first page
+        });
+        setCursorHistory([]);
         setIsPaginationLoading(true);
+        setTimeout(() => setIsPaginationLoading(false), 300);
+        return { ...newPagination, pageIndex: 0 };
+      }
 
-        // Defer the pagination update to next tick so skeleton renders first
-        pendingPaginationRef.current = newPagination;
-        setTimeout(() => {
-          if (pendingPaginationRef.current) {
-            setPagination(pendingPaginationRef.current);
-            pendingPaginationRef.current = null;
+      // Check if page changed
+      const pageChanged = oldPagination.pageIndex !== newPagination.pageIndex;
+      if (pageChanged) {
+        const isNextPage = newPagination.pageIndex > oldPagination.pageIndex;
+        const isPrevPage = newPagination.pageIndex < oldPagination.pageIndex;
 
-            // Clear loading after re-render completes
-            setTimeout(() => {
-              setIsPaginationLoading(false);
-            }, 300);
-          }
-        }, 0);
-
-        // Return old pagination for now (will update in setTimeout)
-        return oldPagination;
+        if (isNextPage && hasMore && nextCursor) {
+          // Navigate to next page
+          setCursorHistory(prev => [...prev, urlState.cursor || '']);
+          setUrlState({ cursor: nextCursor });
+          setIsPaginationLoading(true);
+          setTimeout(() => setIsPaginationLoading(false), 300);
+        } else if (isPrevPage && cursorHistory.length > 0) {
+          // Navigate to previous page
+          const previousCursor = cursorHistory[cursorHistory.length - 1];
+          setCursorHistory(prev => prev.slice(0, -1));
+          setUrlState({ cursor: previousCursor || null });
+          setIsPaginationLoading(true);
+          setTimeout(() => setIsPaginationLoading(false), 300);
+        }
       }
 
       return newPagination;
@@ -2205,6 +2314,36 @@ function Fixtures() {
   // Enforce minimum skeleton display time (500ms) for better UX
   const showTableSkeleton = useMinimumLoadingTime(isTableLoading, 500);
 
+  // Initialize state from URL parameters on mount
+  useEffect(() => {
+    // Only run on initial mount
+    if (!urlState.filters && !urlState.search && urlState.sort === 'lastUpdated:desc') {
+      return; // No URL state to restore
+    }
+
+    // Restore filters from URL
+    if (urlState.filters && !areFiltersEqual(parsedFilters, activeFilters)) {
+      setActiveFilters(parsedFilters);
+    }
+
+    // Restore search terms from URL
+    if (urlState.search && parsedSearchTerms.length > 0) {
+      const currentSearchString = globalSearchTerms.join(',');
+      if (currentSearchString !== urlState.search) {
+        setGlobalSearchTerms(parsedSearchTerms);
+      }
+    }
+
+    // Restore sorting from URL
+    if (urlState.sort && urlState.sort !== 'lastUpdated:desc') {
+      const [field, direction] = urlState.sort.split(':');
+      const currentSort = sorting[0];
+      if (!currentSort || currentSort.id !== field || (currentSort.desc ? 'desc' : 'asc') !== direction) {
+        setSorting([{ id: field, desc: direction === 'desc' }]);
+      }
+    }
+  }, []); // Only run on mount
+
   // Memoize columns
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(
     () => [
@@ -2215,7 +2354,7 @@ function Fixtures() {
           label: "Fixture ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
           filterIcon: ({ className }) => <Icon name="hash" className={className} />,
         },
@@ -2275,7 +2414,7 @@ function Fixtures() {
           label: "Order ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
           filterIcon: ({ className }) => <Icon name="hash" className={className} />,
         },
@@ -2364,7 +2503,7 @@ function Fixtures() {
           label: "Negotiation ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
           filterIcon: ({ className }) => <Icon name="hash" className={className} />,
         },
@@ -2421,7 +2560,7 @@ function Fixtures() {
           label: "CP ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
           filterIcon: ({ className }) => <Icon name="hash" className={className} />,
         },
@@ -2488,7 +2627,7 @@ function Fixtures() {
           label: "Status",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
           filterIcon: ({ className }) => <Icon name="file-text" className={className} />,
         },
@@ -2530,7 +2669,7 @@ function Fixtures() {
           label: "Vessel Name",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Vessel",
           filterIcon: ({ className }) => <Icon name="ship" className={className} />,
         },
@@ -2572,7 +2711,7 @@ function Fixtures() {
           label: "Owner",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="building" className={className} />,
         },
@@ -2648,7 +2787,7 @@ function Fixtures() {
           label: "Broker",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="briefcase" className={className} />,
         },
@@ -2724,7 +2863,7 @@ function Fixtures() {
           label: "Charterer",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="user" className={className} />,
         },
@@ -2865,6 +3004,36 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const laycans = row.subRows?.map((r: any) => ({
+            start: r.original.laycanStart,
+            end: r.original.laycanEnd
+          })).filter((l: any) => l.start && l.end) || [];
+
+          if (laycans.length === 0) {
+            return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          }
+
+          // Check if all laycans are the same
+          const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
+          const allSame = laycans.every((l: any) =>
+            formatLaycanRange(l.start, l.end) === firstLaycan
+          );
+
+          if (allSame) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {firstLaycan}
+              </div>
+            );
+          }
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {laycans.length} laycans
+            </div>
+          );
+        },
       },
       {
         accessorKey: "loadPortName",
@@ -2874,17 +3043,33 @@ function Fixtures() {
           label: "Load Port",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.loadPortName;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} ports
             </div>
           );
         },
@@ -2897,13 +3082,13 @@ function Fixtures() {
           label: "Load Country",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue, row }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.loadPortCountry;
           const countryCode = row.original.loadPort?.countryCode;
           return (
             <div className="flex items-center gap-2">
@@ -2911,6 +3096,26 @@ function Fixtures() {
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
               </div>
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortCountry) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const countryCode = row.subRows?.[0]?.original.loadPort?.countryCode;
+            return (
+              <div className="flex items-center gap-2">
+                {countryCode && <Flag country={countryCode} />}
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {value || "–"}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} countries
             </div>
           );
         },
@@ -2923,16 +3128,32 @@ function Fixtures() {
           label: "Load Delivery Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.loadDeliveryType;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadDeliveryType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -2945,17 +3166,33 @@ function Fixtures() {
           label: "Discharge Port",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.dischargePortName;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} ports
             </div>
           );
         },
@@ -2968,13 +3205,13 @@ function Fixtures() {
           label: "Discharge Country",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue, row }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.dischargePortCountry;
           const countryCode = row.original.dischargePort?.countryCode;
           return (
             <div className="flex items-center gap-2">
@@ -2982,6 +3219,26 @@ function Fixtures() {
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
               </div>
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortCountry) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const countryCode = row.subRows?.[0]?.original.dischargePort?.countryCode;
+            return (
+              <div className="flex items-center gap-2">
+                {countryCode && <Flag country={countryCode} />}
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {value || "–"}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} countries
             </div>
           );
         },
@@ -2994,16 +3251,32 @@ function Fixtures() {
           label: "Discharge Redelivery Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
           filterIcon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.dischargeRedeliveryType;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargeRedeliveryType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -3015,8 +3288,8 @@ function Fixtures() {
         meta: { label: "Vessel IMO", align: "left" },
         enableGrouping: false,
         enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.vesselImo;
           return (
             <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
               {value || "–"}
@@ -3032,16 +3305,32 @@ function Fixtures() {
           label: "Cargo Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Cargo",
           filterIcon: ({ className }) => <Icon name="package" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.cargoTypeName;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.cargoTypeName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -3054,13 +3343,13 @@ function Fixtures() {
           label: "Cargo Quantity (mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Cargo",
           filterIcon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.cargoQuantity;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? value.toLocaleString() : "–"}
@@ -3074,14 +3363,27 @@ function Fixtures() {
         size: 150,
         meta: { label: "Final Freight Rate", align: "right" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string | number>();
+        cell: ({ row }) => {
+          const value = row.original.finalFreightRate;
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {numValue ? `$${numValue.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => {
+            const v = r.original.finalFreightRate;
+            return typeof v === 'string' ? parseFloat(v) : v;
+          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3090,14 +3392,27 @@ function Fixtures() {
         size: 170,
         meta: { label: "Final Demurrage Rate", align: "right" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string | number>();
+        cell: ({ row }) => {
+          const value = row.original.finalDemurrageRate;
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {numValue ? `$${numValue.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => {
+            const v = r.original.finalDemurrageRate;
+            return typeof v === 'string' ? parseFloat(v) : v;
+          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
 
@@ -3110,16 +3425,36 @@ function Fixtures() {
           label: "Highest Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.highestFreightRateIndication;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) {
+            return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          }
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+                ${min.toFixed(2)}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">
+              ${min.toFixed(2)} – ${max.toFixed(2)}
             </div>
           );
         },
@@ -3132,18 +3467,28 @@ function Fixtures() {
           label: "Lowest Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.lowestFreightRateIndication;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3154,18 +3499,28 @@ function Fixtures() {
           label: "First Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.firstFreightRateIndication;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.firstFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3176,18 +3531,28 @@ function Fixtures() {
           label: "Highest Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.highestFreightRateLastDay;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3198,18 +3563,28 @@ function Fixtures() {
           label: "Lowest Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.lowestFreightRateLastDay;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3220,18 +3595,28 @@ function Fixtures() {
           label: "First Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.firstFreightRateLastDay;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.firstFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3242,13 +3627,13 @@ function Fixtures() {
           label: "Freight Savings %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.freightSavingsPercent;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
@@ -3267,18 +3652,28 @@ function Fixtures() {
           label: "Market Index ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.marketIndex;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.marketIndex).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3289,16 +3684,32 @@ function Fixtures() {
           label: "Index Name",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.marketIndexName;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.marketIndexName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} indices
             </div>
           );
         },
@@ -3311,13 +3722,13 @@ function Fixtures() {
           label: "Freight vs Market %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.freightVsMarketPercent;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           const color = value < 0 ? "text-[var(--green-600)]" : value > 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
@@ -3336,18 +3747,28 @@ function Fixtures() {
           label: "Gross Freight",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.grossFreight;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.grossFreight).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3358,18 +3779,28 @@ function Fixtures() {
           label: "Highest Demurrage ($/pd)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.highestDemurrageIndication;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestDemurrageIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3380,18 +3811,28 @@ function Fixtures() {
           label: "Lowest Demurrage ($/pd)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.lowestDemurrageIndication;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestDemurrageIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3402,13 +3843,13 @@ function Fixtures() {
           label: "Demurrage Savings %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
           filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.demurrageSavingsPercent;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
@@ -3429,13 +3870,13 @@ function Fixtures() {
           label: "Address Commission %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
           filterIcon: ({ className }) => <Icon name="percent" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.addressCommissionPercent;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `${value.toFixed(2)}%` : "–"}
@@ -3451,13 +3892,13 @@ function Fixtures() {
           label: "Address Commission ($)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.addressCommissionTotal;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
@@ -3473,13 +3914,13 @@ function Fixtures() {
           label: "Broker Commission %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
           filterIcon: ({ className }) => <Icon name="percent" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.brokerCommissionPercent;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `${value.toFixed(2)}%` : "–"}
@@ -3495,13 +3936,13 @@ function Fixtures() {
           label: "Broker Commission ($)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
           filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.brokerCommissionTotal;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
@@ -3519,18 +3960,28 @@ function Fixtures() {
           label: "CP Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.cpDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.cpDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3541,18 +3992,28 @@ function Fixtures() {
           label: "Working Copy Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.workingCopyDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.workingCopyDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3563,18 +4024,28 @@ function Fixtures() {
           label: "Final Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.finalDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.finalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3585,18 +4056,28 @@ function Fixtures() {
           label: "Fully Signed Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.fullySignedDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.fullySignedDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3607,13 +4088,13 @@ function Fixtures() {
           label: "Days: CP → Working Copy",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.daysToWorkingCopy;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           return (
@@ -3631,13 +4112,13 @@ function Fixtures() {
           label: "Days: Working Copy → Final",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.daysToFinal;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           return (
@@ -3655,13 +4136,13 @@ function Fixtures() {
           label: "Days: Final → Signed",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
           filterIcon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.daysToSigned;
           if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
 
           return (
@@ -3681,16 +4162,32 @@ function Fixtures() {
           label: "Owner Approval",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
           filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.ownerApprovalStatus;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.ownerApprovalStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3701,8 +4198,8 @@ function Fixtures() {
         size: 160,
         meta: { label: "Owner Approved By", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.ownerApprovedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
@@ -3716,13 +4213,23 @@ function Fixtures() {
         size: 170,
         meta: { label: "Owner Approval Date", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.ownerApprovalDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.ownerApprovalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3733,16 +4240,32 @@ function Fixtures() {
           label: "Charterer Approval",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
           filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.chartererApprovalStatus;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.chartererApprovalStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3753,8 +4276,8 @@ function Fixtures() {
         size: 180,
         meta: { label: "Charterer Approved By", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.chartererApprovedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
@@ -3768,13 +4291,23 @@ function Fixtures() {
         size: 190,
         meta: { label: "Charterer Approval Date", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.chartererApprovalDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.chartererApprovalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
 
@@ -3787,16 +4320,32 @@ function Fixtures() {
           label: "Owner Signature",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
           filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.ownerSignatureStatus;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.ownerSignatureStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3807,8 +4356,8 @@ function Fixtures() {
         size: 150,
         meta: { label: "Owner Signed By", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.ownerSignedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
@@ -3822,13 +4371,23 @@ function Fixtures() {
         size: 170,
         meta: { label: "Owner Signature Date", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.ownerSignatureDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.ownerSignatureDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3839,16 +4398,32 @@ function Fixtures() {
           label: "Charterer Signature",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
           filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.chartererSignatureStatus;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.chartererSignatureStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3859,8 +4434,8 @@ function Fixtures() {
         size: 170,
         meta: { label: "Charterer Signed By", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.chartererSignedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
@@ -3874,13 +4449,23 @@ function Fixtures() {
         size: 190,
         meta: { label: "Charterer Signature Date", align: "left" },
         enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
+        cell: ({ row }) => {
+          const value = row.original.chartererSignatureDate;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.chartererSignatureDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
 
@@ -3893,16 +4478,32 @@ function Fixtures() {
           label: "Deal Capture",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.dealCaptureUser;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dealCaptureUser) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
             </div>
           );
         },
@@ -3915,16 +4516,32 @@ function Fixtures() {
           label: "Order Created By",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.orderCreatedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.orderCreatedBy) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
             </div>
           );
         },
@@ -3937,16 +4554,32 @@ function Fixtures() {
           label: "Neg. Created By",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
           filterIcon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.negotiationCreatedBy;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.negotiationCreatedBy) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
             </div>
           );
         },
@@ -3959,11 +4592,27 @@ function Fixtures() {
         size: 130,
         meta: { label: "Parent CP", align: "left" },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.parentCpId;
           return (
             <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.parentCpId) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} parents
             </div>
           );
         },
@@ -3976,13 +4625,13 @@ function Fixtures() {
           label: "Contract Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Contract",
           filterIcon: ({ className }) => <Icon name="file-check" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
+        cell: ({ row }) => {
+          const value = row.original.contractType;
           const displayValue = value === "voyage-charter" ? "Voyage charter"
             : value === "time-charter" ? "TC"
             : value === "coa" ? "COA"
@@ -3991,6 +4640,26 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {displayValue}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.contractType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const displayValue = value === "voyage-charter" ? "Voyage charter"
+              : value === "time-charter" ? "TC"
+              : value === "coa" ? "COA"
+              : value || "–";
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {displayValue}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -4023,267 +4692,40 @@ function Fixtures() {
   }, [fixtureColumns, columnVisibility]);
 
 
-  // Extract unique values for filters
-  const uniqueVessels = useMemo(() => {
-    const vessels = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      vessels.add(fixture.vessels);
-    });
-    return Array.from(vessels)
-      .sort()
-      .map((v) => ({ value: v, label: v }));
-  }, [fixtureData]);
+  // Load filter options from server (replaces 20+ client-side unique value computations)
+  const filterOptions = useQuery(
+    api.fixtures.getFilterOptions,
+    organizationId ? { organizationId } : "skip"
+  );
 
-  const uniqueStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      statuses.add(fixture.status);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueOwners = useMemo(() => {
-    const owners = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      owners.add(fixture.owner);
-    });
-    return Array.from(owners)
-      .sort()
-      .map((o) => ({ value: o, label: o }));
-  }, [fixtureData]);
-
-  const uniqueBrokers = useMemo(() => {
-    const brokers = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      brokers.add(fixture.broker);
-    });
-    return Array.from(brokers)
-      .sort()
-      .map((b) => ({ value: b, label: b }));
-  }, [fixtureData]);
-
-  const uniqueCharterers = useMemo(() => {
-    const charterers = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      charterers.add(fixture.charterer);
-    });
-    return Array.from(charterers)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueStages = useMemo(() => {
-    const stages = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      stages.add(fixture.stage);
-    });
-    return Array.from(stages)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueContractTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      types.add(fixture.typeOfContract);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      statuses.add(fixture.approvalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  // Priority 1: Core Commercial unique values
-  const uniqueLoadPorts = useMemo(() => {
-    const ports = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadPortName) ports.add(fixture.loadPortName);
-    });
-    return Array.from(ports)
-      .sort()
-      .map((p) => ({ value: p, label: p }));
-  }, [fixtureData]);
-
-  const uniqueLoadCountries = useMemo(() => {
-    const countries = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadPortCountry) countries.add(fixture.loadPortCountry);
-    });
-    return Array.from(countries)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueLoadDeliveryTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadDeliveryType) types.add(fixture.loadDeliveryType);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueDischargePorts = useMemo(() => {
-    const ports = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargePortName) ports.add(fixture.dischargePortName);
-    });
-    return Array.from(ports)
-      .sort()
-      .map((p) => ({ value: p, label: p }));
-  }, [fixtureData]);
-
-  const uniqueDischargeCountries = useMemo(() => {
-    const countries = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargePortCountry) countries.add(fixture.dischargePortCountry);
-    });
-    return Array.from(countries)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueDischargeRedeliveryTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargeRedeliveryType) types.add(fixture.dischargeRedeliveryType);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueCargoTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.cargoTypeName) types.add(fixture.cargoTypeName);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  // Keep marketIndexName (string filter)
-  const uniqueMarketIndexNames = useMemo(() => {
-    const names = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.marketIndexName) names.add(fixture.marketIndexName);
-    });
-    return Array.from(names)
-      .sort()
-      .map((n) => ({ value: n, label: n }));
-  }, [fixtureData]);
-
-  // Priority 5 & 6: Approval and Signature statuses
-  const uniqueOwnerApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerApprovalStatus) statuses.add(fixture.ownerApprovalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueChartererApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererApprovalStatus) statuses.add(fixture.chartererApprovalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueOwnerSignatureStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerSignatureStatus) statuses.add(fixture.ownerSignatureStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueChartererSignatureStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererSignatureStatus) statuses.add(fixture.chartererSignatureStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  // Priority 7: User Tracking
-  const uniqueDealCaptureUsers = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dealCaptureUser) users.add(fixture.dealCaptureUser);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueOrderCreatedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.orderCreatedBy) users.add(fixture.orderCreatedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueNegotiationCreatedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.negotiationCreatedBy) users.add(fixture.negotiationCreatedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  // Define filter definitions
+  // Define filter definitions using server-provided options
   const filterDefinitions: FilterDefinition[] = useMemo(
     () => {
-      // Create options map for dynamic filter values
+      if (!filterOptions) return [];
+
+      // Create options map for dynamic filter values from server
       const optionsMap: Record<string, Array<{ value: string; label: string }>> = {
-        vessels: uniqueVessels,
-        status: uniqueStatuses,
-        owner: uniqueOwners,
-        broker: uniqueBrokers,
-        charterer: uniqueCharterers,
-        loadPortName: uniqueLoadPorts,
-        loadPortCountry: uniqueLoadCountries,
-        loadDeliveryType: uniqueLoadDeliveryTypes,
-        dischargePortName: uniqueDischargePorts,
-        dischargePortCountry: uniqueDischargeCountries,
-        dischargeRedeliveryType: uniqueDischargeRedeliveryTypes,
-        cargoTypeName: uniqueCargoTypes,
-        marketIndexName: uniqueMarketIndexNames,
-        ownerApprovalStatus: uniqueOwnerApprovalStatuses,
-        chartererApprovalStatus: uniqueChartererApprovalStatuses,
-        ownerSignatureStatus: uniqueOwnerSignatureStatuses,
-        chartererSignatureStatus: uniqueChartererSignatureStatuses,
-        dealCaptureUser: uniqueDealCaptureUsers,
-        orderCreatedBy: uniqueOrderCreatedBy,
-        negotiationCreatedBy: uniqueNegotiationCreatedBy,
-        contractType: uniqueContractTypes,
+        vessels: filterOptions.vessels || [],
+        status: filterOptions.status || [],
+        owner: filterOptions.owners || [],
+        broker: filterOptions.brokers || [],
+        charterer: filterOptions.charterers || [],
+        loadPortName: filterOptions.loadPorts || [],
+        loadPortCountry: filterOptions.loadCountries || [],
+        loadDeliveryType: filterOptions.loadDeliveryTypes || [],
+        dischargePortName: filterOptions.dischargePorts || [],
+        dischargePortCountry: filterOptions.dischargeCountries || [],
+        dischargeRedeliveryType: filterOptions.dischargeRedeliveryTypes || [],
+        cargoTypeName: filterOptions.cargoTypes || [],
+        marketIndexName: filterOptions.marketIndexNames || [],
+        ownerApprovalStatus: filterOptions.ownerApprovalStatuses || [],
+        chartererApprovalStatus: filterOptions.chartererApprovalStatuses || [],
+        ownerSignatureStatus: filterOptions.ownerSignatureStatuses || [],
+        chartererSignatureStatus: filterOptions.chartererSignatureStatuses || [],
+        dealCaptureUser: filterOptions.dealCaptureUsers || [],
+        orderCreatedBy: filterOptions.orderCreatedBy || [],
+        negotiationCreatedBy: filterOptions.negotiationCreatedBy || [],
+        contractType: filterOptions.contractTypes || [],
       };
 
       // Derive filters from column definitions
@@ -4296,7 +4738,7 @@ function Fixtures() {
           label: "Stage",
           icon: ({ className }) => <Icon name="layers" className={className} />,
           type: "multiselect",
-          options: uniqueStages,
+          options: filterOptions.stages || [],
           group: "Status",
         },
         {
@@ -4304,7 +4746,7 @@ function Fixtures() {
           label: "Contract Type",
           icon: ({ className }) => <Icon name="file-check" className={className} />,
           type: "multiselect",
-          options: uniqueContractTypes,
+          options: filterOptions.contractTypes || [],
           group: "Contract",
         },
         {
@@ -4312,39 +4754,14 @@ function Fixtures() {
           label: "Approval Status",
           icon: ({ className }) => <Icon name="check-circle" className={className} />,
           type: "multiselect",
-          options: uniqueApprovalStatuses,
+          options: filterOptions.approvalStatuses || [],
           group: "Status",
         },
       ];
 
       return [...derivedFilters, ...specialFilters];
     },
-    [
-      fixtureColumns,
-      uniqueVessels,
-      uniqueStatuses,
-      uniqueStages,
-      uniqueContractTypes,
-      uniqueApprovalStatuses,
-      uniqueOwners,
-      uniqueBrokers,
-      uniqueCharterers,
-      uniqueLoadPorts,
-      uniqueLoadCountries,
-      uniqueLoadDeliveryTypes,
-      uniqueDischargePorts,
-      uniqueDischargeCountries,
-      uniqueDischargeRedeliveryTypes,
-      uniqueCargoTypes,
-      uniqueMarketIndexNames,
-      uniqueOwnerApprovalStatuses,
-      uniqueChartererApprovalStatuses,
-      uniqueOwnerSignatureStatuses,
-      uniqueChartererSignatureStatuses,
-      uniqueDealCaptureUsers,
-      uniqueOrderCreatedBy,
-      uniqueNegotiationCreatedBy,
-    ],
+    [fixtureColumns, filterOptions],
   );
 
   // Helper function to calculate count for a bookmark
@@ -4732,7 +5149,7 @@ function Fixtures() {
 
     if (bookmark.tableState) {
       setSorting(bookmark.tableState.sorting);
-      setColumnVisibility(bookmark.tableState.columnVisibility);
+      setColumnVisibility(bookmark.tableState.columnVisibility || {});
       setGrouping(bookmark.tableState.grouping);
       setColumnOrder(bookmark.tableState.columnOrder || []);
       setColumnSizing(bookmark.tableState.columnSizing);
@@ -4787,140 +5204,52 @@ function Fixtures() {
     );
   };
 
-  // Data filtering with group-preserving search logic
-  const filteredData = useMemo(() => {
-    // Step 1: Apply bookmark and field filters (non-search filters)
-    let data = fixtureData.filter((fixture) => {
-      // Special filter for Negotiations bookmark
-      if (activeBookmarkId === "system-negotiations") {
-        if (!fixture.negotiationId || fixture.negotiationId === "-") {
-          return false;
-        }
-      }
+  // Global search change handler with URL sync
+  const handleGlobalSearchChange = (terms: string[]) => {
+    // Update local state
+    setGlobalSearchTerms(terms);
 
-      // Special filter for Contracts bookmark
-      if (activeBookmarkId === "system-contracts") {
-        if (!fixture.cpId) {
-          return false;
-        }
-      }
-
-      // Apply active filters (from Filters sidebar)
-      for (const [filterId, filterValue] of Object.entries(activeFilters)) {
-        // Handle multiselect filters (arrays of strings)
-        if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
-          const fixtureValue = String(
-            fixture[filterId as keyof typeof fixture] || "",
-          );
-          const match = filterValue.some((val) =>
-            fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
-          );
-          if (!match) return false;
-        }
-
-        // Handle number filters (single number or range)
-        if (typeof filterValue === 'number') {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
-            return false;
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
-          const [min, max] = filterValue as [number, number];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            if (fixtureValue < min || fixtureValue > max) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-
-        // Handle date filters (single date or range)
-        if (filterValue instanceof Date) {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate.toDateString() !== filterValue.toDateString()) {
-              return false;
-            }
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
-          const [startDate, endDate] = filterValue as [Date, Date];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate < startDate || fixtureDate > endDate) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-      }
-
-      return true;
+    // Update URL state
+    setUrlState({
+      search: terms.length > 0 ? terms.join(',') : null,
+      cursor: null, // Reset to first page
     });
 
-    // Step 2: Apply group-preserving global search
-    if (globalSearchTerms.length > 0) {
-      // Get the active grouping column (fixtureId, negotiationId, or cpId)
-      const groupingColumn = grouping[0] as keyof FixtureData | undefined;
+    // Reset cursor history
+    setCursorHistory([]);
+  };
 
-      if (groupingColumn) {
-        // Group fixtures by their grouping column
-        const fixturesByGroup = new Map<string, FixtureData[]>();
-        data.forEach(fixture => {
-          const groupKey = String(fixture[groupingColumn]);
-          if (!fixturesByGroup.has(groupKey)) {
-            fixturesByGroup.set(groupKey, []);
-          }
-          fixturesByGroup.get(groupKey)!.push(fixture);
+  // Sorting change handler with URL sync
+  const handleSortingChange = (updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
+    setSorting((oldSorting) => {
+      const newSorting = typeof updaterOrValue === 'function'
+        ? updaterOrValue(oldSorting)
+        : updaterOrValue;
+
+      // Update URL state with new sort
+      if (newSorting.length > 0) {
+        const { id, desc } = newSorting[0];
+        setUrlState({
+          sort: `${id}:${desc ? 'desc' : 'asc'}`,
+          cursor: null, // Reset to first page
         });
-
-        // Find groups where ALL search terms exist somewhere in the group
-        const matchingGroupKeys = new Set<string>();
-        fixturesByGroup.forEach((fixtures, groupKey) => {
-          // Combine searchable text from ALL fixtures in this group
-          const groupSearchableText = fixtures
-            .map(fixture => [
-              fixture.fixtureId,
-              fixture.orderId,
-              fixture.cpId,
-              fixture.vessels,
-              fixture.owner,
-              fixture.broker,
-              fixture.charterer,
-            ].filter(Boolean).join(' '))
-            .join(' ')
-            .toLowerCase();
-
-          // Check if ALL search terms exist in the group's combined text (AND logic)
-          const groupMatches = globalSearchTerms.every(term =>
-            groupSearchableText.includes(term.toLowerCase())
-          );
-
-          if (groupMatches) {
-            matchingGroupKeys.add(groupKey);
-          }
-        });
-
-        // Include ALL fixtures that belong to matching groups
-        data = data.filter(fixture =>
-          matchingGroupKeys.has(String(fixture[groupingColumn]))
-        );
       } else {
-        // No grouping active, filter normally
-        data = data.filter(matchesGlobalSearch);
+        setUrlState({
+          sort: 'lastUpdated:desc', // Default sort
+          cursor: null,
+        });
       }
-    }
 
-    return data;
-  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping]);
+      // Reset cursor history when sorting changes
+      setCursorHistory([]);
+
+      return newSorting;
+    });
+  };
+
+  // Server-side filtering - data already filtered by backend
+  // No client-side filtering needed (filtering happens in listPaginated query)
+  const filteredData = fixtureData;
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
@@ -4949,7 +5278,7 @@ function Fixtures() {
 
       if (activeBookmark.tableState) {
         setSorting(activeBookmark.tableState.sorting);
-        setColumnVisibility(activeBookmark.tableState.columnVisibility);
+        setColumnVisibility(activeBookmark.tableState.columnVisibility || {});
         setGrouping(activeBookmark.tableState.grouping);
         setColumnOrder(activeBookmark.tableState.columnOrder || []);
         setColumnSizing(activeBookmark.tableState.columnSizing);
@@ -4996,8 +5325,8 @@ function Fixtures() {
           id: tempId,
           name: name || "New Bookmark",
           type: "user",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
           count: filteredData.length,
           filtersState: bookmarkData.filtersState,
           tableState: bookmarkData.tableState,
@@ -5015,9 +5344,10 @@ function Fixtures() {
         });
         console.log("✅ Bookmark created successfully:", newBookmark);
 
-        // Replace temp with real bookmark
+        // Replace temp with real bookmark (convert timestamps to Dates)
+        const bookmarkWithDates = convertBookmarkTimestamps([newBookmark])[0];
         setBookmarks((prev) =>
-          prev.map((b) => (b.id === tempId ? newBookmark : b))
+          prev.map((b) => (b.id === tempId ? bookmarkWithDates : b))
         );
         setActiveBookmarkId(newBookmark.id);
       } else {
@@ -5028,7 +5358,7 @@ function Fixtures() {
         setBookmarks((prev) =>
           prev.map((b) =>
             b.id === bookmarkId
-              ? { ...b, ...bookmarkData, updatedAt: Date.now() }
+              ? { ...b, ...bookmarkData, updatedAt: new Date() }
               : b
           )
         );
@@ -5044,7 +5374,7 @@ function Fixtures() {
       console.error("Error details:", error instanceof Error ? error.message : error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(convertBookmarkTimestamps(userBookmarksFromDb));
       }
     }
   };
@@ -5064,7 +5394,7 @@ function Fixtures() {
       console.error("Failed to rename bookmark:", error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(convertBookmarkTimestamps(userBookmarksFromDb));
       }
     }
   };
@@ -5115,7 +5445,7 @@ function Fixtures() {
       console.error("Failed to set default bookmark:", error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(convertBookmarkTimestamps(userBookmarksFromDb));
       }
     }
   };
@@ -5132,23 +5462,49 @@ function Fixtures() {
 
   // Filter handlers
   const handleFilterChange = (filterId: string, value: FilterValue) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      [filterId]: value,
-    }));
+    // Update local state (for UI responsiveness)
+    const newFilters = { ...activeFilters, [filterId]: value };
+    setActiveFilters(newFilters);
+
+    // Update URL (triggers server query)
+    setUrlState({
+      filters: serializeFilters(newFilters),
+      cursor: null, // Reset to first page
+    });
+
+    // Reset cursor history when filters change
+    setCursorHistory([]);
   };
 
   const handleFilterClear = (filterId: string) => {
-    setActiveFilters((prev) => {
-      const newFilters = { ...prev };
-      delete newFilters[filterId];
-      return newFilters;
+    // Update local state
+    const { [filterId]: _, ...newFilters } = activeFilters;
+    setActiveFilters(newFilters);
+
+    // Update URL (triggers server query)
+    setUrlState({
+      filters: serializeFilters(newFilters),
+      cursor: null, // Reset to first page
     });
+
+    // Reset cursor history
+    setCursorHistory([]);
   };
 
   const handleFilterReset = () => {
+    // Clear local state
     setActiveFilters({});
     setGlobalSearchTerms([]);
+
+    // Clear URL state
+    setUrlState({
+      filters: null,
+      search: null,
+      cursor: null,
+    });
+
+    // Reset cursor history
+    setCursorHistory([]);
   };
 
   // Handle row clicks to open sidebar
@@ -5210,7 +5566,6 @@ function Fixtures() {
           systemBookmarks={systemBookmarksWithCounts}
           activeBookmarkId={activeBookmarkId}
           isDirty={isDirty}
-          isLoading={isLoadingFixtures}
           onSelect={handleBookmarkSelect}
           onRevert={handleRevert}
           onSave={handleSave}
@@ -5229,7 +5584,7 @@ function Fixtures() {
               onFilterReset={handleFilterReset}
               enableGlobalSearch={true}
               globalSearchTerms={globalSearchTerms}
-              onGlobalSearchChange={setGlobalSearchTerms}
+              onGlobalSearchChange={handleGlobalSearchChange}
               globalSearchPlaceholder="Search fixtures…"
               hideReset={true}
             />
@@ -5283,11 +5638,11 @@ function Fixtures() {
               selectedSortColumn={sorting[0]?.id}
               sortDirection={sorting[0]?.desc ? "desc" : "asc"}
               onSortChange={(columnId) =>
-                setSorting([{ id: columnId, desc: sorting[0]?.desc || false }])
+                handleSortingChange([{ id: columnId, desc: sorting[0]?.desc || false }])
               }
               onSortDirectionChange={(direction) => {
                 if (sorting[0]) {
-                  setSorting([
+                  handleSortingChange([
                     { id: sorting[0].id, desc: direction === "desc" },
                   ]);
                 }
@@ -5382,7 +5737,7 @@ function Fixtures() {
             enableGlobalSearch={false}
             // Controlled state
             sorting={sorting}
-            onSortingChange={setSorting}
+            onSortingChange={handleSortingChange}
             columnVisibility={columnVisibility}
             onColumnVisibilityChange={setColumnVisibility}
             grouping={grouping}

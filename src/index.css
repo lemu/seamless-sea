@@ -112,22 +112,3 @@ body.resize-active * {
 .react-grid-item.react-resizable-resizing > .react-resizable-handle {
   z-index: 13 !important;
 }
-
-/* Note: DataTable responsive styles are now built into Tide UI v0.18.0+ */
-
-/* Fixtures table: Remove horizontal lines in sticky columns when using vertical borders */
-.fixtures-table [data-border-style="vertical"] [data-sticky-column="true"] {
-  border-top: none !important;
-  border-bottom: none !important;
-}
-
-/* Ensure sticky columns in vertical mode only show vertical borders */
-.fixtures-table [data-border-style="vertical"] [data-sticky-column="true"]::after {
-  border-top: none !important;
-  border-bottom: none !important;
-}
-
-/* Ensure collapse/expand buttons have pointer cursor */
-.fixtures-table button {
-  cursor: pointer;
-}

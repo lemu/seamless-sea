@@ -8,6 +8,118 @@ function generateFixtureNumber(): string {
   return `FIX${randomNum}`;
 }
 
+// Helper: Rebuild search index for a specific fixture
+async function rebuildFixtureSearchIndex(
+  ctx: MutationCtx,
+  fixtureId: any
+) {
+  const fixtureDoc = await ctx.db.get(fixtureId);
+  if (!fixtureDoc) return;
+
+  // Type assertion: we know this is a fixture based on the fixtureId
+  const fixture = fixtureDoc as any;
+
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Collect all searchable text from contracts
+  const searchableFields: string[] = [
+    fixture.fixtureNumber,
+    fixture.title || "",
+  ];
+
+  // Extract data from all contracts
+  for (const contract of contracts) {
+    searchableFields.push(contract.contractNumber);
+
+    // Get related entities
+    const [vessel, owner, charterer, broker, loadPort, dischargePort, cargoType, order] =
+      await Promise.all([
+        contract.vesselId ? ctx.db.get(contract.vesselId) : null,
+        contract.ownerId ? ctx.db.get(contract.ownerId) : null,
+        contract.chartererId ? ctx.db.get(contract.chartererId) : null,
+        contract.brokerId ? ctx.db.get(contract.brokerId) : null,
+        contract.loadPortId ? ctx.db.get(contract.loadPortId) : null,
+        contract.dischargePortId ? ctx.db.get(contract.dischargePortId) : null,
+        contract.cargoTypeId ? ctx.db.get(contract.cargoTypeId) : null,
+        contract.orderId ? ctx.db.get(contract.orderId) : null,
+      ]);
+
+    if (vessel) searchableFields.push(vessel.name, vessel.imoNumber || "");
+    if (owner) searchableFields.push(owner.name);
+    if (charterer) searchableFields.push(charterer.name);
+    if (broker) searchableFields.push(broker.name);
+    if (loadPort)
+      searchableFields.push(loadPort.name, loadPort.country, loadPort.unlocode || "");
+    if (dischargePort)
+      searchableFields.push(
+        dischargePort.name,
+        dischargePort.country,
+        dischargePort.unlocode || ""
+      );
+    if (cargoType) searchableFields.push(cargoType.name);
+    if (order) searchableFields.push(order.orderNumber);
+  }
+
+  // Extract data from all recap managers
+  for (const recap of recapManagers) {
+    searchableFields.push(recap.recapNumber);
+
+    const [vessel, owner, charterer, broker, loadPort, dischargePort, cargoType] =
+      await Promise.all([
+        recap.vesselId ? ctx.db.get(recap.vesselId) : null,
+        recap.ownerId ? ctx.db.get(recap.ownerId) : null,
+        recap.chartererId ? ctx.db.get(recap.chartererId) : null,
+        recap.brokerId ? ctx.db.get(recap.brokerId) : null,
+        recap.loadPortId ? ctx.db.get(recap.loadPortId) : null,
+        recap.dischargePortId ? ctx.db.get(recap.dischargePortId) : null,
+        recap.cargoTypeId ? ctx.db.get(recap.cargoTypeId) : null,
+      ]);
+
+    if (vessel) searchableFields.push(vessel.name, vessel.imoNumber || "");
+    if (owner) searchableFields.push(owner.name);
+    if (charterer) searchableFields.push(charterer.name);
+    if (broker) searchableFields.push(broker.name);
+    if (loadPort) searchableFields.push(loadPort.name, loadPort.country);
+    if (dischargePort)
+      searchableFields.push(dischargePort.name, dischargePort.country);
+    if (cargoType) searchableFields.push(cargoType.name);
+  }
+
+  // Build search text (lowercase, space-separated)
+  const searchText = searchableFields
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  // Delete old search entry
+  const oldSearch = await ctx.db
+    .query("fixture_search_index")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId as any))
+    .first();
+
+  if (oldSearch) {
+    await ctx.db.delete(oldSearch._id);
+  }
+
+  // Create new search entry
+  await ctx.db.insert("fixture_search_index", {
+    fixtureId: fixtureId as any,
+    searchText,
+    organizationId: fixture.organizationId,
+    updatedAt: Date.now(),
+  });
+}
+
 // Create a new fixture
 export const create = mutation({
   args: {
@@ -38,6 +150,9 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Rebuild search index for this fixture
+    await rebuildFixtureSearchIndex(ctx, fixtureId);
 
     return fixtureId;
   },
@@ -71,6 +186,9 @@ export const update = mutation({
       ...updates,
       updatedAt: Date.now(),
     });
+
+    // Rebuild search index for this fixture
+    await rebuildFixtureSearchIndex(ctx, fixtureId);
 
     return fixtureId;
   },
@@ -401,6 +519,562 @@ export const listEnriched = query({
     return enrichedFixtures.sort((a, b) => b._creationTime - a._creationTime);
   },
 });
+
+// Server-side paginated query with filtering, sorting, and search
+export const listPaginated = query({
+  args: {
+    organizationId: v.id("organizations"),
+    cursor: v.optional(v.string()), // Format: "timestamp:id"
+    limit: v.number(), // 25, 50, 100
+
+    // Filters (40+ supported)
+    filters: v.optional(v.object({
+      // Text/multiselect filters
+      vessels: v.optional(v.array(v.string())),
+      status: v.optional(v.array(v.string())),
+      owner: v.optional(v.array(v.string())),
+      broker: v.optional(v.array(v.string())),
+      charterer: v.optional(v.array(v.string())),
+      loadPortName: v.optional(v.array(v.string())),
+      loadPortCountry: v.optional(v.array(v.string())),
+      loadDeliveryType: v.optional(v.array(v.string())),
+      dischargePortName: v.optional(v.array(v.string())),
+      dischargePortCountry: v.optional(v.array(v.string())),
+      dischargeRedeliveryType: v.optional(v.array(v.string())),
+      cargoTypeName: v.optional(v.array(v.string())),
+      marketIndexName: v.optional(v.array(v.string())),
+      contractType: v.optional(v.array(v.string())),
+      contractStatus: v.optional(v.array(v.string())),
+
+      // Number range filters
+      cargoQuantity: v.optional(v.object({ min: v.number(), max: v.number() })),
+      finalFreightRate: v.optional(v.object({ min: v.number(), max: v.number() })),
+
+      // Date range filters
+      laycanStart: v.optional(v.object({ min: v.number(), max: v.number() })),
+      cpDate: v.optional(v.object({ min: v.number(), max: v.number() })),
+    })),
+
+    // Sorting
+    sorting: v.optional(v.array(v.object({
+      field: v.string(),
+      direction: v.union(v.literal("asc"), v.literal("desc")),
+    }))),
+
+    // Global search
+    searchTerms: v.optional(v.array(v.string())),
+  },
+
+  handler: async (ctx, args) => {
+    // 1. Handle search terms first (narrows down result set)
+    let fixtureIdsSet: Set<string> | null = null;
+    if (args.searchTerms && args.searchTerms.length > 0) {
+      const searchResults = await ctx.db
+        .query("fixture_search_index")
+        .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
+        .collect();
+
+      // Filter search results in memory (Convex doesn't support .includes() in filters)
+      const filtered = searchResults.filter((result) => {
+        return args.searchTerms!.every((term) =>
+          result.searchText.includes(term.toLowerCase())
+        );
+      });
+
+      fixtureIdsSet = new Set(filtered.map((r) => r.fixtureId));
+
+      // Early exit if no matches
+      if (fixtureIdsSet.size === 0) {
+        return { items: [], nextCursor: null, hasMore: false, totalCount: 0 };
+      }
+    }
+
+    // 2. Start with base query (use appropriate index)
+    // Note: _creationTime is automatically appended to all indexes by Convex
+    let query = ctx.db
+      .query("fixtures")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId)
+      );
+
+    // 3. Apply simple filters (status and date ranges)
+    if (args.filters?.status && args.filters.status.length > 0) {
+      // Status filter: match any of the provided statuses
+      query = query.filter((q) => {
+        return q.or(...args.filters!.status!.map((s) => q.eq(q.field("status"), s)));
+      });
+    }
+
+    if (args.filters?.cpDate) {
+      // Date range filter
+      query = query.filter((q) => {
+        return q.and(
+          q.gte(q.field("createdAt"), args.filters!.cpDate!.min),
+          q.lte(q.field("createdAt"), args.filters!.cpDate!.max)
+        );
+      });
+    }
+
+    // 4. Apply cursor pagination
+    if (args.cursor) {
+      const [timestamp, id] = args.cursor.split(":");
+      query = query.filter((q) =>
+        q.or(
+          q.lt(q.field("_creationTime"), parseFloat(timestamp)),
+          q.and(
+            q.eq(q.field("_creationTime"), parseFloat(timestamp)),
+            q.lt(q.field("_id"), id)
+          )
+        )
+      );
+    }
+
+    // 5. Apply sorting and fetch results
+    const sortDirection = args.sorting?.[0]?.direction || "desc";
+    let results = await query.order(sortDirection).take(args.limit + 1);
+
+    // 6. Apply search filter if needed (post-query filtering)
+    if (fixtureIdsSet) {
+      results = results.filter((f) => fixtureIdsSet!.has(f._id));
+    }
+
+    // 7. Check if more results exist
+    const hasMore = results.length > args.limit;
+    const items = hasMore ? results.slice(0, args.limit) : results;
+
+    // 8. Generate next cursor
+    const nextCursor =
+      hasMore && items.length > 0
+        ? `${items[items.length - 1]._creationTime}:${items[items.length - 1]._id}`
+        : null;
+
+    // 9. Full enrichment (same structure as listEnriched for compatibility)
+    const enrichedItems = await Promise.all(
+      items.map(async (fixture) => {
+        // Get contracts and recap managers
+        const contracts = await ctx.db
+          .query("contracts")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        const recapManagers = await ctx.db
+          .query("recap_managers")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        // Enrich contracts with related entities
+        const enrichedContracts = await Promise.all(
+          contracts.map(async (contract) => {
+            const [owner, charterer, broker, vessel, loadPort, dischargePort, cargoType, negotiation, order] = await Promise.all([
+              contract.ownerId ? ctx.db.get(contract.ownerId) : null,
+              contract.chartererId ? ctx.db.get(contract.chartererId) : null,
+              contract.brokerId ? ctx.db.get(contract.brokerId) : null,
+              contract.vesselId ? ctx.db.get(contract.vesselId) : null,
+              contract.loadPortId ? ctx.db.get(contract.loadPortId) : null,
+              contract.dischargePortId ? ctx.db.get(contract.dischargePortId) : null,
+              contract.cargoTypeId ? ctx.db.get(contract.cargoTypeId) : null,
+              contract.negotiationId ? ctx.db.get(contract.negotiationId) : null,
+              contract.orderId ? ctx.db.get(contract.orderId) : null,
+            ]);
+
+            return {
+              ...contract,
+              owner,
+              charterer,
+              broker,
+              vessel,
+              loadPort,
+              dischargePort,
+              cargoType,
+              negotiation,
+              order,
+            };
+          })
+        );
+
+        // Get order
+        const order = fixture.orderId ? await ctx.db.get(fixture.orderId) : null;
+
+        return {
+          ...fixture,
+          order,
+          contracts: enrichedContracts,
+          recapManagers, // Recap managers with minimal enrichment
+        };
+      })
+    );
+
+    return {
+      items: enrichedItems,
+      nextCursor,
+      hasMore,
+      totalCount: null,
+    };
+  },
+});
+
+// Helper: Minimal enrichment (batch operations)
+async function enrichMinimal(ctx: any, fixtures: any[], filters?: any) {
+  // Batch fetch all contracts in one query per fixture
+  const allContractsPromises = fixtures.map((f) =>
+    ctx.db
+      .query("contracts")
+      .withIndex("by_fixture", (q: any) => q.eq("fixtureId", f._id))
+      .collect()
+  );
+  const allContracts = await Promise.all(allContractsPromises);
+
+  // Extract all unique IDs
+  const companyIds = new Set<string>();
+  const vesselIds = new Set<string>();
+  const portIds = new Set<string>();
+  const cargoTypeIds = new Set<string>();
+  const negotiationIds = new Set<string>();
+
+  allContracts.flat().forEach((contract) => {
+    if (contract.ownerId) companyIds.add(contract.ownerId);
+    if (contract.chartererId) companyIds.add(contract.chartererId);
+    if (contract.brokerId) companyIds.add(contract.brokerId);
+    if (contract.vesselId) vesselIds.add(contract.vesselId);
+    if (contract.loadPortId) portIds.add(contract.loadPortId);
+    if (contract.dischargePortId) portIds.add(contract.dischargePortId);
+    if (contract.cargoTypeId) cargoTypeIds.add(contract.cargoTypeId);
+    if (contract.negotiationId) negotiationIds.add(contract.negotiationId);
+  });
+
+  // Batch fetch all related entities
+  const [companies, vessels, ports, cargoTypes, negotiations] = await Promise.all([
+    Promise.all(Array.from(companyIds).map((id) => ctx.db.get(id))),
+    Promise.all(Array.from(vesselIds).map((id) => ctx.db.get(id))),
+    Promise.all(Array.from(portIds).map((id) => ctx.db.get(id))),
+    Promise.all(Array.from(cargoTypeIds).map((id) => ctx.db.get(id))),
+    Promise.all(Array.from(negotiationIds).map((id) => ctx.db.get(id))),
+  ]);
+
+  // Create lookup maps
+  const companyMap = new Map(companies.filter(Boolean).map((c) => [c._id, c]));
+  const vesselMap = new Map(vessels.filter(Boolean).map((v) => [v._id, v]));
+  const portMap = new Map(ports.filter(Boolean).map((p) => [p._id, p]));
+  const cargoTypeMap = new Map(cargoTypes.filter(Boolean).map((ct) => [ct._id, ct]));
+  const negotiationMap = new Map(negotiations.filter(Boolean).map((n) => [n._id, n]));
+
+  // Build minimal fixture data (only what's needed for table)
+  const enrichedFixtures = fixtures.map((fixture, index) => {
+    const contracts = allContracts[index];
+    const primaryContract = contracts[0];
+
+    if (!primaryContract) {
+      return {
+        ...fixture,
+        vessels: null,
+        owner: null,
+        charterer: null,
+        broker: null,
+        loadPort: null,
+        dischargePort: null,
+        cargoType: null,
+        cargoQuantity: null,
+        laycanStart: null,
+        laycanEnd: null,
+        freightRate: null,
+        demurrageRate: null,
+        contractType: null,
+        contractStatus: null,
+        cpDate: null,
+        marketIndexName: null,
+      };
+    }
+
+    const vessel = vesselMap.get(primaryContract.vesselId);
+    const owner = companyMap.get(primaryContract.ownerId);
+    const charterer = companyMap.get(primaryContract.chartererId);
+    const broker = companyMap.get(primaryContract.brokerId);
+    const loadPort = portMap.get(primaryContract.loadPortId);
+    const dischargePort = portMap.get(primaryContract.dischargePortId);
+    const cargoType = cargoTypeMap.get(primaryContract.cargoTypeId);
+    const negotiation = negotiationMap.get(primaryContract.negotiationId);
+
+    return {
+      ...fixture,
+      // Essential table display fields
+      vessels: vessel?.name || null,
+      owner: owner?.name || null,
+      charterer: charterer?.name || null,
+      broker: broker?.name || null,
+      loadPort: loadPort?.name || null,
+      loadPortCountry: loadPort?.country || null,
+      dischargePort: dischargePort?.name || null,
+      dischargePortCountry: dischargePort?.country || null,
+      cargoType: cargoType?.name || null,
+      cargoQuantity: primaryContract.quantity || null,
+      laycanStart: primaryContract.laycanStart || null,
+      laycanEnd: primaryContract.laycanEnd || null,
+      freightRate: primaryContract.freightRate || null,
+      demurrageRate: primaryContract.demurrageRate || null,
+      contractType: primaryContract.contractType || null,
+      contractStatus: primaryContract.status || null,
+      cpDate: primaryContract.createdAt || null,
+      loadDeliveryType: primaryContract.loadDeliveryType || null,
+      dischargeRedeliveryType: primaryContract.dischargeRedeliveryType || null,
+      marketIndexName: negotiation?.marketIndexName || null,
+    };
+  });
+
+  // Apply client-side filters that can't be done on fixture table directly
+  // (filters on related entities like vessel name, company names, etc.)
+  let filtered = enrichedFixtures;
+
+  if (filters) {
+    filtered = enrichedFixtures.filter((f) => {
+      // Vessel filter
+      if (filters.vessels && filters.vessels.length > 0) {
+        if (!f.vessels || !filters.vessels.includes(f.vessels)) return false;
+      }
+
+      // Owner filter
+      if (filters.owner && filters.owner.length > 0) {
+        if (!f.owner || !filters.owner.includes(f.owner)) return false;
+      }
+
+      // Charterer filter
+      if (filters.charterer && filters.charterer.length > 0) {
+        if (!f.charterer || !filters.charterer.includes(f.charterer)) return false;
+      }
+
+      // Broker filter
+      if (filters.broker && filters.broker.length > 0) {
+        if (!f.broker || !filters.broker.includes(f.broker)) return false;
+      }
+
+      // Load port name filter
+      if (filters.loadPortName && filters.loadPortName.length > 0) {
+        if (!f.loadPort || !filters.loadPortName.includes(f.loadPort)) return false;
+      }
+
+      // Load port country filter
+      if (filters.loadPortCountry && filters.loadPortCountry.length > 0) {
+        if (!f.loadPortCountry || !filters.loadPortCountry.includes(f.loadPortCountry)) return false;
+      }
+
+      // Discharge port name filter
+      if (filters.dischargePortName && filters.dischargePortName.length > 0) {
+        if (!f.dischargePort || !filters.dischargePortName.includes(f.dischargePort)) return false;
+      }
+
+      // Discharge port country filter
+      if (filters.dischargePortCountry && filters.dischargePortCountry.length > 0) {
+        if (!f.dischargePortCountry || !filters.dischargePortCountry.includes(f.dischargePortCountry))
+          return false;
+      }
+
+      // Cargo type filter
+      if (filters.cargoTypeName && filters.cargoTypeName.length > 0) {
+        if (!f.cargoType || !filters.cargoTypeName.includes(f.cargoType)) return false;
+      }
+
+      // Contract type filter
+      if (filters.contractType && filters.contractType.length > 0) {
+        if (!f.contractType || !filters.contractType.includes(f.contractType)) return false;
+      }
+
+      // Contract status filter
+      if (filters.contractStatus && filters.contractStatus.length > 0) {
+        if (!f.contractStatus || !filters.contractStatus.includes(f.contractStatus)) return false;
+      }
+
+      // Delivery type filters
+      if (filters.loadDeliveryType && filters.loadDeliveryType.length > 0) {
+        if (!f.loadDeliveryType || !filters.loadDeliveryType.includes(f.loadDeliveryType))
+          return false;
+      }
+
+      if (filters.dischargeRedeliveryType && filters.dischargeRedeliveryType.length > 0) {
+        if (
+          !f.dischargeRedeliveryType ||
+          !filters.dischargeRedeliveryType.includes(f.dischargeRedeliveryType)
+        )
+          return false;
+      }
+
+      // Market index filter
+      if (filters.marketIndexName && filters.marketIndexName.length > 0) {
+        if (!f.marketIndexName || !filters.marketIndexName.includes(f.marketIndexName)) return false;
+      }
+
+      // Cargo quantity range filter
+      if (filters.cargoQuantity) {
+        if (
+          !f.cargoQuantity ||
+          f.cargoQuantity < filters.cargoQuantity.min ||
+          f.cargoQuantity > filters.cargoQuantity.max
+        )
+          return false;
+      }
+
+      // Laycan date range filter
+      if (filters.laycanStart) {
+        if (
+          !f.laycanStart ||
+          f.laycanStart < filters.laycanStart.min ||
+          f.laycanStart > filters.laycanStart.max
+        )
+          return false;
+      }
+
+      return true;
+    });
+  }
+
+  return filtered;
+}
+
+// Get filter options (computed on-demand without caching)
+export const getFilterOptions = query({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    // Query reference tables directly
+    const [vessels, companies, ports, cargoTypes, fixtures] = await Promise.all([
+      ctx.db.query("vessels").collect(),
+      ctx.db.query("companies").collect(),
+      ctx.db.query("ports").collect(),
+      ctx.db.query("cargo_types").collect(),
+      ctx.db
+        .query("fixtures")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", args.organizationId)
+        )
+        .take(100), // Limit to first 100 for performance
+    ]);
+
+    // Get sample contracts to extract unique values
+    const sampleContracts = await Promise.all(
+      fixtures.slice(0, 50).map((f) =>
+        ctx.db
+          .query("contracts")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", f._id))
+          .first()
+      )
+    );
+    const contracts = sampleContracts.filter(Boolean);
+
+    // Get sample negotiations for market index names
+    const negotiationIds = contracts
+      .map((c) => c!.negotiationId)
+      .filter(Boolean)
+      .slice(0, 20);
+    const negotiations = await Promise.all(
+      negotiationIds.map((id) => ctx.db.get(id!))
+    );
+
+    // Extract unique values
+    const uniqueMarketIndexNames = [
+      ...new Set(
+        negotiations
+          .filter(Boolean)
+          .map((n) => n!.marketIndexName)
+          .filter(Boolean)
+      ),
+    ];
+
+    const uniqueContractTypes = [...new Set(contracts.map((c) => c!.contractType))];
+    const uniqueContractStatuses = [...new Set(contracts.map((c) => c!.status))];
+    const uniqueLoadDeliveryTypes = [
+      ...new Set(contracts.map((c) => c!.loadDeliveryType).filter(Boolean)),
+    ];
+    const uniqueDischargeRedeliveryTypes = [
+      ...new Set(contracts.map((c) => c!.dischargeRedeliveryType).filter(Boolean)),
+    ];
+
+    // Get users for deal capture, order created by, etc.
+    const users = await ctx.db.query("users").collect();
+
+    // Define standard stages and approval statuses (these are derived/computed fields)
+    const standardStages = ["inquiry", "indication", "recap", "firm", "subjects", "main-terms"];
+    const standardApprovalStatuses = ["pending", "partially-approved", "approved", "rejected"];
+
+    return {
+      vessels: vessels.map((v) => ({ value: v.name, label: v.name })),
+      owners: companies
+        .filter((c) => c.roles?.includes("owner"))
+        .map((c) => ({ value: c.name, label: c.name })),
+      charterers: companies
+        .filter((c) => c.roles?.includes("charterer"))
+        .map((c) => ({ value: c.name, label: c.name })),
+      brokers: companies
+        .filter((c) => c.roles?.includes("broker"))
+        .map((c) => ({ value: c.name, label: c.name })),
+      loadPorts: ports.map((p) => ({ value: p.name, label: p.name })),
+      loadCountries: [
+        ...new Set(ports.map((p) => p.country)),
+      ].map((country) => ({ value: country, label: country })),
+      dischargePorts: ports.map((p) => ({ value: p.name, label: p.name })),
+      dischargeCountries: [
+        ...new Set(ports.map((p) => p.country)),
+      ].map((country) => ({ value: country, label: country })),
+      cargoTypes: cargoTypes.map((ct) => ({ value: ct.name, label: ct.name })),
+      contractTypes: uniqueContractTypes.map((ct) => ({
+        value: ct,
+        label: ct
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" "),
+      })),
+      loadDeliveryTypes: uniqueLoadDeliveryTypes.map((ldt) => ({
+        value: ldt,
+        label: ldt,
+      })),
+      dischargeRedeliveryTypes: uniqueDischargeRedeliveryTypes.map((drt) => ({
+        value: drt,
+        label: drt,
+      })),
+      marketIndexNames: uniqueMarketIndexNames.map((min) => ({
+        value: min,
+        label: min,
+      })),
+      status: [
+        "draft",
+        "working-copy",
+        "final",
+        "on-subs",
+        "fully-fixed",
+        "canceled",
+      ].map((status) => ({
+        value: status,
+        label: status
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" "),
+      })),
+      stages: standardStages.map((s) => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ") })),
+      approvalStatuses: standardApprovalStatuses.map((s) => ({
+        value: s,
+        label: s.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+      })),
+      // Approval/signature status options (standard values)
+      ownerApprovalStatuses: ["pending", "approved", "rejected"].map((s) => ({
+        value: s,
+        label: s.charAt(0).toUpperCase() + s.slice(1),
+      })),
+      chartererApprovalStatuses: ["pending", "approved", "rejected"].map((s) => ({
+        value: s,
+        label: s.charAt(0).toUpperCase() + s.slice(1),
+      })),
+      ownerSignatureStatuses: ["not-sent", "sent", "signed"].map((s) => ({
+        value: s,
+        label: s.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+      })),
+      chartererSignatureStatuses: ["not-sent", "sent", "signed"].map((s) => ({
+        value: s,
+        label: s.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+      })),
+      // User tracking
+      dealCaptureUsers: users.map((u) => ({ value: u.name, label: u.name })),
+      orderCreatedBy: users.map((u) => ({ value: u.name, label: u.name })),
+      negotiationCreatedBy: users.map((u) => ({ value: u.name, label: u.name })),
+    };
+  },
+});
+
 // Get approval status for an entity
 export const getApprovalStatus = query({
   args: {
@@ -1093,6 +1767,9 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       const cargoType = cargoTypes[Math.floor(Math.random() * cargoTypes.length)];
       const contractType = Math.random() < 0.7 ? "voyage-charter" : "time-charter";
 
+      // Generate delivery terms for this contract
+      const deliveryTerms = getDeliveryTerms(cargoType.category);
+
       // Get realistic market rates based on vessel class
       const marketRates = getMarketRates(vessel.vesselClass);
 
@@ -1162,7 +1839,6 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
       if (isTradeFlow && negotiationId && negotiationStatus === "fixed") {
         const freightAnalytics = generateFreightAnalytics(freightRate, vessel.vesselClass);
         const demurrageAnalytics = generateDemurrageAnalytics(demurrageRate);
-        const deliveryTerms = getDeliveryTerms(cargoType.category);
         const commissionsAndGrossFreight = calculateCommissionsAndGrossFreight(
           freightRate,
           quantity,
@@ -1202,6 +1878,8 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
         cargoTypeId: cargoType._id,
         quantity,
         quantityUnit: "MT",
+        loadDeliveryType: deliveryTerms.load,
+        dischargeRedeliveryType: deliveryTerms.discharge,
         status: contractStatus,
         ...addContractWorkflowDates(contractStatus, contractCreationTime),
         createdAt: contractCreationTime,

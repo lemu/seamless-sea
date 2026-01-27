@@ -289,7 +289,9 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_fixtureNumber", ["fixtureNumber"])
     .index("by_order", ["orderId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_org_status", ["organizationId", "status"]) // NEW: Status filter
+    .index("by_org_updated", ["organizationId", "updatedAt"]), // NEW: Sort by updated
 
   // Negotiations - Individual offers/bids (previously "offers")
   negotiations: defineTable({
@@ -399,6 +401,8 @@ export default defineSchema({
     cargoTypeId: v.optional(v.id("cargo_types")),
     quantity: v.optional(v.number()),
     quantityUnit: v.optional(v.string()),
+    loadDeliveryType: v.optional(v.string()),
+    dischargeRedeliveryType: v.optional(v.string()),
     fullCpChainStorageId: v.optional(v.id("_storage")),
     itineraryStorageId: v.optional(v.id("_storage")),
     status: v.union(
@@ -426,7 +430,10 @@ export default defineSchema({
     .index("by_negotiation", ["negotiationId"])
     .index("by_order", ["orderId"])
     .index("by_parent", ["parentContractId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_vessel", ["vesselId"]) // NEW: Vessel filter
+    .index("by_owner", ["ownerId"]) // NEW: Owner filter
+    .index("by_charterer", ["chartererId"]), // NEW: Charterer filter
 
   // Recap Managers - Wet market contracts
   recap_managers: defineTable({
@@ -462,6 +469,8 @@ export default defineSchema({
     cargoTypeId: v.optional(v.id("cargo_types")),
     quantity: v.optional(v.number()),
     quantityUnit: v.optional(v.string()),
+    loadDeliveryType: v.optional(v.string()),
+    dischargeRedeliveryType: v.optional(v.string()),
     fullCpChainStorageId: v.optional(v.id("_storage")),
     itineraryStorageId: v.optional(v.id("_storage")),
     status: v.union(
@@ -717,6 +726,7 @@ export default defineSchema({
   // User Bookmarks - Persistent user bookmarks for Fixtures table
   user_bookmarks: defineTable({
     userId: v.id("users"),
+    organizationId: v.optional(v.id("organizations")), // Organization scoping (optional for backward compatibility)
     name: v.string(),
     isDefault: v.boolean(),
     count: v.optional(v.number()),
@@ -737,10 +747,39 @@ export default defineSchema({
       columnSizing: v.any(),
     })),
 
+    // Sharing capabilities (optional)
+    isShared: v.optional(v.boolean()), // NEW: Allow sharing outside creator
+    sharedWithOrganization: v.optional(v.boolean()), // NEW: Share with entire org
+
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_userId", ["userId"])
-    .index("by_user_and_default", ["userId", "isDefault"]),
+    .index("by_user_and_default", ["userId", "isDefault"])
+    .index("by_user_org", ["userId", "organizationId"]) // NEW: User + org lookup
+    .index("by_org_shared", ["organizationId", "isShared"]), // NEW: Find shared bookmarks
+
+  // Fixture Search Index - Full-text search for fixtures
+  fixture_search_index: defineTable({
+    fixtureId: v.id("fixtures"),
+    searchText: v.string(), // Concatenated searchable fields (lowercase)
+    organizationId: v.id("organizations"),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["organizationId"])
+    .index("by_fixture", ["fixtureId"]),
+
+  // Fixture Filter Options - Pre-computed filter options cache
+  fixture_filter_options: defineTable({
+    organizationId: v.id("organizations"),
+    filterType: v.string(), // "vessels", "owners", "charterers", etc.
+    options: v.array(v.object({
+      value: v.string(),
+      label: v.string(),
+      count: v.optional(v.number()),
+    })),
+    updatedAt: v.number(),
+  })
+    .index("by_org_type", ["organizationId", "filterType"]),
 
 });

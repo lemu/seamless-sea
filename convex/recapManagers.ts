@@ -42,6 +42,8 @@ export const create = mutation({
     cargoTypeId: v.optional(v.id("cargo_types")),
     quantity: v.optional(v.number()),
     quantityUnit: v.optional(v.string()),
+    loadDeliveryType: v.optional(v.string()),
+    dischargeRedeliveryType: v.optional(v.string()),
     approvalStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -76,6 +78,8 @@ export const create = mutation({
       cargoTypeId: args.cargoTypeId,
       quantity: args.quantity,
       quantityUnit: args.quantityUnit,
+      loadDeliveryType: args.loadDeliveryType,
+      dischargeRedeliveryType: args.dischargeRedeliveryType,
       status: "draft",
       approvalStatus: args.approvalStatus,
       createdAt: now,
@@ -111,6 +115,8 @@ export const update = mutation({
     brokerCommission: v.optional(v.string()),
     quantity: v.optional(v.number()),
     quantityUnit: v.optional(v.string()),
+    loadDeliveryType: v.optional(v.string()),
+    dischargeRedeliveryType: v.optional(v.string()),
     approvalStatus: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

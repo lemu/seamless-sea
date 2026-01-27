@@ -1151,6 +1151,23 @@ async function createOutOfTradeScenario_Rejected(
   }
 }
 
+// Helper function to get delivery terms based on cargo category
+function getDeliveryTerms(cargoCategory: string) {
+  if (cargoCategory === "Dry Bulk") {
+    const terms = ["FIO", "FIOS", "FIO Trimmed", "FIOST"];
+    const term = terms[Math.floor(Math.random() * terms.length)];
+    return { load: term, discharge: term };
+  } else if (cargoCategory === "Tanker") {
+    return { load: "Free In", discharge: "Free Out" };
+  } else if (cargoCategory === "Container") {
+    return { load: "Liner Terms", discharge: "Liner Terms" };
+  } else if (cargoCategory === "Liquid Bulk") {
+    return { load: "Berth Terms", discharge: "Berth Terms" };
+  } else {
+    return { load: "FIO", discharge: "FIO" };
+  }
+}
+
 // Weighted status combination selector for realistic fixture distribution
 function selectTradeDeskStatusCombination(): {
   negotiationStatus: "indicative-offer" | "indicative-bid" | "firm-offer" | "firm-bid" | "firm" | "on-subs" | "fixed";
@@ -1360,6 +1377,7 @@ export async function migrateTradeDeskDataInternal(
         const contractUpdatedTime = contractCreatedTime + Math.floor(Math.random() * 5) * DAY;
 
         const contractNumber: number = contracts.length;
+        const deliveryTerms = getDeliveryTerms(cargoType.category);
         const contractId = await ctx.db.insert("contracts", {
           contractNumber: `CP${10000 + contractNumber}`,
           fixtureId,
@@ -1383,6 +1401,8 @@ export async function migrateTradeDeskDataInternal(
           cargoTypeId: cargoType._id,
           quantity: Math.floor(Math.random() * 100000) + 100000,
           quantityUnit: cargoType.unitType,
+          loadDeliveryType: deliveryTerms.load,
+          dischargeRedeliveryType: deliveryTerms.discharge,
           status: statusCombination.contractStatus!,
           approvalStatus: statusCombination.contractStatus === "final" ? "Signed" : "Pending approval",
           createdAt: contractCreatedTime,
@@ -1615,6 +1635,7 @@ export async function migrateFixturesDataInternal(
     );
 
     // Now create contract WITH order and negotiation links
+    const deliveryTerms = getDeliveryTerms(cargoType.category);
     const contractId = await ctx.db.insert("contracts", {
       contractNumber: `CP${10000 + contractCounter}`,
       fixtureId,
@@ -1638,6 +1659,8 @@ export async function migrateFixturesDataInternal(
       cargoTypeId: cargoType._id,
       quantity,
       quantityUnit: cargoType.unitType,
+      loadDeliveryType: deliveryTerms.load,
+      dischargeRedeliveryType: deliveryTerms.discharge,
       status: contractStatus,
       approvalStatus,
       createdAt: contractCreatedTime,
@@ -2896,3 +2919,208 @@ export const backfillFixtureData = mutation({
   },
 });
 
+// Backfill loadDeliveryType and dischargeRedeliveryType for recap_managers
+export const backfillRecapManagerDeliveryTypes = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("Starting backfill of recap_manager delivery types...");
+
+    const recaps = await ctx.db.query("recap_managers").collect();
+    let updated = 0;
+    let skipped = 0;
+
+    for (const recap of recaps) {
+      // Try to get delivery types from associated negotiation
+      let loadDeliveryType: string | undefined;
+      let dischargeRedeliveryType: string | undefined;
+
+      if (recap.negotiationId) {
+        const negotiation = await ctx.db.get(recap.negotiationId);
+        if (negotiation) {
+          loadDeliveryType = negotiation.loadDeliveryType;
+          dischargeRedeliveryType = negotiation.dischargeRedeliveryType;
+        }
+      }
+
+      // Only update if we found values
+      if (loadDeliveryType || dischargeRedeliveryType) {
+        await ctx.db.patch(recap._id, {
+          loadDeliveryType,
+          dischargeRedeliveryType,
+        });
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    console.log(`Backfill complete: ${updated} updated, ${skipped} skipped`);
+    return { total: recaps.length, updated, skipped };
+  },
+});
+
+// Update all user bookmarks to show delivery type columns
+export const updateBookmarkColumnVisibility = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("Starting bookmark column visibility update...");
+
+    const bookmarks = await ctx.db.query("user_bookmarks").collect();
+    let updated = 0;
+
+    for (const bookmark of bookmarks) {
+      if (bookmark.tableState?.columnVisibility) {
+        const currentVisibility = bookmark.tableState.columnVisibility;
+
+        // Update the columns to be visible
+        const updatedVisibility = {
+          ...currentVisibility,
+          loadPortName: false,
+          loadPortCountry: false,
+          loadDeliveryType: false,
+          dischargePortName: false,
+          dischargePortCountry: false,
+          dischargeRedeliveryType: false,
+          vesselImo: false,
+          cargoTypeName: false,
+        };
+
+        await ctx.db.patch(bookmark._id, {
+          tableState: {
+            ...bookmark.tableState,
+            columnVisibility: updatedVisibility,
+          },
+          updatedAt: Date.now(),
+        });
+        updated++;
+      }
+    }
+
+    console.log(`Bookmark update complete: ${updated} bookmarks updated`);
+    return { total: bookmarks.length, updated };
+  },
+});
+
+
+// Migration: Rebuild search index for all fixtures
+export const rebuildSearchIndex = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🔍 Rebuilding fixture search index...");
+
+    // Clear existing index
+    const existingEntries = await ctx.db.query("fixture_search_index").collect();
+    console.log(`Deleting ${existingEntries.length} existing search index entries...`);
+    
+    for (const entry of existingEntries) {
+      await ctx.db.delete(entry._id);
+    }
+
+    // Rebuild for all fixtures
+    const fixtures = await ctx.db.query("fixtures").collect();
+    console.log(`Rebuilding search index for ${fixtures.length} fixtures...`);
+
+    let processed = 0;
+    for (const fixture of fixtures) {
+      // Get contracts for this fixture
+      const contracts = await ctx.db
+        .query("contracts")
+        .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+        .collect();
+
+      // Get recap managers for this fixture
+      const recapManagers = await ctx.db
+        .query("recap_managers")
+        .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+        .collect();
+
+      // Collect all searchable text
+      const searchableFields: string[] = [
+        fixture.fixtureNumber,
+        fixture.title || "",
+      ];
+
+      // Extract data from all contracts
+      for (const contract of contracts) {
+        searchableFields.push(contract.contractNumber);
+
+        // Get related entities
+        const [vessel, owner, charterer, broker, loadPort, dischargePort, cargoType, order] =
+          await Promise.all([
+            contract.vesselId ? ctx.db.get(contract.vesselId) : null,
+            contract.ownerId ? ctx.db.get(contract.ownerId) : null,
+            contract.chartererId ? ctx.db.get(contract.chartererId) : null,
+            contract.brokerId ? ctx.db.get(contract.brokerId) : null,
+            contract.loadPortId ? ctx.db.get(contract.loadPortId) : null,
+            contract.dischargePortId ? ctx.db.get(contract.dischargePortId) : null,
+            contract.cargoTypeId ? ctx.db.get(contract.cargoTypeId) : null,
+            contract.orderId ? ctx.db.get(contract.orderId) : null,
+          ]);
+
+        if (vessel) searchableFields.push(vessel.name, vessel.imoNumber || "");
+        if (owner) searchableFields.push(owner.name);
+        if (charterer) searchableFields.push(charterer.name);
+        if (broker) searchableFields.push(broker.name);
+        if (loadPort)
+          searchableFields.push(loadPort.name, loadPort.country, loadPort.unlocode || "");
+        if (dischargePort)
+          searchableFields.push(
+            dischargePort.name,
+            dischargePort.country,
+            dischargePort.unlocode || ""
+          );
+        if (cargoType) searchableFields.push(cargoType.name);
+        if (order) searchableFields.push(order.orderNumber);
+      }
+
+      // Extract data from all recap managers
+      for (const recap of recapManagers) {
+        searchableFields.push(recap.recapNumber);
+
+        const [vessel, owner, charterer, broker, loadPort, dischargePort, cargoType] =
+          await Promise.all([
+            recap.vesselId ? ctx.db.get(recap.vesselId) : null,
+            recap.ownerId ? ctx.db.get(recap.ownerId) : null,
+            recap.chartererId ? ctx.db.get(recap.chartererId) : null,
+            recap.brokerId ? ctx.db.get(recap.brokerId) : null,
+            recap.loadPortId ? ctx.db.get(recap.loadPortId) : null,
+            recap.dischargePortId ? ctx.db.get(recap.dischargePortId) : null,
+            recap.cargoTypeId ? ctx.db.get(recap.cargoTypeId) : null,
+          ]);
+
+        if (vessel) searchableFields.push(vessel.name, vessel.imoNumber || "");
+        if (owner) searchableFields.push(owner.name);
+        if (charterer) searchableFields.push(charterer.name);
+        if (broker) searchableFields.push(broker.name);
+        if (loadPort) searchableFields.push(loadPort.name, loadPort.country);
+        if (dischargePort)
+          searchableFields.push(dischargePort.name, dischargePort.country);
+        if (cargoType) searchableFields.push(cargoType.name);
+      }
+
+      // Build search text (lowercase, space-separated)
+      const searchText = searchableFields
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      // Create search entry
+      await ctx.db.insert("fixture_search_index", {
+        fixtureId: fixture._id,
+        searchText,
+        organizationId: fixture.organizationId,
+        updatedAt: Date.now(),
+      });
+
+      processed++;
+      
+      // Log progress every 10 fixtures
+      if (processed % 10 === 0) {
+        console.log(`Progress: ${processed}/${fixtures.length} fixtures indexed`);
+      }
+    }
+
+    console.log(`✅ Search index rebuilt successfully: ${processed} fixtures indexed`);
+    return { success: true, fixturesIndexed: processed };
+  },
+});
