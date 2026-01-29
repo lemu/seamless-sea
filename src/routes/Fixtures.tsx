@@ -2059,7 +2059,7 @@ function Fixtures() {
   const renameBookmarkMutation = useMutation(api.user_bookmarks.renameBookmark);
   const deleteBookmarkMutation = useMutation(api.user_bookmarks.deleteBookmark);
   const setDefaultBookmarkMutation = useMutation(api.user_bookmarks.setDefaultBookmark);
-  const syncUserMutation = useMutation(api.syncUser.syncCurrentUser);
+  const syncUserMutation = useMutation(api.fixUserSync.autoFixCurrentUser);
 
   // Local state for optimistic updates
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);
@@ -5716,21 +5716,18 @@ function Fixtures() {
               variant="primary"
               size="sm"
               onClick={async () => {
-                if (!user?.email || !user?.name) {
-                  alert("Unable to sync: missing user information");
-                  return;
-                }
                 try {
-                  const result = await syncUserMutation({
-                    email: user.email,
-                    name: user.name,
-                  });
+                  const result = await syncUserMutation({});
                   console.log("✅ Sync result:", result);
-                  alert("Account synced successfully! The page will reload in 2 seconds...");
-                  // Use a hard reload with cache clearing
-                  setTimeout(() => {
-                    window.location.href = window.location.href;
-                  }, 2000);
+                  if (result.success) {
+                    alert(`Account synced successfully! ${result.message}\n\nThe page will reload in 2 seconds...`);
+                    // Use a hard reload with cache clearing
+                    setTimeout(() => {
+                      window.location.href = window.location.href;
+                    }, 2000);
+                  } else {
+                    alert(`Sync failed: ${result.message}`);
+                  }
                 } catch (error) {
                   console.error("❌ Sync error:", error);
                   alert("Failed to sync account. Please try again or contact support.");

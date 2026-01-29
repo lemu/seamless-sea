@@ -27,6 +27,7 @@ import type * as diagnosticAvatars from "../diagnosticAvatars.js";
 import type * as diagnosticUser from "../diagnosticUser.js";
 import type * as email from "../email.js";
 import type * as fixOrgData from "../fixOrgData.js";
+import type * as fixUserSync from "../fixUserSync.js";
 import type * as fixtures from "../fixtures.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
@@ -79,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   diagnosticUser: typeof diagnosticUser;
   email: typeof email;
   fixOrgData: typeof fixOrgData;
+  fixUserSync: typeof fixUserSync;
   fixtures: typeof fixtures;
   http: typeof http;
   invitations: typeof invitations;
