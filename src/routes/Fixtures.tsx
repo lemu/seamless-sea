@@ -2796,6 +2796,7 @@ function Fixtures() {
       {
         accessorKey: "lastUpdated",
         header: "Last Updated",
+        size: 150,
         meta: { label: "Last Updated", align: "left" },
         enableGrouping: false,
         aggregationFn: (columnId: string, leafRows: any[]) => {
@@ -2865,6 +2866,36 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const laycans = row.subRows?.map((r: any) => ({
+            start: r.original.laycanStart,
+            end: r.original.laycanEnd
+          })).filter((l: any) => l.start && l.end) || [];
+
+          if (laycans.length === 0) {
+            return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          }
+
+          // Check if all laycans are the same
+          const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
+          const allSame = laycans.every((l: any) =>
+            formatLaycanRange(l.start, l.end) === firstLaycan
+          );
+
+          if (allSame) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {firstLaycan}
+              </div>
+            );
+          }
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {laycans.length} laycans
+            </div>
+          );
+        },
       },
       {
         accessorKey: "loadPortName",
@@ -2885,6 +2916,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} ports
             </div>
           );
         },
@@ -2914,6 +2961,26 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortCountry) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const countryCode = row.subRows?.[0]?.original.loadPort?.countryCode;
+            return (
+              <div className="flex items-center gap-2">
+                {countryCode && <Flag country={countryCode} />}
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {value || "–"}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} countries
+            </div>
+          );
+        },
       },
       {
         accessorKey: "loadDeliveryType",
@@ -2933,6 +3000,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.loadDeliveryType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -2956,6 +3039,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} ports
             </div>
           );
         },
@@ -2985,6 +3084,26 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortCountry) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const countryCode = row.subRows?.[0]?.original.dischargePort?.countryCode;
+            return (
+              <div className="flex items-center gap-2">
+                {countryCode && <Flag country={countryCode} />}
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {value || "–"}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} countries
+            </div>
+          );
+        },
       },
       {
         accessorKey: "dischargeRedeliveryType",
@@ -3004,6 +3123,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dischargeRedeliveryType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
@@ -3045,6 +3180,22 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.cargoTypeName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
+            </div>
+          );
+        },
       },
       {
         accessorKey: "cargoQuantity",
@@ -3083,6 +3234,19 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => {
+            const v = r.original.finalFreightRate;
+            return typeof v === 'string' ? parseFloat(v) : v;
+          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "finalDemurrageRate",
@@ -3098,6 +3262,19 @@ function Fixtures() {
               {numValue ? `$${numValue.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => {
+            const v = r.original.finalDemurrageRate;
+            return typeof v === 'string' ? parseFloat(v) : v;
+          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
 
@@ -3123,6 +3300,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "lowestFreightRateIndication",
@@ -3144,6 +3331,16 @@ function Fixtures() {
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3167,6 +3364,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.firstFreightRateIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "highestFreightRateLastDay",
@@ -3188,6 +3395,16 @@ function Fixtures() {
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3211,6 +3428,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "firstFreightRateLastDay",
@@ -3232,6 +3459,16 @@ function Fixtures() {
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.firstFreightRateLastDay).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3280,6 +3517,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.marketIndex).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "marketIndexName",
@@ -3299,6 +3546,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.marketIndexName) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} indices
             </div>
           );
         },
@@ -3349,6 +3612,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.grossFreight).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+        },
       },
       {
         accessorKey: "highestDemurrageIndication",
@@ -3371,6 +3644,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.highestDemurrageIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
       },
       {
         accessorKey: "lowestDemurrageIndication",
@@ -3392,6 +3675,16 @@ function Fixtures() {
               {value ? `$${value.toFixed(2)}` : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => r.original.lowestDemurrageIndication).filter((v: any) => v != null) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
       {
@@ -3532,6 +3825,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.cpDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
       {
         accessorKey: "workingCopyDate",
@@ -3554,11 +3857,21 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.workingCopyDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
       {
         accessorKey: "finalDate",
         header: "Final Date",
-        size: 130,
+        size: 150,
         meta: {
           label: "Final Date",
           align: "left",
@@ -3575,6 +3888,16 @@ function Fixtures() {
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.finalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3597,6 +3920,16 @@ function Fixtures() {
               {value ? formatTimestamp(value) : "–"}
             </div>
           );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.fullySignedDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
         },
       },
       {
@@ -3694,6 +4027,22 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.ownerApprovalStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
+            </div>
+          );
+        },
       },
       {
         accessorKey: "ownerApprovedBy",
@@ -3724,6 +4073,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.ownerApprovalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
       {
         accessorKey: "chartererApprovalStatus",
@@ -3743,6 +4102,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.chartererApprovalStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3776,6 +4151,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.chartererApprovalDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
 
       // Priority 6: Signature Status Details
@@ -3797,6 +4182,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.ownerSignatureStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3830,6 +4231,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.ownerSignatureDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
       {
         accessorKey: "chartererSignatureStatus",
@@ -3849,6 +4260,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.chartererSignatureStatus) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} statuses
             </div>
           );
         },
@@ -3882,6 +4309,16 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const timestamps = row.subRows?.map((r: any) => r.original.chartererSignatureDate).filter(Boolean) || [];
+          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+          if (earliest === latest) {
+            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
+        },
       },
 
       // Priority 7: User Tracking
@@ -3903,6 +4340,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.dealCaptureUser) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
             </div>
           );
         },
@@ -3928,6 +4381,22 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.orderCreatedBy) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
+            </div>
+          );
+        },
       },
       {
         accessorKey: "negotiationCreatedBy",
@@ -3950,6 +4419,22 @@ function Fixtures() {
             </div>
           );
         },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.negotiationCreatedBy) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} users
+            </div>
+          );
+        },
       },
 
       // Priority 8: Parent/Child Relationships
@@ -3964,6 +4449,22 @@ function Fixtures() {
           return (
             <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
               {value || "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.parentCpId) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            return (
+              <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
+                {value || "–"}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} parents
             </div>
           );
         },
@@ -3991,6 +4492,26 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
               {displayValue}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = new Set(row.subRows?.map((r: any) => r.original.contractType) || []);
+          if (values.size === 1) {
+            const value = Array.from(values)[0];
+            const displayValue = value === "voyage-charter" ? "Voyage charter"
+              : value === "time-charter" ? "TC"
+              : value === "coa" ? "COA"
+              : value || "–";
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {displayValue}
+              </div>
+            );
+          }
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {values.size} types
             </div>
           );
         },
