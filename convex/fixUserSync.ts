@@ -2,6 +2,66 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { authComponent } from "./authQueries";
 
+// List all users in the users table - for diagnostics
+export const listAllUsersInTable = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users.map(u => ({
+      id: u._id,
+      email: u.email,
+      emailExact: JSON.stringify(u.email),
+      name: u.name,
+    }));
+  },
+});
+
+// Direct fix: update user email by ID - run from Convex dashboard
+export const updateUserEmail = mutation({
+  args: {
+    userId: v.id("users"),
+    newEmail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return { success: false, message: "User not found" };
+    }
+
+    const oldEmail = user.email;
+    await ctx.db.patch(args.userId, {
+      email: args.newEmail,
+      updatedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: `Updated email from "${oldEmail}" to "${args.newEmail}"`,
+      userId: args.userId,
+    };
+  },
+});
+
+// Delete user from users table (to allow re-sync)
+export const deleteUserFromTable = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return { success: false, message: "User not found" };
+    }
+
+    await ctx.db.delete(args.userId);
+
+    return {
+      success: true,
+      message: `Deleted user: ${user.email} (${args.userId})`,
+    };
+  },
+});
+
 // Diagnostic query to check the exact state of user accounts
 export const diagnoseUserSync = query({
   args: {
