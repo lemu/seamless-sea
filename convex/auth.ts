@@ -94,7 +94,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     },
     plugins: [
       crossDomain({ siteUrl }),
-      convex({ authConfig }),
+      convex({ authConfig, jwksRotateOnTokenGenerationError: true }),
     ],
   });
 };
