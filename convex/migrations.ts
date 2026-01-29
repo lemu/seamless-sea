@@ -58,7 +58,7 @@ async function createContractApprovalsAndSignatures(
   }
 
   // Create owner approval
-  const ownerApprovalId = await ctx.db.insert("contract_approvals", {
+  await ctx.db.insert("contract_approvals", {
     contractId,
     partyRole: "owner",
     companyId: ownerId,
@@ -70,7 +70,7 @@ async function createContractApprovalsAndSignatures(
   });
 
   // Create charterer approval
-  const chartererApprovalId = await ctx.db.insert("contract_approvals", {
+  await ctx.db.insert("contract_approvals", {
     contractId,
     partyRole: "charterer",
     companyId: chartererId,
@@ -82,7 +82,7 @@ async function createContractApprovalsAndSignatures(
   });
 
   // Create owner signature
-  const ownerSignatureId = await ctx.db.insert("contract_signatures", {
+  await ctx.db.insert("contract_signatures", {
     contractId,
     partyRole: "owner",
     companyId: ownerId,
@@ -95,7 +95,7 @@ async function createContractApprovalsAndSignatures(
   });
 
   // Create charterer signature
-  const chartererSignatureId = await ctx.db.insert("contract_signatures", {
+  await ctx.db.insert("contract_signatures", {
     contractId,
     partyRole: "charterer",
     companyId: chartererId,
@@ -214,7 +214,7 @@ async function addAnalyticsToNegotiation(
   negotiationId: Id<"negotiations">,
   finalFreightRate: string,
   finalDemurrageRate: string,
-  baseFreightRate: number
+  _baseFreightRate: number
 ) {
   // Generate realistic freight rate progression
   const finalRate = parseFloat(finalFreightRate.replace(/[^0-9.]/g, ""));
@@ -2721,18 +2721,6 @@ export const backfillFixtureData = mutation({
 
       // Only create if they don't exist
       if (existingApprovals.length === 0 && existingSignatures.length === 0) {
-        // Parse activity logs for approval/signature events
-        const approvalEvents = sortedLogs.filter(
-          (log) =>
-            log.action === "approved" ||
-            log.description.toLowerCase().includes("approval")
-        );
-
-        const signatureEvents = sortedLogs.filter(
-          (log) =>
-            log.action === "signed" ||
-            log.description.toLowerCase().includes("sign")
-        );
 
         // Create approval records based on contract parties
         const now = Date.now();
@@ -2820,14 +2808,6 @@ export const backfillFixtureData = mutation({
         !negotiation.highestFreightRateIndication &&
         !negotiation.lowestFreightRateIndication
       ) {
-        // Get activity logs for this negotiation
-        const negotiationLogs = await ctx.db
-          .query("activity_logs")
-          .withIndex("by_entity", (q) =>
-            q.eq("entityType", "negotiation").eq("entityId", negotiation._id)
-          )
-          .collect();
-
         // Extract freight rates from logs (simplified - real implementation would parse expandable data)
         const freightRates: Array<{ value: number; timestamp: number }> = [];
         const demurrageRates: Array<{ value: number; timestamp: number }> = [];

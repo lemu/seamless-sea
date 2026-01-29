@@ -25,7 +25,7 @@ function ForgotPassword() {
 
       // Try Better Auth's native password reset first
       // This will work for users who already exist in Better Auth
-      const betterAuthResult = await authClient.forgetPassword({
+      const betterAuthResult = await authClient.requestPasswordReset({
         email,
         redirectTo: `${window.location.origin}/reset-password`,
       });

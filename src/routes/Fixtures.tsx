@@ -201,16 +201,14 @@ interface ChangeHistoryEntry {
 }
 
 // Extended column metadata to support auto-generation of filter definitions
+// Note: Many properties (label, align, filterVariant, filterOptions, icon) are already
+// defined by @rafal.lemieszewski/tide-ui. We only augment with additional custom properties.
 declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData, TValue> {
-    label: string;
-    align?: "left" | "center" | "right";
-    // Filter configuration
+    // Custom extensions (not in tide-ui)
     filterable?: boolean;
-    filterType?: "text" | "multiselect" | "number" | "date" | "range";
-    filterOptions?: Array<{ value: string; label: string }>;
     filterGroup?: string;
-    filterIcon?: ({ className }: { className?: string }) => JSX.Element;
   }
 }
 
@@ -1730,20 +1728,31 @@ function deriveFilterDefinitions<TData>(
         return null;
       }
 
+      // Map filterVariant to FilterDefinition type
+      // FilterVariant: "text" | "select" | "multiselect" | "number" | "date" | "boolean"
+      // FilterDefinition.type: "multiselect" | "select" | "combobox" | "number" | "date"
+      const mapFilterType = (variant?: string): FilterDefinition["type"] => {
+        if (variant === "text") return "select"; // text maps to select
+        if (variant === "boolean") return "select"; // boolean maps to select
+        if (variant === "multiselect" || variant === "select" || variant === "combobox" || variant === "number" || variant === "date") {
+          return variant;
+        }
+        return "select"; // default
+      };
+
+      // Default icon if none provided
+      const defaultIcon = ({ className }: { className?: string }) => <Icon name="filter" className={className} />;
+
       const filterDef: FilterDefinition = {
         id,
-        label: meta.label,
-        type: meta.filterType || "text",
+        label: meta.label || id,
+        type: mapFilterType(meta.filterVariant),
+        icon: meta.icon || defaultIcon,
         group: meta.filterGroup,
       };
 
-      // Add icon if provided
-      if (meta.filterIcon) {
-        filterDef.icon = meta.filterIcon;
-      }
-
       // Add options from metadata or options map
-      if (meta.filterType === "multiselect" || meta.filterType === "select") {
+      if (meta.filterVariant === "multiselect" || meta.filterVariant === "select") {
         // Priority: 1) metadata options, 2) optionsMap, 3) undefined
         const options = meta.filterOptions || (optionsMap && optionsMap[id]);
         if (options) {
@@ -2016,6 +2025,14 @@ function Fixtures() {
   // Initial user bookmarks
   const initialUserBookmarks: Bookmark[] = [];
 
+  // Helper to convert DB bookmark (with number timestamps) to Bookmark type (with Date timestamps)
+  const convertDbBookmark = (dbBookmark: typeof userBookmarksFromDb extends (infer T)[] | undefined ? T : never): Bookmark => ({
+    ...dbBookmark,
+    id: dbBookmark.id as string,
+    createdAt: new Date(dbBookmark.createdAt),
+    updatedAt: new Date(dbBookmark.updatedAt),
+  });
+
   // Get current user
   const { user } = useUser();
   const userId = user?.appUserId;
@@ -2057,7 +2074,7 @@ function Fixtures() {
       count: userBookmarksFromDb?.length
     });
     if (userBookmarksFromDb) {
-      setBookmarks(userBookmarksFromDb);
+      setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
     }
   }, [userBookmarksFromDb, userId]);
 
@@ -2215,9 +2232,9 @@ function Fixtures() {
           label: "Fixture ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
-          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2275,9 +2292,9 @@ function Fixtures() {
           label: "Order ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
-          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2364,9 +2381,9 @@ function Fixtures() {
           label: "Negotiation ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
-          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         cell: ({ row }: any) => {
@@ -2421,9 +2438,9 @@ function Fixtures() {
           label: "CP ID",
           align: "left",
           filterable: true,
-          filterType: "text",
+          filterVariant: "text",
           filterGroup: "Core",
-          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2488,9 +2505,9 @@ function Fixtures() {
           label: "Status",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
-          filterIcon: ({ className }) => <Icon name="file-text" className={className} />,
+          icon: ({ className }) => <Icon name="file-text" className={className} />,
         },
         enableGrouping: true,
         cell: ({ row }: any) => {
@@ -2530,9 +2547,9 @@ function Fixtures() {
           label: "Vessel Name",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Vessel",
-          filterIcon: ({ className }) => <Icon name="ship" className={className} />,
+          icon: ({ className }) => <Icon name="ship" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2572,9 +2589,9 @@ function Fixtures() {
           label: "Owner",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="building" className={className} />,
+          icon: ({ className }) => <Icon name="building" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2648,9 +2665,9 @@ function Fixtures() {
           label: "Broker",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="briefcase" className={className} />,
+          icon: ({ className }) => <Icon name="briefcase" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2724,9 +2741,9 @@ function Fixtures() {
           label: "Charterer",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+          icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2905,9 +2922,9 @@ function Fixtures() {
           label: "Load Port",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
+          icon: ({ className }) => <Icon name="anchor" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2922,7 +2939,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.loadPortName) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -2944,9 +2961,9 @@ function Fixtures() {
           label: "Load Country",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
+          icon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue, row }) => {
@@ -2964,7 +2981,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.loadPortCountry) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             const countryCode = row.subRows?.[0]?.original.loadPort?.countryCode;
             return (
               <div className="flex items-center gap-2">
@@ -2990,9 +3007,9 @@ function Fixtures() {
           label: "Load Delivery Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="truck" className={className} />,
+          icon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -3006,7 +3023,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.loadDeliveryType) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -3028,9 +3045,9 @@ function Fixtures() {
           label: "Discharge Port",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="anchor" className={className} />,
+          icon: ({ className }) => <Icon name="anchor" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -3045,7 +3062,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortName) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -3067,9 +3084,9 @@ function Fixtures() {
           label: "Discharge Country",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="map-pin" className={className} />,
+          icon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue, row }) => {
@@ -3087,7 +3104,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortCountry) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             const countryCode = row.subRows?.[0]?.original.dischargePort?.countryCode;
             return (
               <div className="flex items-center gap-2">
@@ -3113,9 +3130,9 @@ function Fixtures() {
           label: "Discharge Redelivery Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Location",
-          filterIcon: ({ className }) => <Icon name="truck" className={className} />,
+          icon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -3129,7 +3146,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.dischargeRedeliveryType) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -3167,9 +3184,9 @@ function Fixtures() {
           label: "Cargo Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Cargo",
-          filterIcon: ({ className }) => <Icon name="package" className={className} />,
+          icon: ({ className }) => <Icon name="package" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -3183,7 +3200,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.cargoTypeName) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -3205,9 +3222,9 @@ function Fixtures() {
           label: "Cargo Quantity (mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Cargo",
-          filterIcon: ({ className }) => <Icon name="hash" className={className} />,
+          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3287,9 +3304,9 @@ function Fixtures() {
           label: "Highest Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3319,9 +3336,9 @@ function Fixtures() {
           label: "Lowest Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3351,9 +3368,9 @@ function Fixtures() {
           label: "First Freight ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3383,9 +3400,9 @@ function Fixtures() {
           label: "Highest Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3415,9 +3432,9 @@ function Fixtures() {
           label: "Lowest Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3447,9 +3464,9 @@ function Fixtures() {
           label: "First Freight (Last Day)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3479,9 +3496,9 @@ function Fixtures() {
           label: "Freight Savings %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
+          icon: ({ className }) => <Icon name="trending-down" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3504,9 +3521,9 @@ function Fixtures() {
           label: "Market Index ($/mt)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+          icon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3536,9 +3553,9 @@ function Fixtures() {
           label: "Index Name",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+          icon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -3552,7 +3569,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.marketIndexName) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -3574,9 +3591,9 @@ function Fixtures() {
           label: "Freight vs Market %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="activity" className={className} />,
+          icon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3599,9 +3616,9 @@ function Fixtures() {
           label: "Gross Freight",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3631,9 +3648,9 @@ function Fixtures() {
           label: "Highest Demurrage ($/pd)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+          icon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3663,9 +3680,9 @@ function Fixtures() {
           label: "Lowest Demurrage ($/pd)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+          icon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3695,9 +3712,9 @@ function Fixtures() {
           label: "Demurrage Savings %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Freight & Demurrage",
-          filterIcon: ({ className }) => <Icon name="trending-down" className={className} />,
+          icon: ({ className }) => <Icon name="trending-down" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3722,9 +3739,9 @@ function Fixtures() {
           label: "Address Commission %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
-          filterIcon: ({ className }) => <Icon name="percent" className={className} />,
+          icon: ({ className }) => <Icon name="percent" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3744,9 +3761,9 @@ function Fixtures() {
           label: "Address Commission ($)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3766,9 +3783,9 @@ function Fixtures() {
           label: "Broker Commission %",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
-          filterIcon: ({ className }) => <Icon name="percent" className={className} />,
+          icon: ({ className }) => <Icon name="percent" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3788,9 +3805,9 @@ function Fixtures() {
           label: "Broker Commission ($)",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Commissions",
-          filterIcon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3812,9 +3829,9 @@ function Fixtures() {
           label: "CP Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3844,9 +3861,9 @@ function Fixtures() {
           label: "Working Copy Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3876,9 +3893,9 @@ function Fixtures() {
           label: "Final Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3908,9 +3925,9 @@ function Fixtures() {
           label: "Fully Signed Date",
           align: "left",
           filterable: true,
-          filterType: "date",
+          filterVariant: "date",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="calendar" className={className} />,
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3940,9 +3957,9 @@ function Fixtures() {
           label: "Days: CP → Working Copy",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+          icon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3964,9 +3981,9 @@ function Fixtures() {
           label: "Days: Working Copy → Final",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+          icon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -3988,9 +4005,9 @@ function Fixtures() {
           label: "Days: Final → Signed",
           align: "right",
           filterable: true,
-          filterType: "number",
+          filterVariant: "number",
           filterGroup: "Date & Time",
-          filterIcon: ({ className }) => <Icon name="clock" className={className} />,
+          icon: ({ className }) => <Icon name="clock" className={className} />,
         },
         enableGrouping: false,
         cell: ({ getValue }) => {
@@ -4014,9 +4031,9 @@ function Fixtures() {
           label: "Owner Approval",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
-          filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
+          icon: ({ className }) => <Icon name="check-circle" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4030,7 +4047,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.ownerApprovalStatus) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4092,9 +4109,9 @@ function Fixtures() {
           label: "Charterer Approval",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
-          filterIcon: ({ className }) => <Icon name="check-circle" className={className} />,
+          icon: ({ className }) => <Icon name="check-circle" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4108,7 +4125,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.chartererApprovalStatus) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4172,9 +4189,9 @@ function Fixtures() {
           label: "Owner Signature",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
-          filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
+          icon: ({ className }) => <Icon name="pen-tool" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4188,7 +4205,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.ownerSignatureStatus) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4250,9 +4267,9 @@ function Fixtures() {
           label: "Charterer Signature",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Status",
-          filterIcon: ({ className }) => <Icon name="pen-tool" className={className} />,
+          icon: ({ className }) => <Icon name="pen-tool" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4266,7 +4283,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.chartererSignatureStatus) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4330,9 +4347,9 @@ function Fixtures() {
           label: "Deal Capture",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+          icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4346,7 +4363,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.dealCaptureUser) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4368,9 +4385,9 @@ function Fixtures() {
           label: "Order Created By",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+          icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4384,7 +4401,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.orderCreatedBy) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4406,9 +4423,9 @@ function Fixtures() {
           label: "Neg. Created By",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Parties",
-          filterIcon: ({ className }) => <Icon name="user" className={className} />,
+          icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4422,7 +4439,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.negotiationCreatedBy) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4455,7 +4472,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.parentCpId) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             return (
               <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
                 {value || "–"}
@@ -4477,9 +4494,9 @@ function Fixtures() {
           label: "Contract Type",
           align: "left",
           filterable: true,
-          filterType: "multiselect",
+          filterVariant: "multiselect",
           filterGroup: "Contract",
-          filterIcon: ({ className }) => <Icon name="file-check" className={className} />,
+          icon: ({ className }) => <Icon name="file-check" className={className} />,
         },
         enableGrouping: true,
         cell: ({ getValue }) => {
@@ -4498,7 +4515,7 @@ function Fixtures() {
         aggregatedCell: ({ row }: any) => {
           const values = new Set(row.subRows?.map((r: any) => r.original.contractType) || []);
           if (values.size === 1) {
-            const value = Array.from(values)[0];
+            const value = Array.from(values)[0] as string;
             const displayValue = value === "voyage-charter" ? "Voyage charter"
               : value === "time-charter" ? "TC"
               : value === "coa" ? "COA"
@@ -5513,12 +5530,13 @@ function Fixtures() {
       if (action === "create") {
         // Optimistic update
         const tempId = `temp-${Date.now()}`;
+        const now = new Date();
         const optimisticBookmark: Bookmark = {
           id: tempId,
           name: name || "New Bookmark",
           type: "user",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: now,
+          updatedAt: now,
           count: filteredData.length,
           filtersState: bookmarkData.filtersState,
           tableState: bookmarkData.tableState,
@@ -5536,9 +5554,9 @@ function Fixtures() {
         });
         console.log("✅ Bookmark created successfully:", newBookmark);
 
-        // Replace temp with real bookmark
+        // Replace temp with real bookmark (convert from DB format)
         setBookmarks((prev) =>
-          prev.map((b) => (b.id === tempId ? newBookmark : b))
+          prev.map((b) => (b.id === tempId ? convertDbBookmark(newBookmark) : b))
         );
         setActiveBookmarkId(newBookmark.id);
       } else {
@@ -5549,7 +5567,7 @@ function Fixtures() {
         setBookmarks((prev) =>
           prev.map((b) =>
             b.id === bookmarkId
-              ? { ...b, ...bookmarkData, updatedAt: Date.now() }
+              ? { ...b, ...bookmarkData, updatedAt: new Date() }
               : b
           )
         );
@@ -5565,7 +5583,7 @@ function Fixtures() {
       console.error("Error details:", error instanceof Error ? error.message : error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
       }
     }
   };
@@ -5585,7 +5603,7 @@ function Fixtures() {
       console.error("Failed to rename bookmark:", error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
       }
     }
   };
@@ -5636,7 +5654,7 @@ function Fixtures() {
       console.error("Failed to set default bookmark:", error);
       // Revert optimistic update
       if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb);
+        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
       }
     }
   };
@@ -5731,7 +5749,6 @@ function Fixtures() {
           systemBookmarks={systemBookmarksWithCounts}
           activeBookmarkId={activeBookmarkId}
           isDirty={isDirty}
-          isLoading={isLoadingFixtures}
           onSelect={handleBookmarkSelect}
           onRevert={handleRevert}
           onSave={handleSave}

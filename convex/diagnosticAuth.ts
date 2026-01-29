@@ -2,7 +2,7 @@ import { query } from "./_generated/server";
 
 export const checkAuthEnvironment = query({
   args: {},
-  handler: async (ctx) => {
+  handler: async (_ctx) => {
     return {
       hasBetterAuthSecret: !!process.env.BETTER_AUTH_SECRET,
       hasSiteUrl: !!process.env.SITE_URL,
