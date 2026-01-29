@@ -2059,7 +2059,7 @@ function Fixtures() {
   const renameBookmarkMutation = useMutation(api.user_bookmarks.renameBookmark);
   const deleteBookmarkMutation = useMutation(api.user_bookmarks.deleteBookmark);
   const setDefaultBookmarkMutation = useMutation(api.user_bookmarks.setDefaultBookmark);
-  const syncUserMutation = useMutation(api.fixUserSync.autoFixCurrentUser);
+  const syncUserMutation = useMutation(api.users.autoFixCurrentUser);
 
   // Local state for optimistic updates
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);

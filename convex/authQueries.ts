@@ -19,12 +19,37 @@ export const getCurrentUser = query({
     console.log("getCurrentUser: Auth user found:", user.email);
 
     // Try to get avatar URL from our users table (for backwards compatibility)
+    // First try exact match (uses index, fast)
     let dbUser = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", user.email))
       .first();
 
-    console.log("getCurrentUser: DB user lookup result:", dbUser ? "FOUND" : "NOT FOUND", "for email:", user.email);
+    // If no exact match, try case-insensitive lookup
+    if (!dbUser) {
+      const normalizedEmail = user.email.trim().toLowerCase();
+      const allUsers = await ctx.db.query("users").collect();
+      dbUser =
+        allUsers.find(
+          (u) => u.email.trim().toLowerCase() === normalizedEmail
+        ) ?? null;
+
+      if (dbUser) {
+        console.log(
+          "getCurrentUser: Found user with case-insensitive match:",
+          dbUser.email,
+          "vs auth email:",
+          user.email
+        );
+      }
+    }
+
+    console.log(
+      "getCurrentUser: DB user lookup result:",
+      dbUser ? "FOUND" : "NOT FOUND",
+      "for email:",
+      user.email
+    );
 
     // If user doesn't exist in users table, schedule a mutation to create it
     // (queries can't modify data, but we can trigger a mutation)
