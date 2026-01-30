@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   type ColumnDef,
   type SortingState,
@@ -225,11 +225,22 @@ const transformFixturesToTableData = (
       ...fixture.recapManagers.map((r: any) => ({ ...r, source: "recap" })),
     ];
 
-    if (allContracts.length === 0) return; // Skip empty fixtures
+    // Deduplicate - prefer contracts over recap_managers for same negotiation
+    // This prevents showing duplicate rows when both exist for the same negotiation
+    const seenNegotiations = new Set<string>();
+    const dedupedContracts = allContracts.filter((item: any) => {
+      const negId = item.negotiationId || item.negotiation?._id;
+      if (!negId) return true; // Keep items without negotiation
+      if (seenNegotiations.has(negId)) return false;
+      seenNegotiations.add(negId);
+      return true;
+    });
+
+    if (dedupedContracts.length === 0) return; // Skip empty fixtures
 
     // Create a row for each contract/recap manager
     // TanStack Table will handle grouping by fixtureId automatically
-    allContracts.forEach((item: any) => {
+    dedupedContracts.forEach((item: any) => {
       const isContract = item.source === "contract";
       const contractNumber = isContract ? item.contractNumber : item.recapNumber;
 
@@ -1802,6 +1813,22 @@ function deepEqual(a: any, b: any): boolean {
   return false;
 }
 
+// Minimum column width in pixels
+const MIN_COLUMN_WIDTH = 120;
+
+/**
+ * Enforce minimum column widths on sizing state
+ */
+function enforceMinColumnSizing(
+  sizing: Record<string, number>
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [columnId, width] of Object.entries(sizing)) {
+    result[columnId] = Math.max(width, MIN_COLUMN_WIDTH);
+  }
+  return result;
+}
+
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
@@ -2215,6 +2242,18 @@ function Fixtures() {
       return newPagination;
     });
   };
+
+  // Handle column sizing changes with minimum width enforcement
+  const handleColumnSizingChange = useCallback(
+    (updaterOrValue: Record<string, number> | ((old: Record<string, number>) => Record<string, number>)) => {
+      if (typeof updaterOrValue === "function") {
+        setColumnSizing((prev) => enforceMinColumnSizing(updaterOrValue(prev)));
+      } else {
+        setColumnSizing(enforceMinColumnSizing(updaterOrValue));
+      }
+    },
+    []
+  );
 
   // Combined loading state: show skeleton when loading data, changing page size, or switching bookmarks
   const isTableLoading = isLoadingFixtures || isPaginationLoading || isBookmarkLoading || isInitialLoading;
@@ -5273,7 +5312,7 @@ function Fixtures() {
       setColumnVisibility(bookmark.tableState.columnVisibility);
       setGrouping(bookmark.tableState.grouping);
       setColumnOrder(bookmark.tableState.columnOrder || []);
-      setColumnSizing(bookmark.tableState.columnSizing);
+      setColumnSizing(enforceMinColumnSizing(bookmark.tableState.columnSizing));
     } else {
       setSorting([]);
       setColumnVisibility({});
@@ -5936,7 +5975,8 @@ function Fixtures() {
             columnOrder={columnOrder}
             onColumnOrderChange={setColumnOrder}
             columnSizing={columnSizing}
-            onColumnSizingChange={setColumnSizing}
+            onColumnSizingChange={handleColumnSizingChange}
+            enableColumnResizing={true}
             pagination={pagination}
             onPaginationChange={handlePaginationChange}
             onRowClick={handleRowClick}
