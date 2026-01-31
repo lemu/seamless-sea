@@ -14,6 +14,7 @@ import {
   Separator,
   Toggle,
   toast,
+  DateRangePicker,
 } from "@rafal.lemieszewski/tide-ui";
 import type {
   ExportFormat,
@@ -310,29 +311,15 @@ export function ExportDialog<T extends Record<string, any>>({
             </RadioGroup>
 
             {dateRangeType === "custom" && (
-              <div className="ml-6 mt-2 flex gap-4">
-                <div className="flex-1">
-                  <Label htmlFor="date-from" className="text-label-sm">
-                    From
-                  </Label>
-                  <Input
-                    id="date-from"
-                    type="date"
-                    value={dateFrom ? dateFrom.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value) : undefined)}
-                  />
-                </div>
-                <div className="flex-1">
-                  <Label htmlFor="date-to" className="text-label-sm">
-                    To
-                  </Label>
-                  <Input
-                    id="date-to"
-                    type="date"
-                    value={dateTo ? dateTo.toISOString().split('T')[0] : ''}
-                    onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value) : undefined)}
-                  />
-                </div>
+              <div className="ml-6 mt-2">
+                <DateRangePicker
+                  dateRange={{ from: dateFrom, to: dateTo }}
+                  onDateRangeChange={(range) => {
+                    setDateFrom(range.from);
+                    setDateTo(range.to);
+                  }}
+                  placeholder="Select date range"
+                />
               </div>
             )}
           </div>
