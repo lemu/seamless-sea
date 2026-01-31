@@ -28,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
   FixtureStatus,
+  statusConfig,
   Card,
   AttributesList,
   AttributesGroup,
@@ -67,6 +68,16 @@ import {
   calculateDaysBetween,
   calculateFreightVsMarket,
 } from "../utils/fixtureCalculations";
+
+// Helper function to get human-readable status labels
+const getStatusLabel = (status: string): string => {
+  const config = statusConfig[status as keyof typeof statusConfig];
+  if (config) {
+    return `${config.objectLabel} • ${config.statusLabel}`;
+  }
+  // Fallback for unknown statuses
+  return status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+};
 
 // Define types for fixture structure
 interface FixtureData {
@@ -225,6 +236,13 @@ const transformFixturesToTableData = (
       ...fixture.recapManagers.map((r: any) => ({ ...r, source: "recap" })),
     ];
 
+    // Track which negotiations already have contracts/recaps
+    const negotiationsWithContracts = new Set<string>();
+    allContracts.forEach((item: any) => {
+      const negId = item.negotiationId || item.negotiation?._id;
+      if (negId) negotiationsWithContracts.add(negId);
+    });
+
     // Deduplicate - prefer contracts over recap_managers for same negotiation
     // This prevents showing duplicate rows when both exist for the same negotiation
     const seenNegotiations = new Set<string>();
@@ -236,7 +254,214 @@ const transformFixturesToTableData = (
       return true;
     });
 
-    if (dedupedContracts.length === 0) return; // Skip empty fixtures
+    // Handle negotiation-only fixtures (fixtures with negotiations but no contracts yet)
+    // This covers early stages: indicative-offer, indicative-bid, firm-offer, firm-bid
+    if (dedupedContracts.length === 0 && fixture.negotiations?.length > 0) {
+      fixture.negotiations.forEach((neg: any) => {
+        tableData.push({
+          id: neg._id,
+          fixtureId: fixture.fixtureNumber,
+          orderId: fixture.order?.orderNumber || "-",
+          cpId: "-", // No contract yet
+          stage: "Negotiation",
+          typeOfContract: "-",
+          negotiationId: neg.negotiationNumber || "-",
+          vessels: neg.vessel?.name || "TBN",
+          personInCharge: neg.personInCharge?.name || "User",
+          status: `negotiation-${neg.status}`,
+          approvalStatus: "Not started",
+          owner: "-", // Not determined yet
+          ownerAvatarUrl: undefined,
+          broker: neg.broker?.name || "Unknown",
+          brokerAvatarUrl: neg.broker?.avatarUrl,
+          charterer: neg.counterparty?.name || "Unknown",
+          chartererAvatarUrl: neg.counterparty?.avatarUrl,
+          lastUpdated: neg.updatedAt || neg._creationTime,
+          // Include full objects for sidebar
+          contract: null,
+          order: fixture.order,
+          negotiation: neg,
+          vessel: neg.vessel,
+          loadPort: null,
+          dischargePort: null,
+          cargoType: null,
+          // Include approval and signature data
+          approvals: [],
+          approvalSummary: { total: 0, approved: 0, pending: 0, rejected: 0 },
+          signatures: [],
+          signatureSummary: { total: 0, signed: 0, pending: 0, rejected: 0 },
+
+          // Commercial Fields from negotiation
+          laycanStart: neg.laycanStart,
+          laycanEnd: neg.laycanEnd,
+          loadPortName: undefined,
+          loadPortCountry: undefined,
+          loadDeliveryType: neg.loadDeliveryType,
+          dischargePortName: undefined,
+          dischargePortCountry: undefined,
+          dischargeRedeliveryType: neg.dischargeRedeliveryType,
+          vesselImo: neg.vessel?.imoNumber,
+          cargoTypeName: undefined,
+          cargoQuantity: neg.quantity,
+          finalFreightRate: neg.freightRate,
+          finalDemurrageRate: neg.demurrageRate,
+
+          // Analytics fields
+          highestFreightRateIndication: neg.highestFreightRateIndication,
+          lowestFreightRateIndication: neg.lowestFreightRateIndication,
+          firstFreightRateIndication: neg.firstFreightRateIndication,
+          highestFreightRateLastDay: neg.highestFreightRateLastDay,
+          lowestFreightRateLastDay: neg.lowestFreightRateLastDay,
+          firstFreightRateLastDay: neg.firstFreightRateLastDay,
+          freightSavingsPercent: undefined,
+          marketIndex: neg.marketIndex,
+          marketIndexName: neg.marketIndexName,
+          freightVsMarketPercent: undefined,
+          grossFreight: neg.grossFreight,
+          highestDemurrageIndication: neg.highestDemurrageIndication,
+          lowestDemurrageIndication: neg.lowestDemurrageIndication,
+          demurrageSavingsPercent: undefined,
+
+          // Commissions
+          addressCommissionPercent: neg.addressCommissionPercent,
+          addressCommissionTotal: neg.addressCommissionTotal,
+          brokerCommissionPercent: neg.brokerCommissionPercent,
+          brokerCommissionTotal: neg.brokerCommissionTotal,
+
+          // Workflow dates (not applicable for negotiations)
+          cpDate: undefined,
+          workingCopyDate: undefined,
+          finalDate: undefined,
+          fullySignedDate: undefined,
+          daysToWorkingCopy: undefined,
+          daysToFinal: undefined,
+          daysToSigned: undefined,
+
+          // Approvals (not applicable for negotiations)
+          ownerApprovalStatus: undefined,
+          ownerApprovedBy: undefined,
+          ownerApprovalDate: undefined,
+          chartererApprovalStatus: undefined,
+          chartererApprovedBy: undefined,
+          chartererApprovalDate: undefined,
+
+          // Signatures (not applicable for negotiations)
+          ownerSignatureStatus: undefined,
+          ownerSignedBy: undefined,
+          ownerSignatureDate: undefined,
+          chartererSignatureStatus: undefined,
+          chartererSignedBy: undefined,
+          chartererSignatureDate: undefined,
+
+          // User tracking
+          dealCaptureUser: undefined,
+          orderCreatedBy: fixture.order?.createdBy?.name,
+          negotiationCreatedBy: neg.createdBy?.name,
+
+          // Relationships
+          parentCpId: undefined,
+          contractType: undefined,
+        });
+      });
+      return; // Skip to next fixture
+    }
+
+    // Also add any negotiations that don't have contracts yet (even if fixture has some contracts)
+    if (fixture.negotiations?.length > 0) {
+      fixture.negotiations.forEach((neg: any) => {
+        // Skip if this negotiation already has a contract/recap
+        if (negotiationsWithContracts.has(neg._id)) return;
+
+        tableData.push({
+          id: neg._id,
+          fixtureId: fixture.fixtureNumber,
+          orderId: fixture.order?.orderNumber || "-",
+          cpId: "-", // No contract yet
+          stage: "Negotiation",
+          typeOfContract: "-",
+          negotiationId: neg.negotiationNumber || "-",
+          vessels: neg.vessel?.name || "TBN",
+          personInCharge: neg.personInCharge?.name || "User",
+          status: `negotiation-${neg.status}`,
+          approvalStatus: "Not started",
+          owner: "-",
+          ownerAvatarUrl: undefined,
+          broker: neg.broker?.name || "Unknown",
+          brokerAvatarUrl: neg.broker?.avatarUrl,
+          charterer: neg.counterparty?.name || "Unknown",
+          chartererAvatarUrl: neg.counterparty?.avatarUrl,
+          lastUpdated: neg.updatedAt || neg._creationTime,
+          contract: null,
+          order: fixture.order,
+          negotiation: neg,
+          vessel: neg.vessel,
+          loadPort: null,
+          dischargePort: null,
+          cargoType: null,
+          approvals: [],
+          approvalSummary: { total: 0, approved: 0, pending: 0, rejected: 0 },
+          signatures: [],
+          signatureSummary: { total: 0, signed: 0, pending: 0, rejected: 0 },
+          laycanStart: neg.laycanStart,
+          laycanEnd: neg.laycanEnd,
+          loadPortName: undefined,
+          loadPortCountry: undefined,
+          loadDeliveryType: neg.loadDeliveryType,
+          dischargePortName: undefined,
+          dischargePortCountry: undefined,
+          dischargeRedeliveryType: neg.dischargeRedeliveryType,
+          vesselImo: neg.vessel?.imoNumber,
+          cargoTypeName: undefined,
+          cargoQuantity: neg.quantity,
+          finalFreightRate: neg.freightRate,
+          finalDemurrageRate: neg.demurrageRate,
+          highestFreightRateIndication: neg.highestFreightRateIndication,
+          lowestFreightRateIndication: neg.lowestFreightRateIndication,
+          firstFreightRateIndication: neg.firstFreightRateIndication,
+          highestFreightRateLastDay: neg.highestFreightRateLastDay,
+          lowestFreightRateLastDay: neg.lowestFreightRateLastDay,
+          firstFreightRateLastDay: neg.firstFreightRateLastDay,
+          freightSavingsPercent: undefined,
+          marketIndex: neg.marketIndex,
+          marketIndexName: neg.marketIndexName,
+          freightVsMarketPercent: undefined,
+          grossFreight: neg.grossFreight,
+          highestDemurrageIndication: neg.highestDemurrageIndication,
+          lowestDemurrageIndication: neg.lowestDemurrageIndication,
+          demurrageSavingsPercent: undefined,
+          addressCommissionPercent: neg.addressCommissionPercent,
+          addressCommissionTotal: neg.addressCommissionTotal,
+          brokerCommissionPercent: neg.brokerCommissionPercent,
+          brokerCommissionTotal: neg.brokerCommissionTotal,
+          cpDate: undefined,
+          workingCopyDate: undefined,
+          finalDate: undefined,
+          fullySignedDate: undefined,
+          daysToWorkingCopy: undefined,
+          daysToFinal: undefined,
+          daysToSigned: undefined,
+          ownerApprovalStatus: undefined,
+          ownerApprovedBy: undefined,
+          ownerApprovalDate: undefined,
+          chartererApprovalStatus: undefined,
+          chartererApprovedBy: undefined,
+          chartererApprovalDate: undefined,
+          ownerSignatureStatus: undefined,
+          ownerSignedBy: undefined,
+          ownerSignatureDate: undefined,
+          chartererSignatureStatus: undefined,
+          chartererSignedBy: undefined,
+          chartererSignatureDate: undefined,
+          dealCaptureUser: undefined,
+          orderCreatedBy: fixture.order?.createdBy?.name,
+          negotiationCreatedBy: neg.createdBy?.name,
+          parentCpId: undefined,
+          contractType: undefined,
+        });
+      });
+    }
+
+    if (dedupedContracts.length === 0) return; // Skip if no contracts
 
     // Create a row for each contract/recap manager
     // TanStack Table will handle grouping by fixtureId automatically
@@ -297,7 +522,7 @@ const transformFixturesToTableData = (
         finalFreightRate: item.negotiation?.freightRate || item.freightRate,
         finalDemurrageRate: item.negotiation?.demurrageRate || item.demurrageRate,
 
-        // Priority 2: Freight & Demurrage Analytics
+        // Freight Analytics
         highestFreightRateIndication: item.negotiation?.highestFreightRateIndication,
         lowestFreightRateIndication: item.negotiation?.lowestFreightRateIndication,
         firstFreightRateIndication: item.negotiation?.firstFreightRateIndication,
@@ -322,13 +547,13 @@ const transformFixturesToTableData = (
           item.negotiation?.demurrageRate || item.demurrageRate
         ) ?? undefined,
 
-        // Priority 3: Commissions
+        // Commissions
         addressCommissionPercent: item.negotiation?.addressCommissionPercent,
         addressCommissionTotal: item.negotiation?.addressCommissionTotal,
         brokerCommissionPercent: item.negotiation?.brokerCommissionPercent,
         brokerCommissionTotal: item.negotiation?.brokerCommissionTotal,
 
-        // Priority 4: CP Workflow Dates
+        // CP Workflow Dates
         cpDate: item._creationTime,
         workingCopyDate: item.workingCopyDate,
         finalDate: item.finalDate,
@@ -337,7 +562,7 @@ const transformFixturesToTableData = (
         daysToFinal: calculateDaysBetween(item.workingCopyDate, item.finalDate) ?? undefined,
         daysToSigned: calculateDaysBetween(item.finalDate, item.fullySignedDate) ?? undefined,
 
-        // Priority 5: Approval Status Details
+        // Approvals
         ownerApprovalStatus: item.approvals?.find((a: any) => a.partyRole === 'owner')?.status,
         ownerApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedBy?.name,
         ownerApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedAt,
@@ -345,7 +570,7 @@ const transformFixturesToTableData = (
         chartererApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedBy?.name,
         chartererApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedAt,
 
-        // Priority 6: Signature Status Details
+        // Signatures
         ownerSignatureStatus: item.signatures?.find((s: any) => s.partyRole === 'owner')?.status,
         ownerSignedBy: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedBy?.name,
         ownerSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedAt,
@@ -353,12 +578,12 @@ const transformFixturesToTableData = (
         chartererSignedBy: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedBy?.name,
         chartererSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedAt,
 
-        // Priority 7: User Tracking
+        // User Tracking
         dealCaptureUser: item.negotiation?.dealCaptureUser?.name,
         orderCreatedBy: item.order?.createdBy?.name,
         negotiationCreatedBy: item.negotiation?.createdBy?.name,
 
-        // Priority 8: Parent/Child Relationships
+        // Meta & Relationships
         parentCpId: item.parentContract?.contractNumber,
         contractType: item.contractType,
       });
@@ -437,7 +662,7 @@ const transformFieldChanges = (
         action: change.oldValue ? 'updated' : 'created',
         status: {
           value: 'contract-working-copy',
-          label: 'contract working copy',
+          label: getStatusLabel('contract-working-copy'),
         },
         value: change.newValue || '',
         oldValue: change.oldValue || '',
@@ -1762,6 +1987,11 @@ function deriveFilterDefinitions<TData>(
         group: meta.filterGroup,
       };
 
+      // Add rangeMode for date and number filters
+      if (meta.filterVariant === "date" || meta.filterVariant === "number") {
+        filterDef.rangeMode = true;
+      }
+
       // Add options from metadata or options map
       if (meta.filterVariant === "multiselect" || meta.filterVariant === "select") {
         // Priority: 1) metadata options, 2) optionsMap, 3) undefined
@@ -2270,10 +2500,6 @@ function Fixtures() {
         meta: {
           label: "Fixture ID",
           align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Core",
-          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2330,10 +2556,6 @@ function Fixtures() {
         meta: {
           label: "Order ID",
           align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Core",
-          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2419,10 +2641,6 @@ function Fixtures() {
         meta: {
           label: "Negotiation ID",
           align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Core",
-          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         cell: ({ row }: any) => {
@@ -2476,10 +2694,6 @@ function Fixtures() {
         meta: {
           label: "CP ID",
           align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Core",
-          icon: ({ className }) => <Icon name="hash" className={className} />,
         },
         enableGrouping: true,
         enableGlobalFilter: true,
@@ -2569,12 +2783,56 @@ function Fixtures() {
             );
           }
 
-          // Multiple items - show all status icons including duplicates
+          // More than 8 items - show text summary
+          if (allStatuses.length > 8) {
+            const statusCounts = allStatuses.reduce((acc, status) => {
+              acc[status] = (acc[status] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+
+            const summary = Object.entries(statusCounts)
+              .map(([status, count]) => {
+                const label = getStatusLabel(status);
+                return `${count} ${label}`;
+              })
+              .join(', ');
+
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {summary}
+              </div>
+            );
+          }
+
+          // 8 or fewer - show icons
           return (
             <div className="flex items-center justify-start gap-1 overflow-visible">
               {allStatuses.map((status, index) => (
                 <FixtureStatus key={index} value={status as any} iconOnly className="overflow-visible" />
               ))}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "vesselImo",
+        header: "Vessel IMO",
+        size: 120,
+        meta: {
+          label: "Vessel IMO",
+          align: "left",
+          filterable: true,
+          filterVariant: "text",
+          filterGroup: "Vessel",
+          icon: ({ className }) => <Icon name="ship" className={className} />,
+        },
+        enableGrouping: false,
+        enableGlobalFilter: true,
+        cell: ({ getValue }) => {
+          const value = getValue<string>();
+          return (
+            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
+              {value || "–"}
             </div>
           );
         },
@@ -2676,6 +2934,15 @@ function Fixtures() {
             );
           }
 
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueOwners.length} owners
+              </div>
+            );
+          }
+
           // Multiple owners: list avatars in a row
           const displayOwners = uniqueOwners.slice(0, 5);
           return (
@@ -2748,6 +3015,15 @@ function Fixtures() {
                 <div className="text-body-sm text-[var(--color-text-primary)]">
                   {highlightSearchTerms(broker.name, globalSearchTerms)}
                 </div>
+              </div>
+            );
+          }
+
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueBrokers.length} brokers
               </div>
             );
           }
@@ -2828,6 +3104,15 @@ function Fixtures() {
             );
           }
 
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueCharterers.length} charterers
+              </div>
+            );
+          }
+
           // Multiple charterers: list avatars in a row
           const displayCharterers = uniqueCharterers.slice(0, 5);
           return (
@@ -2849,110 +3134,8 @@ function Fixtures() {
           );
         },
       },
-      {
-        accessorKey: "lastUpdated",
-        header: "Last Updated",
-        size: 150,
-        meta: { label: "Last Updated", align: "left" },
-        enableGrouping: false,
-        aggregationFn: (columnId: string, leafRows: any[]) => {
-          // For sorting: return the most recent (maximum) timestamp
-          const timestamps = leafRows.map((row) => row.getValue(columnId)).filter(Boolean);
-          return timestamps.length > 0 ? Math.max(...timestamps) : 0;
-        },
-        cell: ({ row }: any) => {
-          const timestamp = row.getValue("lastUpdated") as number;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatTimestamp(timestamp)}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: any) => {
-          // For grouped rows, show date range
-          const timestamps = row.subRows?.map((r: any) => r.original?.lastUpdated).filter(Boolean) || [];
-          if (timestamps.length === 0) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
 
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-
-          // If all timestamps are the same, show single date
-          if (earliest === latest) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {formatTimestamp(latest)}
-              </div>
-            );
-          }
-
-          // Show date range
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatTimestamp(earliest)} – {formatTimestamp(latest)}
-            </div>
-          );
-        },
-      },
-
-      // Priority 1: Core Commercial Fields
-      {
-        id: "laycan",
-        header: "Laycan",
-        size: 150,
-        meta: { label: "Laycan", align: "left" },
-        enableGrouping: false,
-        cell: ({ row }) => {
-          const start = row.original.laycanStart;
-          const end = row.original.laycanEnd;
-          if (!start || !end) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">–</div>
-            );
-          }
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatLaycanRange(start, end)}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: any) => {
-          const laycans = row.subRows?.map((r: any) => ({
-            start: r.original.laycanStart,
-            end: r.original.laycanEnd
-          })).filter((l: any) => l.start && l.end) || [];
-
-          if (laycans.length === 0) {
-            return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          }
-
-          // Check if all laycans are the same
-          const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
-          const allSame = laycans.every((l: any) =>
-            formatLaycanRange(l.start, l.end) === firstLaycan
-          );
-
-          if (allSame) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {firstLaycan}
-              </div>
-            );
-          }
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {laycans.length} laycans
-            </div>
-          );
-        },
-      },
+      // Location - Load
       {
         accessorKey: "loadPortName",
         header: "Load Port",
@@ -3076,6 +3259,8 @@ function Fixtures() {
           );
         },
       },
+
+      // Location - Discharge
       {
         accessorKey: "dischargePortName",
         header: "Discharge Port",
@@ -3199,22 +3384,8 @@ function Fixtures() {
           );
         },
       },
-      {
-        accessorKey: "vesselImo",
-        header: "Vessel IMO",
-        size: 120,
-        meta: { label: "Vessel IMO", align: "left" },
-        enableGrouping: false,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
+
+      // Cargo
       {
         accessorKey: "cargoTypeName",
         header: "Cargo Type",
@@ -3275,11 +3446,74 @@ function Fixtures() {
           );
         },
       },
+
+      // Commercial - Laycan
+      {
+        id: "laycan",
+        header: "Laycan",
+        size: 150,
+        meta: { label: "Laycan", align: "left" },
+        enableGrouping: false,
+        cell: ({ row }) => {
+          const start = row.original.laycanStart;
+          const end = row.original.laycanEnd;
+          if (!start || !end) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">–</div>
+            );
+          }
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {formatLaycanRange(start, end)}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const laycans = row.subRows?.map((r: any) => ({
+            start: r.original.laycanStart,
+            end: r.original.laycanEnd
+          })).filter((l: any) => l.start && l.end) || [];
+
+          if (laycans.length === 0) {
+            return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
+          }
+
+          // Check if all laycans are the same
+          const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
+          const allSame = laycans.every((l: any) =>
+            formatLaycanRange(l.start, l.end) === firstLaycan
+          );
+
+          if (allSame) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {firstLaycan}
+              </div>
+            );
+          }
+
+          return (
+            <div className="text-body-sm text-[var(--color-text-secondary)]">
+              {laycans.length} laycans
+            </div>
+          );
+        },
+      },
+
+      // Commercial - Freight
       {
         accessorKey: "finalFreightRate",
         header: "Final Freight Rate",
         size: 150,
-        meta: { label: "Final Freight Rate", align: "right" },
+        meta: {
+          label: "Final Freight Rate",
+          align: "right",
+          filterable: true,
+          filterVariant: "number",
+          filterGroup: "Freight & Demurrage",
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<string | number>();
@@ -3304,37 +3538,8 @@ function Fixtures() {
           return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
         },
       },
-      {
-        accessorKey: "finalDemurrageRate",
-        header: "Final Demurrage Rate",
-        size: 170,
-        meta: { label: "Final Demurrage Rate", align: "right" },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string | number>();
-          const numValue = typeof value === 'string' ? parseFloat(value) : value;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue ? `$${numValue.toFixed(2)}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => {
-            const v = r.original.finalDemurrageRate;
-            return typeof v === 'string' ? parseFloat(v) : v;
-          }).filter((v: any) => v != null && !isNaN(v)) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
-        },
-      },
 
-      // Priority 2: Freight & Demurrage Analytics
+      // Freight Analytics
       {
         accessorKey: "highestFreightRateIndication",
         header: "Highest Freight ($/mt)",
@@ -3679,6 +3884,44 @@ function Fixtures() {
           return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
+
+      // Commercial - Demurrage
+      {
+        accessorKey: "finalDemurrageRate",
+        header: "Final Demurrage Rate",
+        size: 170,
+        meta: {
+          label: "Final Demurrage Rate",
+          align: "right",
+          filterable: true,
+          filterVariant: "number",
+          filterGroup: "Freight & Demurrage",
+          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<string | number>();
+          const numValue = typeof value === 'string' ? parseFloat(value) : value;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
+              {numValue ? `$${numValue.toFixed(2)}` : "–"}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          const values = row.subRows?.map((r: any) => {
+            const v = r.original.finalDemurrageRate;
+            return typeof v === 'string' ? parseFloat(v) : v;
+          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
+          const min = Math.min(...values);
+          const max = Math.max(...values);
+          if (min === max) {
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+          }
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+        },
+      },
       {
         accessorKey: "highestDemurrageIndication",
         header: "Highest Demurrage ($/pd)",
@@ -3769,7 +4012,7 @@ function Fixtures() {
         },
       },
 
-      // Priority 3: Commissions
+      // Commissions
       {
         accessorKey: "addressCommissionPercent",
         header: "Address Commission %",
@@ -3859,7 +4102,7 @@ function Fixtures() {
         },
       },
 
-      // Priority 4: CP Workflow Dates
+      // CP Workflow Dates
       {
         accessorKey: "cpDate",
         header: "CP Date",
@@ -4061,7 +4304,7 @@ function Fixtures() {
         },
       },
 
-      // Priority 5: Approval Status Details
+      // Approvals
       {
         accessorKey: "ownerApprovalStatus",
         header: "Owner Approval",
@@ -4104,7 +4347,14 @@ function Fixtures() {
         accessorKey: "ownerApprovedBy",
         header: "Owner Approved By",
         size: 160,
-        meta: { label: "Owner Approved By", align: "left" },
+        meta: {
+          label: "Owner Approved By",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="user" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<string>();
@@ -4119,7 +4369,14 @@ function Fixtures() {
         accessorKey: "ownerApprovalDate",
         header: "Owner Approval Date",
         size: 170,
-        meta: { label: "Owner Approval Date", align: "left" },
+        meta: {
+          label: "Owner Approval Date",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<number>();
@@ -4182,7 +4439,14 @@ function Fixtures() {
         accessorKey: "chartererApprovedBy",
         header: "Charterer Approved By",
         size: 180,
-        meta: { label: "Charterer Approved By", align: "left" },
+        meta: {
+          label: "Charterer Approved By",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="user" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<string>();
@@ -4197,7 +4461,14 @@ function Fixtures() {
         accessorKey: "chartererApprovalDate",
         header: "Charterer Approval Date",
         size: 190,
-        meta: { label: "Charterer Approval Date", align: "left" },
+        meta: {
+          label: "Charterer Approval Date",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<number>();
@@ -4219,7 +4490,7 @@ function Fixtures() {
         },
       },
 
-      // Priority 6: Signature Status Details
+      // Signatures
       {
         accessorKey: "ownerSignatureStatus",
         header: "Owner Signature",
@@ -4262,7 +4533,14 @@ function Fixtures() {
         accessorKey: "ownerSignedBy",
         header: "Owner Signed By",
         size: 150,
-        meta: { label: "Owner Signed By", align: "left" },
+        meta: {
+          label: "Owner Signed By",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="user" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<string>();
@@ -4277,7 +4555,14 @@ function Fixtures() {
         accessorKey: "ownerSignatureDate",
         header: "Owner Signature Date",
         size: 170,
-        meta: { label: "Owner Signature Date", align: "left" },
+        meta: {
+          label: "Owner Signature Date",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<number>();
@@ -4340,7 +4625,14 @@ function Fixtures() {
         accessorKey: "chartererSignedBy",
         header: "Charterer Signed By",
         size: 170,
-        meta: { label: "Charterer Signed By", align: "left" },
+        meta: {
+          label: "Charterer Signed By",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="user" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<string>();
@@ -4355,7 +4647,14 @@ function Fixtures() {
         accessorKey: "chartererSignatureDate",
         header: "Charterer Signature Date",
         size: 190,
-        meta: { label: "Charterer Signature Date", align: "left" },
+        meta: {
+          label: "Charterer Signature Date",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
         enableGrouping: false,
         cell: ({ getValue }) => {
           const value = getValue<number>();
@@ -4377,7 +4676,7 @@ function Fixtures() {
         },
       },
 
-      // Priority 7: User Tracking
+      // User Tracking
       {
         accessorKey: "dealCaptureUser",
         header: "Deal Capture",
@@ -4493,12 +4792,19 @@ function Fixtures() {
         },
       },
 
-      // Priority 8: Parent/Child Relationships
+      // Meta & Relationships
       {
         accessorKey: "parentCpId",
         header: "Parent CP",
         size: 130,
-        meta: { label: "Parent CP", align: "left" },
+        meta: {
+          label: "Parent CP",
+          align: "left",
+          filterable: true,
+          filterVariant: "text",
+          filterGroup: "Contract",
+          icon: ({ className }) => <Icon name="git-branch" className={className} />,
+        },
         enableGrouping: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
@@ -4572,6 +4878,65 @@ function Fixtures() {
           );
         },
       },
+
+      // Timestamp (always last)
+      {
+        accessorKey: "lastUpdated",
+        header: "Last Updated",
+        size: 150,
+        meta: {
+          label: "Last Updated",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        aggregationFn: (columnId: string, leafRows: any[]) => {
+          // For sorting: return the most recent (maximum) timestamp
+          const timestamps = leafRows.map((row) => row.getValue(columnId)).filter(Boolean);
+          return timestamps.length > 0 ? Math.max(...timestamps) : 0;
+        },
+        cell: ({ row }: any) => {
+          const timestamp = row.getValue("lastUpdated") as number;
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {formatTimestamp(timestamp)}
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: any) => {
+          // For grouped rows, show date range
+          const timestamps = row.subRows?.map((r: any) => r.original?.lastUpdated).filter(Boolean) || [];
+          if (timestamps.length === 0) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                –
+              </div>
+            );
+          }
+
+          const earliest = Math.min(...timestamps);
+          const latest = Math.max(...timestamps);
+
+          // If all timestamps are the same, show single date
+          if (earliest === latest) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {formatTimestamp(latest)}
+              </div>
+            );
+          }
+
+          // Show date range
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {formatTimestamp(earliest)} – {formatTimestamp(latest)}
+            </div>
+          );
+        },
+      },
     ],
     [setSelectedFixture, columnVisibility, globalSearchTerms],
   );
@@ -4612,14 +4977,22 @@ function Fixtures() {
   }, [fixtureData]);
 
   const uniqueStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      statuses.add(fixture.status);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
+    // Show all fixture-relevant statuses from statusConfig
+    // This allows filtering even when certain statuses aren't in the current data
+    const fixtureRelevantStatuses = (Object.keys(statusConfig) as Array<keyof typeof statusConfig>)
+      .filter((s) =>
+        s.startsWith("contract-") ||
+        s.startsWith("recap-manager-") ||
+        s.startsWith("negotiation-") ||
+        s.startsWith("order-")
+      )
+      .sort();
+
+    return fixtureRelevantStatuses.map((s) => ({
+      value: s,
+      label: getStatusLabel(s),
+    }));
+  }, []);
 
   const uniqueOwners = useMemo(() => {
     const owners = new Set<string>();
@@ -4835,6 +5208,46 @@ function Fixtures() {
       .map((u) => ({ value: u, label: u }));
   }, [fixtureData]);
 
+  const uniqueOwnerApprovedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.ownerApprovedBy) users.add(fixture.ownerApprovedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
+  const uniqueChartererApprovedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.chartererApprovedBy) users.add(fixture.chartererApprovedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
+  const uniqueOwnerSignedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.ownerSignedBy) users.add(fixture.ownerSignedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
+  const uniqueChartererSignedBy = useMemo(() => {
+    const users = new Set<string>();
+    fixtureData.forEach((fixture) => {
+      if (fixture.chartererSignedBy) users.add(fixture.chartererSignedBy);
+    });
+    return Array.from(users)
+      .sort()
+      .map((u) => ({ value: u, label: u }));
+  }, [fixtureData]);
+
   // Define filter definitions
   const filterDefinitions: FilterDefinition[] = useMemo(
     () => {
@@ -4861,6 +5274,10 @@ function Fixtures() {
         orderCreatedBy: uniqueOrderCreatedBy,
         negotiationCreatedBy: uniqueNegotiationCreatedBy,
         contractType: uniqueContractTypes,
+        ownerApprovedBy: uniqueOwnerApprovedBy,
+        chartererApprovedBy: uniqueChartererApprovedBy,
+        ownerSignedBy: uniqueOwnerSignedBy,
+        chartererSignedBy: uniqueChartererSignedBy,
       };
 
       // Derive filters from column definitions
@@ -4875,14 +5292,6 @@ function Fixtures() {
           type: "multiselect",
           options: uniqueStages,
           group: "Status",
-        },
-        {
-          id: "typeOfContract",
-          label: "Contract Type",
-          icon: ({ className }) => <Icon name="file-check" className={className} />,
-          type: "multiselect",
-          options: uniqueContractTypes,
-          group: "Contract",
         },
         {
           id: "approvalStatus",
@@ -4921,6 +5330,10 @@ function Fixtures() {
       uniqueDealCaptureUsers,
       uniqueOrderCreatedBy,
       uniqueNegotiationCreatedBy,
+      uniqueOwnerApprovedBy,
+      uniqueChartererApprovedBy,
+      uniqueOwnerSignedBy,
+      uniqueChartererSignedBy,
     ],
   );
 
