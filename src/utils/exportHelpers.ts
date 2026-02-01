@@ -8,6 +8,7 @@ import type {
   ExportColumn,
   ExportCallbacks,
 } from "../types/export";
+import { formatDateTime } from "./dataUtils";
 
 /**
  * Download a file to the user's device
@@ -43,6 +44,75 @@ function filterByDateRange<T extends Record<string, any>>(
 }
 
 /**
+ * Format a value for export based on its column type
+ * @param value - The value to format
+ * @param columnId - The column identifier to determine formatting
+ * @returns Formatted string or number for export
+ */
+function formatValueForExport(value: unknown, columnId: string): string | number {
+  // Handle null/undefined
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  // Handle dates - check if it's a timestamp field
+  const isDateField = columnId.toLowerCase().includes("date") ||
+    columnId.toLowerCase().includes("at") ||
+    columnId === "lastUpdated" ||
+    columnId === "laycanStart" ||
+    columnId === "laycanEnd" ||
+    columnId === "createdAt" ||
+    columnId === "updatedAt";
+
+  if (isDateField && typeof value === "number" && value > 1000000000000) {
+    return formatDateTime(value);
+  }
+
+  // Handle numbers - format with locale string for readability
+  if (typeof value === "number") {
+    // Check if it's a percentage or rate field
+    const isPercentField = columnId.toLowerCase().includes("percent") ||
+      columnId.toLowerCase().includes("savings");
+    if (isPercentField) {
+      return `${value.toFixed(2)}%`;
+    }
+
+    // Check if it's a currency/rate field
+    const isCurrencyField = columnId.toLowerCase().includes("freight") ||
+      columnId.toLowerCase().includes("demurrage") ||
+      columnId.toLowerCase().includes("commission") ||
+      columnId.toLowerCase().includes("rate") ||
+      columnId.toLowerCase().includes("gross");
+    if (isCurrencyField) {
+      return value.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    // Check if it's a quantity field
+    const isQuantityField = columnId.toLowerCase().includes("quantity");
+    if (isQuantityField) {
+      return value.toLocaleString("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+    }
+
+    // Return raw number for other numeric fields
+    return value;
+  }
+
+  // Handle booleans
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  // Return string representation for everything else
+  return String(value);
+}
+
+/**
  * Select and order columns based on export configuration
  */
 function selectColumns<T extends Record<string, any>>(
@@ -56,7 +126,7 @@ function selectColumns<T extends Record<string, any>>(
   return data.map((row) => {
     const newRow: Record<string, any> = {};
     selectedColumns.forEach((col) => {
-      newRow[col.label] = row[col.id];
+      newRow[col.label] = formatValueForExport(row[col.id], col.id);
     });
     return newRow;
   });

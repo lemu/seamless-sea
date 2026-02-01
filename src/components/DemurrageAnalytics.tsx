@@ -9,6 +9,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@rafal.lemieszewski/tide-ui";
+import { formatCurrency, formatPercent } from "../utils/dataUtils";
 
 interface DemurrageAnalyticsProps {
   // Negotiation history
@@ -74,18 +75,17 @@ export function DemurrageAnalytics({
     lastDayImprovement = { amount, percent };
   }
 
-  // Format currency
-  const formatCurrency = (value: number): string => {
+  // Helper to format currency values for this component (no decimal places, no suffix)
+  const formatCurrencyValue = (value: number): string => {
     return `$${value.toLocaleString("en-US", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     })}`;
   };
 
-  // Format percentage
-  const formatPercent = (value: number): string => {
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
+  // Helper to format percent with sign for this component
+  const formatPercentValue = (value: number): string => {
+    return formatPercent(value, 1, true);
   };
 
   // If no analytics data available, don't render
@@ -131,7 +131,7 @@ export function DemurrageAnalytics({
                         Highest indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(highestIndication)}/day
+                        {formatCurrencyValue(highestIndication)}/day
                       </span>
                     </div>
                   )}
@@ -141,7 +141,7 @@ export function DemurrageAnalytics({
                         Lowest indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(lowestIndication)}/day
+                        {formatCurrencyValue(lowestIndication)}/day
                       </span>
                     </div>
                   )}
@@ -151,7 +151,7 @@ export function DemurrageAnalytics({
                         First indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(firstIndication)}/day
+                        {formatCurrencyValue(firstIndication)}/day
                       </span>
                     </div>
                   )}
@@ -172,7 +172,7 @@ export function DemurrageAnalytics({
                         Highest:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(highestLastDay)}/day
+                        {formatCurrencyValue(highestLastDay)}/day
                       </span>
                     </div>
                   )}
@@ -182,7 +182,7 @@ export function DemurrageAnalytics({
                         Lowest:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(lowestLastDay)}/day
+                        {formatCurrencyValue(lowestLastDay)}/day
                       </span>
                     </div>
                   )}
@@ -192,7 +192,7 @@ export function DemurrageAnalytics({
                         First:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(firstLastDay)}/day
+                        {formatCurrencyValue(firstLastDay)}/day
                       </span>
                     </div>
                   )}
@@ -213,8 +213,8 @@ export function DemurrageAnalytics({
                         From highest:
                       </span>
                       <span className="text-[var(--color-text-success)] flex items-center gap-1">
-                        {formatCurrency(savingsFromHighest.amount)} (
-                        {formatPercent(savingsFromHighest.percent)})
+                        {formatCurrencyValue(savingsFromHighest.amount)} (
+                        {formatPercentValue(savingsFromHighest.percent)})
                         <Icon name="CheckCircle" size="sm" />
                       </span>
                     </div>
@@ -225,8 +225,8 @@ export function DemurrageAnalytics({
                         Last day improvement:
                       </span>
                       <span className="text-[var(--color-text-success)]">
-                        {formatCurrency(lastDayImprovement.amount)} (
-                        {formatPercent(lastDayImprovement.percent)})
+                        {formatCurrencyValue(lastDayImprovement.amount)} (
+                        {formatPercentValue(lastDayImprovement.percent)})
                       </span>
                     </div>
                   )}
@@ -241,7 +241,7 @@ export function DemurrageAnalytics({
                   Final Rate
                 </div>
                 <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {finalRateString || `${formatCurrency(finalRate!)}/day`}
+                  {finalRateString || `${formatCurrencyValue(finalRate!)}/day`}
                 </div>
               </div>
             )}

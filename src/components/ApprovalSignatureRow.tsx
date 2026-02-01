@@ -15,7 +15,11 @@ import {
   ActivityLogHeader,
   ActivityLogDescription,
   ActivityLogTime,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
 } from "@rafal.lemieszewski/tide-ui";
+import { formatDateTime } from "../utils/dataUtils";
 
 interface ApprovalSignatureRecord {
   _id: string;
@@ -87,21 +91,6 @@ export function ApprovalSignatureRow({
       .toUpperCase();
   };
 
-  // Helper to format date to match ActivityLog format
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    const dateStr = date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    const timeStr = date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: false,
-    });
-    return `${dateStr} at ${timeStr}`;
-  };
 
   // Helper to format signing method
   const formatSigningMethod = (method: string): string => {
@@ -140,50 +129,65 @@ export function ApprovalSignatureRow({
                   record.status === "approved" || record.status === "signed";
                 const isPending = record.status === "pending";
                 const isRejected = record.status === "rejected";
+                const timestamp = record.approvedAt || record.signedAt;
+
+                // Build tooltip content
+                const userName = record.user?.name || "Pending assignment";
+                const tooltipDate = timestamp ? formatDateTime(timestamp) : null;
+                const tooltipContent = tooltipDate
+                  ? `${userName}\n${type === "approval" ? "Approved" : "Signed"}: ${tooltipDate}`
+                  : userName;
 
                 return (
                   <React.Fragment key={record._id}>
-                    <div className="relative flex items-center w-[30px] flex-shrink-0">
-                      <Avatar size="xxs">
-                        {record.userAvatarUrl ? (
-                          <AvatarImage src={record.userAvatarUrl} alt={record.user?.name} />
-                        ) : (
-                          <AvatarFallback size="xxs">
-                            {record.user ? getInitials(record.user.name) : "?"}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                      {/* Status indicator overlay */}
-                      <div className="absolute top-0 right-0">
-                        {isComplete && (
-                          <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-success-bold)] flex items-center justify-center">
-                            <Icon
-                              name="approved"
-                              size="md"
-                              className="text-[var(--color-text-success-bold)] translate-x-[1px] translate-y-[1px]"
-                            />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="relative flex items-center w-[30px] flex-shrink-0 cursor-default">
+                          <Avatar size="xxs">
+                            {record.userAvatarUrl ? (
+                              <AvatarImage src={record.userAvatarUrl} alt={record.user?.name} />
+                            ) : (
+                              <AvatarFallback size="xxs">
+                                {record.user ? getInitials(record.user.name) : "?"}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          {/* Status indicator overlay */}
+                          <div className="absolute top-0 right-0">
+                            {isComplete && (
+                              <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-success-bold)] flex items-center justify-center">
+                                <Icon
+                                  name="approved"
+                                  size="md"
+                                  className="text-[var(--color-text-success-bold)] translate-x-[1px] translate-y-[1px]"
+                                />
+                              </div>
+                            )}
+                            {isPending && (
+                              <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-icon-warning-bold)] flex items-center justify-center">
+                                <Icon
+                                  name="pending-approval"
+                                  size="md"
+                                  className="text-[var(--color-icon-warning-bold)] translate-x-[1px] translate-y-[1px]"
+                                />
+                              </div>
+                            )}
+                            {isRejected && (
+                              <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-danger)] flex items-center justify-center">
+                                <Icon
+                                  name="XCircle"
+                                  size="md"
+                                  className="text-[var(--color-text-danger)] translate-x-[1px] translate-y-[1px]"
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {isPending && (
-                          <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-warning-bold)] flex items-center justify-center">
-                            <Icon
-                              name="pending-approval"
-                              size="md"
-                              className="text-[var(--color-text-warning-bold)] translate-x-[1px] translate-y-[1px]"
-                            />
-                          </div>
-                        )}
-                        {isRejected && (
-                          <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-danger)] flex items-center justify-center">
-                            <Icon
-                              name="XCircle"
-                              size="md"
-                              className="text-[var(--color-text-danger)] translate-x-[1px] translate-y-[1px]"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="text-center whitespace-pre-line">{tooltipContent}</div>
+                      </TooltipContent>
+                    </Tooltip>
                     {index < sortedRecords.slice(0, 4).length - 1 && (
                       <div className="w-1 h-1 rounded-full bg-[var(--color-text-secondary)] mx-1" />
                     )}
@@ -246,7 +250,7 @@ export function ApprovalSignatureRow({
                               ({record.partyRole} - {record.company.name})
                             </span>
                           )}
-                          {timestamp && <ActivityLogTime>{formatDate(timestamp)}</ActivityLogTime>}
+                          {timestamp && <ActivityLogTime>{formatDateTime(timestamp)}</ActivityLogTime>}
                         </>
                       )}
                       {isPending && (
@@ -268,7 +272,7 @@ export function ApprovalSignatureRow({
                               ({record.partyRole} - {record.company.name})
                             </span>
                           )}
-                          {timestamp && <ActivityLogTime>{formatDate(timestamp)}</ActivityLogTime>}
+                          {timestamp && <ActivityLogTime>{formatDateTime(timestamp)}</ActivityLogTime>}
                         </>
                       )}
                     </ActivityLogDescription>

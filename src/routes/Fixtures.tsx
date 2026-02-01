@@ -61,7 +61,14 @@ import { ApprovalSignatureRow } from "../components/ApprovalSignatureRow";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { formatLaycanRange, formatCargo } from "../utils/dataUtils";
+import {
+  formatLaycanRange,
+  formatCargo,
+  formatCurrency,
+  formatRate,
+  formatPercent,
+  formatEnumLabel,
+} from "../utils/dataUtils";
 import {
   calculateFreightSavings,
   calculateDemurrageSavings,
@@ -75,8 +82,8 @@ const getStatusLabel = (status: string): string => {
   if (config) {
     return `${config.objectLabel} • ${config.statusLabel}`;
   }
-  // Fallback for unknown statuses
-  return status.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  // Fallback for unknown statuses - use centralized enum formatter
+  return formatEnumLabel(status);
 };
 
 // Define types for fixture structure
@@ -801,7 +808,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Negotiation</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="negotiation-fixed" size="sm" lowercase={false} />
+                            <FixtureStatus value="negotiation-fixed" size="sm" lowercase={false} asBadge />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -813,7 +820,7 @@ function FixtureSidebar({
                         }}>
                           <AttributesLabel>Contract</AttributesLabel>
                           <AttributesValue>
-                            <FixtureStatus value="contract-working-copy" size="sm" lowercase={false} />
+                            <FixtureStatus value="contract-working-copy" size="sm" lowercase={false} asBadge />
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1438,7 +1445,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Gross Freight</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.grossFreight.toLocaleString()}
+                            {formatCurrency(fixture.negotiation.grossFreight)}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1450,7 +1457,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Highest freight indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.highestFreightRateIndication.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.highestFreightRateIndication, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1461,7 +1468,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Lowest freight indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.lowestFreightRateIndication.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.lowestFreightRateIndication, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1472,7 +1479,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>First freight indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.firstFreightRateIndication.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.firstFreightRateIndication, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1483,7 +1490,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Highest freight (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.highestFreightRateLastDay.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.highestFreightRateLastDay, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1494,7 +1501,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Lowest freight (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.lowestFreightRateLastDay.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.lowestFreightRateLastDay, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1505,7 +1512,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>First freight (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.firstFreightRateLastDay.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.firstFreightRateLastDay, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1524,7 +1531,7 @@ function FixtureSidebar({
                           <AttributesRow>
                             <AttributesLabel>Freight savings from highest</AttributesLabel>
                             <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
-                              ${savingsAmount.toFixed(2)} ({savings.toFixed(1)}%)
+                              {formatRate(savingsAmount)} ({formatPercent(savings)})
                               <Icon name="CheckCircle" size="sm" />
                             </AttributesValue>
                           </AttributesRow>
@@ -1543,7 +1550,7 @@ function FixtureSidebar({
                           <AttributesRow>
                             <AttributesLabel>Freight last day improvement</AttributesLabel>
                             <AttributesValue className="text-[var(--color-text-success)]">
-                              ${improvement.toFixed(2)} ({improvementPercent.toFixed(1)}%)
+                              {formatRate(improvement)} ({formatPercent(improvementPercent)})
                             </AttributesValue>
                           </AttributesRow>
                         </AttributesItem>
@@ -1557,7 +1564,7 @@ function FixtureSidebar({
                             {fixture.negotiation.marketIndexName || "Market index"}
                           </AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.marketIndex.toFixed(2)}/mt
+                            {formatRate(fixture.negotiation.marketIndex, "/mt")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1580,7 +1587,7 @@ function FixtureSidebar({
                                   : "text-[var(--color-text-danger)]"
                               }
                             >
-                              {vsMarket >= 0 ? '+' : ''}{vsMarket.toFixed(1)}%
+                              {formatPercent(vsMarket, 1, true)}
                               {vsMarket < 0 && (
                                 <Icon
                                   name="CheckCircle"
@@ -1599,7 +1606,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Highest demurrage indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.highestDemurrageIndication.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.highestDemurrageIndication, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1610,7 +1617,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Lowest demurrage indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.lowestDemurrageIndication.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.lowestDemurrageIndication, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1621,7 +1628,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>First demurrage indication</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.firstDemurrageIndication.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.firstDemurrageIndication, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1632,7 +1639,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Highest demurrage (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.highestDemurrageLastDay.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.highestDemurrageLastDay, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1643,7 +1650,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Lowest demurrage (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.lowestDemurrageLastDay.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.lowestDemurrageLastDay, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1654,7 +1661,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>First demurrage (last day)</AttributesLabel>
                           <AttributesValue>
-                            ${fixture.negotiation.firstDemurrageLastDay.toLocaleString()}/day
+                            {formatCurrency(fixture.negotiation.firstDemurrageLastDay, "/day")}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1673,7 +1680,7 @@ function FixtureSidebar({
                           <AttributesRow>
                             <AttributesLabel>Demurrage savings from highest</AttributesLabel>
                             <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
-                              ${savingsAmount.toLocaleString()} ({savings.toFixed(1)}%)
+                              {formatCurrency(savingsAmount)} ({formatPercent(savings)})
                               <Icon name="CheckCircle" size="sm" />
                             </AttributesValue>
                           </AttributesRow>
@@ -1692,7 +1699,7 @@ function FixtureSidebar({
                           <AttributesRow>
                             <AttributesLabel>Demurrage last day improvement</AttributesLabel>
                             <AttributesValue className="text-[var(--color-text-success)]">
-                              ${improvement.toLocaleString()} ({improvementPercent.toFixed(1)}%)
+                              {formatCurrency(improvement)} ({formatPercent(improvementPercent)})
                             </AttributesValue>
                           </AttributesRow>
                         </AttributesItem>
@@ -1706,7 +1713,7 @@ function FixtureSidebar({
                           <AttributesLabel>Address commission</AttributesLabel>
                           <AttributesValue>
                             {fixture.negotiation.addressCommissionPercent}%
-                            {fixture.negotiation.addressCommissionTotal && ` ($${fixture.negotiation.addressCommissionTotal.toLocaleString()})`}
+                            {fixture.negotiation.addressCommissionTotal && ` (${formatCurrency(fixture.negotiation.addressCommissionTotal)})`}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1718,7 +1725,7 @@ function FixtureSidebar({
                           <AttributesLabel>Broker commission</AttributesLabel>
                           <AttributesValue>
                             {fixture.negotiation.brokerCommissionPercent}%
-                            {fixture.negotiation.brokerCommissionTotal && ` ($${fixture.negotiation.brokerCommissionTotal.toLocaleString()})`}
+                            {fixture.negotiation.brokerCommissionTotal && ` (${formatCurrency(fixture.negotiation.brokerCommissionTotal)})`}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -2754,6 +2761,7 @@ function Fixtures() {
       {
         accessorKey: "status",
         header: "Status",
+        minSize: 200,
         meta: {
           label: "Status",
           align: "left",
@@ -2767,18 +2775,18 @@ function Fixtures() {
           const status = row.getValue("status") as string;
           return (
             <div className="flex items-center overflow-visible">
-              <FixtureStatus value={status as any} className="overflow-visible" />
+              <FixtureStatus value={status as any} className="overflow-visible" asBadge showObject />
             </div>
           );
         },
         aggregatedCell: ({ row }: any) => {
           const allStatuses = (row.subRows?.map((r: any) => r.original.status) || []) as string[];
 
-          // Single item group - show full status label without object prefix
+          // Single item group - show full status label with object prefix
           if (row.subRows?.length === 1) {
             return (
               <div className="flex items-center justify-start overflow-visible">
-                <FixtureStatus value={allStatuses[0] as any} showObject={false} className="overflow-visible" />
+                <FixtureStatus value={allStatuses[0] as any} className="overflow-visible" asBadge showObject />
               </div>
             );
           }
@@ -2804,11 +2812,11 @@ function Fixtures() {
             );
           }
 
-          // 8 or fewer - show icons
+          // 8 or fewer - show icons with tooltips
           return (
             <div className="flex items-center justify-start gap-1 overflow-visible">
               {allStatuses.map((status, index) => (
-                <FixtureStatus key={index} value={status as any} iconOnly className="overflow-visible" />
+                <FixtureStatus key={index} value={status as any} iconOnly showObject className="overflow-visible" />
               ))}
             </div>
           );
@@ -4985,8 +4993,17 @@ function Fixtures() {
         s.startsWith("recap-manager-") ||
         s.startsWith("negotiation-") ||
         s.startsWith("order-")
-      )
-      .sort();
+      );
+
+    // Custom sort order: Order, Negotiation, Contract, Recap Manager
+    const prefixOrder = ["order-", "negotiation-", "contract-", "recap-manager-"];
+    fixtureRelevantStatuses.sort((a, b) => {
+      const aPrefix = prefixOrder.findIndex((p) => a.startsWith(p));
+      const bPrefix = prefixOrder.findIndex((p) => b.startsWith(p));
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+      // Within same prefix, sort alphabetically
+      return a.localeCompare(b);
+    });
 
     return fixtureRelevantStatuses.map((s) => ({
       value: s,
@@ -5508,15 +5525,17 @@ function Fixtures() {
     return systemBookmarks.map((bookmark) => ({
       ...bookmark,
       count: calculateBookmarkCount(bookmark),
+      isLoadingCount: isLoadingFixtures,
     }));
-  }, [fixtureData, systemBookmarks]);
+  }, [fixtureData, systemBookmarks, isLoadingFixtures]);
 
   const bookmarksWithCounts = useMemo(() => {
     return bookmarks.map((bookmark) => ({
       ...bookmark,
       count: calculateBookmarkCount(bookmark),
+      isLoadingCount: isLoadingFixtures,
     }));
-  }, [bookmarks, fixtureData]);
+  }, [bookmarks, fixtureData, isLoadingFixtures]);
 
   // Get active bookmark
   const activeBookmark = useMemo(() => {

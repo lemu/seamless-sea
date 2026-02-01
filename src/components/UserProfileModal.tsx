@@ -1,6 +1,7 @@
 import { Button, Card, CardHeader, CardContent } from "@rafal.lemieszewski/tide-ui";
 import { useUser } from "../hooks";
 import { useNavigate } from "react-router";
+import { formatMemberSince } from "../utils/dataUtils";
 
 interface UserProfileModalProps {
   onClose: () => void;
@@ -52,7 +53,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[var(--color-text-secondary)]">Member Since:</span>
-            <span>{new Date(user.createdAt).toLocaleDateString()}</span>
+            <span>{formatMemberSince(user.createdAt).replace("Member since ", "")}</span>
           </div>
         </div>
 

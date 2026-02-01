@@ -9,6 +9,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@rafal.lemieszewski/tide-ui";
+import { formatRate, formatPercent } from "../utils/dataUtils";
 
 interface FreightAnalyticsProps {
   // Negotiation history
@@ -97,15 +98,14 @@ export function FreightAnalytics({
     marketComparison = { amount, percent };
   }
 
-  // Format currency
-  const formatCurrency = (value: number): string => {
-    return `$${value.toFixed(2)}`;
+  // Helper to format currency values for this component (rate-style, 2 decimals, no suffix)
+  const formatCurrencyValue = (value: number): string => {
+    return formatRate(value).replace(/\/.*$/, ""); // Remove any suffix
   };
 
-  // Format percentage
-  const formatPercent = (value: number): string => {
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
+  // Helper to format percent with sign for this component
+  const formatPercentValue = (value: number): string => {
+    return formatPercent(value, 1, true);
   };
 
   // If no analytics data available, don't render
@@ -151,7 +151,7 @@ export function FreightAnalytics({
                         Highest indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(highestIndication)}/mt
+                        {formatCurrencyValue(highestIndication)}/mt
                       </span>
                     </div>
                   )}
@@ -161,7 +161,7 @@ export function FreightAnalytics({
                         Lowest indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(lowestIndication)}/mt
+                        {formatCurrencyValue(lowestIndication)}/mt
                       </span>
                     </div>
                   )}
@@ -171,7 +171,7 @@ export function FreightAnalytics({
                         First indication:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(firstIndication)}/mt
+                        {formatCurrencyValue(firstIndication)}/mt
                       </span>
                     </div>
                   )}
@@ -192,7 +192,7 @@ export function FreightAnalytics({
                         Highest:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(highestLastDay)}/mt
+                        {formatCurrencyValue(highestLastDay)}/mt
                       </span>
                     </div>
                   )}
@@ -202,7 +202,7 @@ export function FreightAnalytics({
                         Lowest:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(lowestLastDay)}/mt
+                        {formatCurrencyValue(lowestLastDay)}/mt
                       </span>
                     </div>
                   )}
@@ -212,7 +212,7 @@ export function FreightAnalytics({
                         First:
                       </span>
                       <span className="text-[var(--color-text-primary)]">
-                        {formatCurrency(firstLastDay)}/mt
+                        {formatCurrencyValue(firstLastDay)}/mt
                       </span>
                     </div>
                   )}
@@ -233,8 +233,8 @@ export function FreightAnalytics({
                         From highest:
                       </span>
                       <span className="text-[var(--color-text-success)] flex items-center gap-1">
-                        {formatCurrency(savingsFromHighest.amount)} (
-                        {formatPercent(savingsFromHighest.percent)})
+                        {formatCurrencyValue(savingsFromHighest.amount)} (
+                        {formatPercentValue(savingsFromHighest.percent)})
                         <Icon name="CheckCircle" size="sm" />
                       </span>
                     </div>
@@ -245,8 +245,8 @@ export function FreightAnalytics({
                         Last day improvement:
                       </span>
                       <span className="text-[var(--color-text-success)]">
-                        {formatCurrency(lastDayImprovement.amount)} (
-                        {formatPercent(lastDayImprovement.percent)})
+                        {formatCurrencyValue(lastDayImprovement.amount)} (
+                        {formatPercentValue(lastDayImprovement.percent)})
                       </span>
                     </div>
                   )}
@@ -261,7 +261,7 @@ export function FreightAnalytics({
                   Final Rate
                 </div>
                 <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {finalRateString || `${formatCurrency(finalRate!)}/mt`}
+                  {finalRateString || `${formatCurrencyValue(finalRate!)}/mt`}
                 </div>
               </div>
             )}
@@ -278,7 +278,7 @@ export function FreightAnalytics({
                       {marketIndexName || "Market index"}:
                     </span>
                     <span className="text-[var(--color-text-primary)]">
-                      {formatCurrency(marketIndex)}/mt
+                      {formatCurrencyValue(marketIndex)}/mt
                     </span>
                   </div>
                   <div className="flex justify-between text-body-sm">
@@ -292,7 +292,7 @@ export function FreightAnalytics({
                           : "text-[var(--color-text-danger)]"
                       }
                     >
-                      {formatPercent(marketComparison.percent)}
+                      {formatPercentValue(marketComparison.percent)}
                       {marketComparison.percent < 0 && (
                         <Icon
                           name="CheckCircle"

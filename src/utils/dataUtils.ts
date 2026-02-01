@@ -135,3 +135,154 @@ export function formatCargo(
 ): string {
   return `${quantity.toLocaleString()} ${unit.toLowerCase()} ${cargoName.toLowerCase()}`;
 }
+
+/**
+ * Format currency with thousand separators and 2 decimal places
+ * @param value - The numeric value to format
+ * @param suffix - Optional suffix (e.g., "/day")
+ * @returns Formatted currency string (e.g., "$46,919.00" or "$46,919.00/day")
+ */
+export function formatCurrency(value: number, suffix?: string): string {
+  const formatted = value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return suffix ? `$${formatted}${suffix}` : `$${formatted}`;
+}
+
+/**
+ * Format rate (smaller values, always 2 decimals)
+ * @param value - The numeric value to format
+ * @param suffix - Optional suffix (e.g., "/mt")
+ * @returns Formatted rate string (e.g., "$12.50/mt")
+ */
+export function formatRate(value: number, suffix?: string): string {
+  const formatted = value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return suffix ? `$${formatted}${suffix}` : `$${formatted}`;
+}
+
+/**
+ * Format quantity with thousand separators (no decimals)
+ * @param value - The numeric value to format
+ * @param unit - Optional unit (e.g., "mt")
+ * @returns Formatted quantity string (e.g., "50,000 mt")
+ */
+export function formatQuantity(value: number, unit?: string): string {
+  const formatted = value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  return unit ? `${formatted} ${unit}` : formatted;
+}
+
+/**
+ * Format percentage
+ * @param value - The numeric value to format
+ * @param decimals - Number of decimal places (default: 1)
+ * @param showSign - Whether to show + for positive values (default: false)
+ * @returns Formatted percentage string (e.g., "15.6%" or "+5.2%")
+ */
+export function formatPercent(
+  value: number,
+  decimals: number = 1,
+  showSign: boolean = false
+): string {
+  const sign = showSign && value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(decimals)}%`;
+}
+
+/**
+ * General pluralization utility
+ * @param count - The count to use for pluralization
+ * @param singular - The singular form of the word
+ * @param plural - Optional plural form (defaults to singular + "s")
+ * @returns Formatted string with count and pluralized word (e.g., "1 day", "5 days")
+ */
+export function pluralize(
+  count: number,
+  singular: string,
+  plural?: string
+): string {
+  const pluralForm = plural || `${singular}s`;
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/**
+ * Format duration in days with pluralization
+ * @param ms - Duration in milliseconds
+ * @returns Formatted duration string (e.g., "today", "1 day", "5 days")
+ */
+export function formatDuration(ms: number): string {
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days === 0) return "today";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
+/**
+ * Format relative time display
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Relative time string (e.g., "Just now", "2 hours ago", "3 days ago")
+ */
+export function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return pluralize(minutes, "minute") + " ago";
+  if (hours < 24) return pluralize(hours, "hour") + " ago";
+  if (days === 1) return "Yesterday";
+  if (days < 30) return pluralize(days, "day") + " ago";
+
+  // For older dates, show the actual date
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/**
+ * Format "Member since" display
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted member since string (e.g., "Member since Jan 2024")
+ */
+export function formatMemberSince(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `Member since ${date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  })}`;
+}
+
+/**
+ * Convert kebab-case or snake_case to Title Case
+ * @param value - The enum value to format (e.g., "voyage-charter", "time_charter")
+ * @returns Formatted title case string (e.g., "Voyage Charter", "Time Charter")
+ */
+export function formatEnumLabel(value: string): string {
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Format country name from ISO code using Intl.DisplayNames
+ * @param code - ISO 3166-1 alpha-2 country code (e.g., "NO", "US")
+ * @returns Full country name (e.g., "Norway", "United States")
+ */
+export function formatCountryName(code: string): string {
+  try {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return displayNames.of(code.toUpperCase()) || code;
+  } catch {
+    return code;
+  }
+}

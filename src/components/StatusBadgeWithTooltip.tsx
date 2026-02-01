@@ -4,6 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@rafal.lemieszewski/tide-ui";
+import { formatDuration as formatDurationUtil } from "../utils/dataUtils";
 
 interface StatusBadgeWithTooltipProps {
   value: string;
@@ -52,6 +53,7 @@ export function StatusBadgeWithTooltip({
         value={value as any}
         size={size}
         lowercase={lowercase}
+        asBadge
       />
     );
   }
@@ -81,6 +83,7 @@ export function StatusBadgeWithTooltip({
             value={value as any}
             size={size}
             lowercase={lowercase}
+            asBadge
           />
         </span>
       </TooltipTrigger>
@@ -112,14 +115,6 @@ export function calculateTimelineInfo(
 ): StatusBadgeWithTooltipProps["timeline"] {
   const now = Date.now();
 
-  // Helper to format duration
-  const formatDuration = (ms: number): string => {
-    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-    if (days === 0) return "today";
-    if (days === 1) return "1 day";
-    return `${days} days`;
-  };
-
   // Helper to format date
   const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -131,7 +126,7 @@ export function calculateTimelineInfo(
 
   // Helper to format relative time
   const formatRelativeTime = (timestamp: number): string => {
-    const duration = formatDuration(now - timestamp);
+    const duration = formatDurationUtil(now - timestamp);
     return duration === "today" ? "today" : `${duration} ago`;
   };
 
@@ -143,7 +138,7 @@ export function calculateTimelineInfo(
           currentStage: `Working copy since ${formatDate(workingCopyDate)}`,
           currentStageDuration: formatRelativeTime(workingCopyDate),
           previousStage: "Draft → Working copy",
-          previousStageDuration: formatDuration(workingCopyDate - (workingCopyDate - 2 * 24 * 60 * 60 * 1000)),
+          previousStageDuration: formatDurationUtil(workingCopyDate - (workingCopyDate - 2 * 24 * 60 * 60 * 1000)),
         };
       }
       break;
@@ -154,7 +149,7 @@ export function calculateTimelineInfo(
           currentStage: `Final since ${formatDate(finalDate)}`,
           currentStageDuration: formatRelativeTime(finalDate),
           previousStage: "Working copy → Final",
-          previousStageDuration: formatDuration(finalDate - workingCopyDate),
+          previousStageDuration: formatDurationUtil(finalDate - workingCopyDate),
         };
       } else if (finalDate) {
         return {
@@ -170,7 +165,7 @@ export function calculateTimelineInfo(
           currentStage: `Fully signed since ${formatDate(fullySignedDate)}`,
           currentStageDuration: formatRelativeTime(fullySignedDate),
           previousStage: "Final → Fully signed",
-          previousStageDuration: formatDuration(fullySignedDate - finalDate),
+          previousStageDuration: formatDurationUtil(fullySignedDate - finalDate),
         };
       } else if (fullySignedDate) {
         return {
