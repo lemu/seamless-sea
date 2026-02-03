@@ -2395,10 +2395,6 @@ function Fixtures() {
     "vessels",
     "loadPortName",
     "dischargePortName",
-    "cargoTypeName",
-    "owner",
-    "broker",
-    "charterer",
     "cpDate",
   ]);
   const [globalPinnedFilters, setGlobalPinnedFilters] = useState<string[]>([
@@ -2406,10 +2402,6 @@ function Fixtures() {
     "vessels",
     "loadPortName",
     "dischargePortName",
-    "cargoTypeName",
-    "owner",
-    "broker",
-    "charterer",
     "cpDate",
   ]);
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
