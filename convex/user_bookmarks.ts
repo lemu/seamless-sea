@@ -7,7 +7,7 @@ export const getUserBookmarks = query({
     const bookmarks = await ctx.db
       .query("user_bookmarks")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .order("desc")
+      .order("asc")
       .collect();
 
     return bookmarks.map((bookmark) => ({

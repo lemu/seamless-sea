@@ -3,6 +3,30 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
+// Formatting helpers for activity log display
+function formatQuantityForLog(value: number | undefined | null, unit?: string): string {
+  if (value === undefined || value === null) return "Not specified";
+  const formatted = value.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return unit ? `${formatted} ${unit}` : formatted;
+}
+
+/**
+ * Parse and reformat a currency string to ensure thousand separators
+ * Handles formats like "$45509/day" -> "$45,509/day"
+ */
+function formatDemurrageForLog(value: string | undefined | null): string {
+  if (!value) return "Not specified";
+  const match = value.match(/^(\$?)(\d+(?:\.\d+)?)(.*?)$/);
+  if (!match) return value;
+  const [, prefix, numStr, suffix] = match;
+  const num = parseFloat(numStr);
+  const formatted = num.toLocaleString("en-US", {
+    minimumFractionDigits: numStr.includes(".") ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+  return `${prefix}${formatted}${suffix}`;
+}
+
 // Internal function to track field changes
 export async function trackFieldChange(
   ctx: MutationCtx,
@@ -56,18 +80,18 @@ export async function logActivity(
           .first();
 
         if (contract) {
-          // Generate expandable parameter snapshot
+          // Generate expandable parameter snapshot with consistent formatting
           expandable = {
             data: [
               { label: "Freight Rate", value: contract.freightRate || "Not specified" },
               {
                 label: "Laycan",
                 value: contract.laycanStart && contract.laycanEnd
-                  ? `${new Date(contract.laycanStart).toLocaleDateString()} - ${new Date(contract.laycanEnd).toLocaleDateString()}`
+                  ? `${new Date(contract.laycanStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(contract.laycanEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                   : "Not specified"
               },
-              { label: "Quantity", value: contract.quantity ? `${contract.quantity} ${contract.quantityUnit || "MT"}` : "Not specified" },
-              { label: "Demurrage", value: contract.demurrageRate || "Not specified" },
+              { label: "Quantity", value: formatQuantityForLog(contract.quantity, contract.quantityUnit || "MT") },
+              { label: "Demurrage", value: formatDemurrageForLog(contract.demurrageRate) },
             ]
           };
         }

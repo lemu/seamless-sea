@@ -1261,7 +1261,11 @@ export async function migrateTradeDeskDataInternal(
     const cargoType = randomItem(cargoTypes);
     const type = randomItem(["buy", "sell", "charter"] as const);
     const stage = randomItem(["offer", "active", "negotiating", "pending"] as const);
-    const status = randomItem(["draft", "distributed"] as const);
+    // Weighted status: 20% draft, 70% distributed, 10% withdrawn
+    const statusRand = Math.random();
+    const status = statusRand < 0.20 ? "draft" as const
+      : statusRand < 0.90 ? "distributed" as const
+      : "withdrawn" as const;
 
     const orderNumber = `ORD${10000 + i}`;
 
@@ -1748,21 +1752,29 @@ export async function migrateFixturesDataInternal(
 
     // Use weighted status selection for recap managers
     const recapRand = Math.random();
-    let recapStatus: "draft" | "on-subs" | "fully-fixed";
-    let recapApprovalStatus: "Signed" | "Pending signature" | "Approved";
+    let recapStatus: "draft" | "on-subs" | "fully-fixed" | "canceled" | "failed";
+    let recapApprovalStatus: "Signed" | "Pending signature" | "Approved" | "Canceled" | "Failed";
 
-    if (recapRand < 0.70) {
-      // 70% complete (fully-fixed)
+    if (recapRand < 0.65) {
+      // 65% complete (fully-fixed)
       recapStatus = "fully-fixed";
       recapApprovalStatus = "Signed";
-    } else if (recapRand < 0.85) {
+    } else if (recapRand < 0.80) {
       // 15% on-subs (in-progress)
       recapStatus = "on-subs";
       recapApprovalStatus = "Pending signature";
-    } else {
-      // 15% draft (early stage)
+    } else if (recapRand < 0.90) {
+      // 10% draft (early stage)
       recapStatus = "draft";
       recapApprovalStatus = "Pending signature";
+    } else if (recapRand < 0.95) {
+      // 5% canceled
+      recapStatus = "canceled";
+      recapApprovalStatus = "Canceled";
+    } else {
+      // 5% failed
+      recapStatus = "failed";
+      recapApprovalStatus = "Failed";
     }
 
     const recapNumber = `RCP${10000 + i}`;

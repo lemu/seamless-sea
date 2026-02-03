@@ -389,11 +389,67 @@ export const listEnriched = query({
           ? await ctx.db.get(fixture.orderId)
           : null;
 
+        // Get negotiations for this fixture's order (for negotiation-only fixtures)
+        let enrichedNegotiations: any[] = [];
+        if (fixture.orderId) {
+          const negotiations = await ctx.db
+            .query("negotiations")
+            .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
+            .collect();
+
+          // Enrich negotiations with company data
+          enrichedNegotiations = await Promise.all(
+            negotiations.map(async (neg) => {
+              const counterparty = neg.counterpartyId
+                ? await ctx.db.get(neg.counterpartyId)
+                : null;
+              const broker = neg.brokerId
+                ? await ctx.db.get(neg.brokerId)
+                : null;
+              const vessel = neg.vesselId
+                ? await ctx.db.get(neg.vesselId)
+                : null;
+              const personInCharge = neg.personInChargeId
+                ? await ctx.db.get(neg.personInChargeId)
+                : null;
+
+              // Get avatar URLs
+              const counterpartyWithAvatar = counterparty && {
+                ...counterparty,
+                avatarUrl: counterparty.avatar
+                  ? await ctx.storage.getUrl(counterparty.avatar)
+                  : null,
+              };
+              const brokerWithAvatar = broker && {
+                ...broker,
+                avatarUrl: broker.avatar
+                  ? await ctx.storage.getUrl(broker.avatar)
+                  : null,
+              };
+              const personInChargeWithAvatar = personInCharge && {
+                ...personInCharge,
+                avatarUrl: personInCharge.avatar
+                  ? await ctx.storage.getUrl(personInCharge.avatar)
+                  : null,
+              };
+
+              return {
+                ...neg,
+                counterparty: counterpartyWithAvatar,
+                broker: brokerWithAvatar,
+                vessel,
+                personInCharge: personInChargeWithAvatar,
+              };
+            })
+          );
+        }
+
         return {
           ...fixture,
           order,
           contracts: enrichedContracts,
           recapManagers: enrichedRecaps,
+          negotiations: enrichedNegotiations,
         };
       })
     );

@@ -384,6 +384,8 @@ export default defineSchema({
     vesselId: v.optional(v.id("vessels")),
     loadPortId: v.optional(v.id("ports")),
     dischargePortId: v.optional(v.id("ports")),
+    loadDeliveryType: v.optional(v.string()), // FIO, FIOS, Liner Terms, etc.
+    dischargeRedeliveryType: v.optional(v.string()), // FIO, FIOS, Liner Terms, etc.
     laycanStart: v.optional(v.number()),
     laycanEnd: v.optional(v.number()),
     freightRate: v.optional(v.string()),
