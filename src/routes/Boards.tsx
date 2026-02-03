@@ -256,7 +256,7 @@ function CreateBoardModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-lg bg-[var(--color-surface-primary)] p-6">
         <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
-          Create New Board
+          Create new board
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -284,7 +284,7 @@ function CreateBoardModal({
               variant="primary"
               disabled={!title.trim() || isCreating}
             >
-              {isCreating ? "Creating..." : "Create Board"}
+              {isCreating ? "Creating..." : "Create board"}
             </Button>
           </div>
         </form>

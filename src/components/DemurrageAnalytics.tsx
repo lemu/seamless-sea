@@ -101,7 +101,7 @@ export function DemurrageAnalytics({
   return (
     <AttributesRow>
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <AttributesLabel>Demurrage Analytics</AttributesLabel>
+        <AttributesLabel>Demurrage analytics</AttributesLabel>
         <AttributesValue>
           <CollapsibleTrigger asChild>
             <button
@@ -109,7 +109,7 @@ export function DemurrageAnalytics({
               aria-expanded={isExpanded}
             >
               <span className="text-body-sm text-[var(--color-text-link)]">
-                {isExpanded ? "Hide Analytics" : "Show Analytics"}
+                {isExpanded ? "Hide analytics" : "Show analytics"}
               </span>
               <AttributesChevron />
             </button>

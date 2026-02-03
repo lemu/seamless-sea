@@ -65,7 +65,7 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
 
 // Default configuration for new chart widgets
 export const defaultChartConfig: ChartWidgetConfig = {
-  title: "New Chart",
+  title: "New chart",
   chartType: "bar",
   dataSource: undefined,
   xAxis: undefined,

@@ -159,7 +159,7 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Add Widget</DialogTitle>
+          <DialogTitle>Add widget</DialogTitle>
         </DialogHeader>
         
         <DialogBody className="space-y-6">
@@ -222,7 +222,7 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
             ) : (
               <>
                 <Icon name="plus" size="sm" />
-                Create Widget
+                Create widget
               </>
             )}
           </Button>

@@ -341,7 +341,7 @@ export function ExportDialog<T extends Record<string, any>>({
                     onClick={handleResetToBookmark}
                     disabled={isExporting || !bookmarkName}
                   >
-                    Reset to Bookmark
+                    Reset to bookmark
                   </Button>
                 )}
                 <Button
@@ -350,7 +350,7 @@ export function ExportDialog<T extends Record<string, any>>({
                   onClick={handleSelectAll}
                   disabled={isExporting}
                 >
-                  Select All
+                  Select all
                 </Button>
                 <Button
                   variant="ghost"
@@ -358,7 +358,7 @@ export function ExportDialog<T extends Record<string, any>>({
                   onClick={handleDeselectAll}
                   disabled={isExporting}
                 >
-                  Deselect All
+                  Deselect all
                 </Button>
               </div>
             </div>
