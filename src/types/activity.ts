@@ -17,6 +17,19 @@ export type ActivityAction =
   | "on-subs"
   | "compliance-check";
 
+/**
+ * Metadata attached to activity log entries
+ * Extensible for different action types
+ */
+export interface ActivityMetadata {
+  entityType?: EntityType;
+  entityId?: string;
+  fieldName?: string;
+  oldValue?: string | number | boolean | null;
+  newValue?: string | number | boolean | null;
+  [key: string]: unknown; // Extensible but not `any`
+}
+
 export interface ActivityLogEntry {
   entityType: EntityType;
   entityId?: string;
@@ -34,7 +47,7 @@ export interface ActivityLogEntry {
     avatarUrl?: string | null;
   } | null;
   timestamp: number;
-  metadata?: any;
+  metadata?: ActivityMetadata;
   expandable?: {
     data?: Array<{
       label: string;
