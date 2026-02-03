@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, useTransition } from "react";
 import {
   type ColumnDef,
   type SortingState,
@@ -53,10 +53,12 @@ import {
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
+  type StatusValue,
 } from "@rafal.lemieszewski/tide-ui";
 import { useHeaderActions, useUser } from "../hooks";
 import { ExportDialog } from "../components/ExportDialog";
 import { FormattedActivityLogDescription, ActivityLogExpandableContent } from "../components/ActivityLogDescription";
+import type { ActivityLogEntry } from "../types/activity";
 import { ApprovalSignatureRow } from "../components/ApprovalSignatureRow";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -67,7 +69,10 @@ import {
   formatCurrency,
   formatRate,
   formatPercent,
+  formatQuantity,
   formatEnumLabel,
+  reformatCurrencyString,
+  pluralize,
 } from "../utils/dataUtils";
 import {
   calculateFreightSavings,
@@ -85,6 +90,28 @@ const getStatusLabel = (status: string): string => {
   // Fallback for unknown statuses - use centralized enum formatter
   return formatEnumLabel(status);
 };
+
+// Import types for fixture structure
+import type {
+  ContractData,
+  OrderData,
+  NegotiationData,
+  VesselData,
+  PortData,
+  CargoTypeData,
+  ApprovalData,
+  SignatureData,
+  ApprovalSummary,
+  SignatureSummary,
+  FixtureWithRelations,
+  EnrichedContractItem,
+  FieldChangeData,
+} from "../types/fixture";
+import type { CellContext, Row } from "@tanstack/react-table";
+
+// Type aliases for TanStack Table
+type FixtureCellContext<TValue = unknown> = CellContext<FixtureData, TValue>;
+type FixtureRow = Row<FixtureData>;
 
 // Define types for fixture structure
 interface FixtureData {
@@ -107,28 +134,18 @@ interface FixtureData {
   chartererAvatarUrl?: string | null;
   lastUpdated: number;
   // Full objects for sidebar display
-  contract?: any;
-  order?: any;
-  negotiation?: any;
-  vessel?: any;
-  loadPort?: any;
-  dischargePort?: any;
-  cargoType?: any;
+  contract?: ContractData | null;
+  order?: OrderData | null;
+  negotiation?: NegotiationData | null;
+  vessel?: VesselData | null;
+  loadPort?: PortData | null;
+  dischargePort?: PortData | null;
+  cargoType?: CargoTypeData | null;
   // Approval and signature data
-  approvals?: any[];
-  approvalSummary?: {
-    total: number;
-    approved: number;
-    pending: number;
-    rejected: number;
-  };
-  signatures?: any[];
-  signatureSummary?: {
-    total: number;
-    signed: number;
-    pending: number;
-    rejected: number;
-  };
+  approvals?: ApprovalData[];
+  approvalSummary?: ApprovalSummary;
+  signatures?: SignatureData[];
+  signatureSummary?: SignatureSummary;
 
   // Priority 1: Core Commercial Fields
   laycanStart?: number;
@@ -230,41 +247,49 @@ declare module '@tanstack/react-table' {
   }
 }
 
+// Type helper for accessing column meta with proper typing
+interface ColumnMetaWithLabel {
+  label?: string;
+  align?: "left" | "center" | "right";
+  filterable?: boolean;
+  filterGroup?: string;
+}
+
 // Transform database contracts and recap managers to FixtureData format
 const transformFixturesToTableData = (
-  fixtures: any[]
+  fixtures: FixtureWithRelations[]
 ): FixtureData[] => {
   const tableData: FixtureData[] = [];
 
   fixtures.forEach((fixture) => {
     // Combine contracts and recap managers
-    const allContracts = [
-      ...fixture.contracts.map((c: any) => ({ ...c, source: "contract" })),
-      ...fixture.recapManagers.map((r: any) => ({ ...r, source: "recap" })),
+    const allContracts: EnrichedContractItem[] = [
+      ...fixture.contracts.map((c) => ({ ...c, source: "contract" as const })),
+      ...fixture.recapManagers.map((r) => ({ ...r, source: "recap" as const })),
     ];
 
     // Track which negotiations already have contracts/recaps
     const negotiationsWithContracts = new Set<string>();
-    allContracts.forEach((item: any) => {
+    allContracts.forEach((item) => {
       const negId = item.negotiationId || item.negotiation?._id;
-      if (negId) negotiationsWithContracts.add(negId);
+      if (negId) negotiationsWithContracts.add(negId as string);
     });
 
     // Deduplicate - prefer contracts over recap_managers for same negotiation
     // This prevents showing duplicate rows when both exist for the same negotiation
     const seenNegotiations = new Set<string>();
-    const dedupedContracts = allContracts.filter((item: any) => {
+    const dedupedContracts = allContracts.filter((item) => {
       const negId = item.negotiationId || item.negotiation?._id;
       if (!negId) return true; // Keep items without negotiation
-      if (seenNegotiations.has(negId)) return false;
-      seenNegotiations.add(negId);
+      if (seenNegotiations.has(negId as string)) return false;
+      seenNegotiations.add(negId as string);
       return true;
     });
 
     // Handle negotiation-only fixtures (fixtures with negotiations but no contracts yet)
     // This covers early stages: indicative-offer, indicative-bid, firm-offer, firm-bid
     if (dedupedContracts.length === 0 && fixture.negotiations?.length > 0) {
-      fixture.negotiations.forEach((neg: any) => {
+      fixture.negotiations.forEach((neg) => {
         tableData.push({
           id: neg._id,
           fixtureId: fixture.fixtureNumber,
@@ -375,7 +400,7 @@ const transformFixturesToTableData = (
 
     // Also add any negotiations that don't have contracts yet (even if fixture has some contracts)
     if (fixture.negotiations?.length > 0) {
-      fixture.negotiations.forEach((neg: any) => {
+      fixture.negotiations.forEach((neg) => {
         // Skip if this negotiation already has a contract/recap
         if (negotiationsWithContracts.has(neg._id)) return;
 
@@ -472,15 +497,15 @@ const transformFixturesToTableData = (
 
     // Create a row for each contract/recap manager
     // TanStack Table will handle grouping by fixtureId automatically
-    dedupedContracts.forEach((item: any) => {
+    dedupedContracts.forEach((item) => {
       const isContract = item.source === "contract";
       const contractNumber = isContract ? item.contractNumber : item.recapNumber;
 
       tableData.push({
-        id: item._id,
+        id: item._id as string,
         fixtureId: fixture.fixtureNumber,
         orderId: item.order?.orderNumber || fixture.order?.orderNumber || "-",
-        cpId: contractNumber,
+        cpId: contractNumber ?? "-",
         stage: item.contractType === "coa" ? "COA" : "Charter Party",
         typeOfContract:
           item.contractType === "voyage-charter"
@@ -499,9 +524,9 @@ const transformFixturesToTableData = (
         brokerAvatarUrl: item.broker?.avatarUrl,
         charterer: item.charterer?.name || "Unknown",
         chartererAvatarUrl: item.charterer?.avatarUrl,
-        lastUpdated: item.updatedAt || item._creationTime,
+        lastUpdated: item.updatedAt ?? item._creationTime ?? Date.now(),
         // Include full objects for sidebar
-        contract: item,
+        contract: item as unknown as ContractData | null,
         order: item.order || fixture.order,
         negotiation: item.negotiation,
         vessel: item.vessel,
@@ -570,20 +595,20 @@ const transformFixturesToTableData = (
         daysToSigned: calculateDaysBetween(item.finalDate, item.fullySignedDate) ?? undefined,
 
         // Approvals
-        ownerApprovalStatus: item.approvals?.find((a: any) => a.partyRole === 'owner')?.status,
-        ownerApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedBy?.name,
-        ownerApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'owner')?.approvedAt,
-        chartererApprovalStatus: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.status,
-        chartererApprovedBy: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedBy?.name,
-        chartererApprovalDate: item.approvals?.find((a: any) => a.partyRole === 'charterer')?.approvedAt,
+        ownerApprovalStatus: item.approvals?.find((a) => a.partyRole === 'owner')?.status,
+        ownerApprovedBy: item.approvals?.find((a) => a.partyRole === 'owner')?.approvedBy?.name,
+        ownerApprovalDate: item.approvals?.find((a) => a.partyRole === 'owner')?.approvedAt,
+        chartererApprovalStatus: item.approvals?.find((a) => a.partyRole === 'charterer')?.status,
+        chartererApprovedBy: item.approvals?.find((a) => a.partyRole === 'charterer')?.approvedBy?.name,
+        chartererApprovalDate: item.approvals?.find((a) => a.partyRole === 'charterer')?.approvedAt,
 
         // Signatures
-        ownerSignatureStatus: item.signatures?.find((s: any) => s.partyRole === 'owner')?.status,
-        ownerSignedBy: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedBy?.name,
-        ownerSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'owner')?.signedAt,
-        chartererSignatureStatus: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.status,
-        chartererSignedBy: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedBy?.name,
-        chartererSignatureDate: item.signatures?.find((s: any) => s.partyRole === 'charterer')?.signedAt,
+        ownerSignatureStatus: item.signatures?.find((s) => s.partyRole === 'owner')?.status,
+        ownerSignedBy: item.signatures?.find((s) => s.partyRole === 'owner')?.signedBy?.name,
+        ownerSignatureDate: item.signatures?.find((s) => s.partyRole === 'owner')?.signedAt,
+        chartererSignatureStatus: item.signatures?.find((s) => s.partyRole === 'charterer')?.status,
+        chartererSignedBy: item.signatures?.find((s) => s.partyRole === 'charterer')?.signedBy?.name,
+        chartererSignatureDate: item.signatures?.find((s) => s.partyRole === 'charterer')?.signedAt,
 
         // User Tracking
         dealCaptureUser: item.negotiation?.dealCaptureUser?.name,
@@ -631,6 +656,9 @@ const formatTimestamp = (timestamp: number | string | undefined | null): string 
   return `${day} ${month} ${year} ${hours}:${minutes}`;
 };
 
+// Type guard to filter out null/undefined from arrays
+const isDefined = <T,>(value: T | null | undefined): value is T => value != null;
+
 // Helper function to get company initials for avatar fallback
 const getCompanyInitials = (companyName: string): string => {
   const words = companyName.split(' ').filter(w => w.length > 0);
@@ -642,7 +670,7 @@ const getCompanyInitials = (companyName: string): string => {
 
 // Helper function to transform field changes for display
 const transformFieldChanges = (
-  fieldChanges: any[] | undefined,
+  fieldChanges: FieldChangeData[] | undefined,
   fieldName: string
 ): ChangeHistoryEntry[] => {
   if (!fieldChanges) return [];
@@ -709,12 +737,12 @@ function FixtureSidebar({
   );
 
   // Combine and sort activity logs (oldest first)
-  const allActivityLogs: any[] = useMemo(() => {
+  const allActivityLogs = useMemo((): ActivityLogEntry[] => {
     const logs = [
       ...(contractActivityLog || []),
       ...(negotiationActivityLog || []),
-    ];
-    return logs.sort((a: any, b: any) => a.timestamp - b.timestamp); // Oldest first
+    ] as ActivityLogEntry[];
+    return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
   }, [contractActivityLog, negotiationActivityLog]);
 
   return (
@@ -1069,7 +1097,7 @@ function FixtureSidebar({
                       <AttributesItem hidden>
                         <AttributesRow>
                           <AttributesLabel>GRT</AttributesLabel>
-                          <AttributesValue>{fixture.vessel.grt.toLocaleString()} mt</AttributesValue>
+                          <AttributesValue>{formatQuantity(fixture.vessel.grt, "mt")}</AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
                     )}
@@ -1096,7 +1124,7 @@ function FixtureSidebar({
                       <AttributesItem hidden>
                         <AttributesRow>
                           <AttributesLabel>DWT</AttributesLabel>
-                          <AttributesValue>{fixture.vessel.dwt.toLocaleString()} mt</AttributesValue>
+                          <AttributesValue>{formatQuantity(fixture.vessel.dwt, "mt")}</AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
                     )}
@@ -1135,7 +1163,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Speed & Consumption</AttributesLabel>
                           <AttributesValue>
-                            {fixture.vessel.speedKnots ? `${fixture.vessel.speedKnots} knots` : '—'} • {fixture.vessel.consumptionPerDay ? `${fixture.vessel.consumptionPerDay.toLocaleString()} l/day` : '—'}
+                            {fixture.vessel.speedKnots ? `${fixture.vessel.speedKnots} knots` : '—'} • {fixture.vessel.consumptionPerDay ? `${formatQuantity(fixture.vessel.consumptionPerDay)} l/day` : '—'}
                           </AttributesValue>
                         </AttributesRow>
                       </AttributesItem>
@@ -1261,7 +1289,13 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasCargoChanges}>
                         <AttributesLabel>Cargo</AttributesLabel>
                         <AttributesValue>
-                          Iron Ore • 160,000 mt
+                          {fixture.cargoType?.name && fixture.contract?.quantity
+                            ? formatCargo(
+                                fixture.contract.quantity,
+                                fixture.contract.quantityUnit || "MT",
+                                fixture.cargoType.name
+                              )
+                            : "Not specified"}
                           {hasCargoChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -1305,7 +1339,9 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasLaycanChanges}>
                         <AttributesLabel>Laycan</AttributesLabel>
                         <AttributesValue>
-                          27th October, 2025 (0001 hrs) – 30th October, 2025 (2359 hrs)
+                          {fixture.contract?.laycanStart && fixture.contract?.laycanEnd
+                            ? formatLaycanRange(fixture.contract.laycanStart, fixture.contract.laycanEnd)
+                            : "Not specified"}
                           {hasLaycanChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -1347,7 +1383,9 @@ function FixtureSidebar({
                     <AttributesItem>
                       <AttributesRow>
                         <AttributesLabel>Fixture type</AttributesLabel>
-                        <AttributesValue>Voyage charter (Spot)</AttributesValue>
+                        <AttributesValue>
+                          {fixture.typeOfContract || "Not specified"}
+                        </AttributesValue>
                       </AttributesRow>
                     </AttributesItem>
 
@@ -1355,7 +1393,9 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasFreightRateChanges}>
                         <AttributesLabel>Freight Rate</AttributesLabel>
                         <AttributesValue>
-                          25.12 $/mt
+                          {fixture.contract?.freightRate
+                            ? formatRate(parseFloat(fixture.contract.freightRate.replace(/[^0-9.]/g, '')), "/mt")
+                            : "Not specified"}
                           {hasFreightRateChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -1399,7 +1439,9 @@ function FixtureSidebar({
                       <AttributesRow asCollapsibleTrigger={hasDemurrageChanges}>
                         <AttributesLabel>Demurrage / Despatch</AttributesLabel>
                         <AttributesValue>
-                          {fixture.contract?.demurrageRate || "Not specified"}
+                          {fixture.contract?.demurrageRate
+                            ? reformatCurrencyString(fixture.contract.demurrageRate)
+                            : "Not specified"}
                           {hasDemurrageChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -1712,7 +1754,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Address commission</AttributesLabel>
                           <AttributesValue>
-                            {fixture.negotiation.addressCommissionPercent}%
+                            {formatPercent(fixture.negotiation.addressCommissionPercent, 2)}
                             {fixture.negotiation.addressCommissionTotal && ` (${formatCurrency(fixture.negotiation.addressCommissionTotal)})`}
                           </AttributesValue>
                         </AttributesRow>
@@ -1724,7 +1766,7 @@ function FixtureSidebar({
                         <AttributesRow>
                           <AttributesLabel>Broker commission</AttributesLabel>
                           <AttributesValue>
-                            {fixture.negotiation.brokerCommissionPercent}%
+                            {formatPercent(fixture.negotiation.brokerCommissionPercent, 2)}
                             {fixture.negotiation.brokerCommissionTotal && ` (${formatCurrency(fixture.negotiation.brokerCommissionTotal)})`}
                           </AttributesValue>
                         </AttributesRow>
@@ -2017,7 +2059,7 @@ function deriveFilterDefinitions<TData>(
  * Deep equality comparison for bookmark state
  * Handles objects, arrays, and primitives with proper order-insensitive object comparison
  */
-function deepEqual(a: any, b: any): boolean {
+function deepEqual(a: unknown, b: unknown): boolean {
   // Same reference or both primitive and equal
   if (a === b) return true;
 
@@ -2033,8 +2075,10 @@ function deepEqual(a: any, b: any): boolean {
 
   // Object comparison (order-insensitive)
   if (typeof a === 'object' && typeof b === 'object') {
-    const keysA = Object.keys(a).sort();
-    const keysB = Object.keys(b).sort();
+    const objA = a as Record<string, unknown>;
+    const objB = b as Record<string, unknown>;
+    const keysA = Object.keys(objA).sort();
+    const keysB = Object.keys(objB).sort();
 
     // Different number of keys
     if (keysA.length !== keysB.length) return false;
@@ -2043,7 +2087,7 @@ function deepEqual(a: any, b: any): boolean {
     if (!keysA.every((key, idx) => key === keysB[idx])) return false;
 
     // Recursively compare values
-    return keysA.every(key => deepEqual(a[key], b[key]));
+    return keysA.every(key => deepEqual(objA[key], objB[key]));
   }
 
   // Primitive types that aren't equal
@@ -2116,7 +2160,7 @@ function Fixtures() {
   // Transform database data to fixture format
   const fixtureData = useMemo(() => {
     if (!fixtures) return [];
-    return transformFixturesToTableData(fixtures);
+    return transformFixturesToTableData(fixtures as unknown as FixtureWithRelations[]);
   }, [fixtures]);
 
   // Helper function to highlight search terms in text
@@ -2356,6 +2400,16 @@ function Fixtures() {
   ]);
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
 
+  // Use transition for non-urgent search updates (improves INP)
+  const [isSearchPending, startSearchTransition] = useTransition();
+
+  // Debounced search handler for better INP
+  const handleGlobalSearchChange = useCallback((terms: string[]) => {
+    startSearchTransition(() => {
+      setGlobalSearchTerms(terms);
+    });
+  }, []);
+
   // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
@@ -2440,45 +2494,35 @@ function Fixtures() {
     pageIndex: 0,
     pageSize: 25, // Default page size
   });
-  const [isPaginationLoading, setIsPaginationLoading] = useState(false);
-  const pendingPaginationRef = useRef<PaginationState | null>(null);
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
 
-  // Handle pagination changes and detect page size changes
-  const handlePaginationChange = (updaterOrValue: PaginationState | ((old: PaginationState) => PaginationState)) => {
+  // Use transition for non-urgent pagination updates (improves INP)
+  const [isPaginationPending, startPaginationTransition] = useTransition();
+
+  // Handle pagination changes with transition for page size changes
+  const handlePaginationChange = useCallback((updaterOrValue: PaginationState | ((old: PaginationState) => PaginationState)) => {
     setPagination((oldPagination) => {
       const newPagination = typeof updaterOrValue === 'function'
         ? updaterOrValue(oldPagination)
         : updaterOrValue;
 
-      // Only show loading for page size changes, not page navigation
+      // Only use transition for page size changes (more expensive)
       const pageSizeChanged = oldPagination.pageSize !== newPagination.pageSize;
 
       if (pageSizeChanged) {
-        // Set loading state immediately
-        setIsPaginationLoading(true);
-
-        // Defer the pagination update to next tick so skeleton renders first
-        pendingPaginationRef.current = newPagination;
-        setTimeout(() => {
-          if (pendingPaginationRef.current) {
-            setPagination(pendingPaginationRef.current);
-            pendingPaginationRef.current = null;
-
-            // Clear loading after re-render completes
-            setTimeout(() => {
-              setIsPaginationLoading(false);
-            }, 300);
-          }
-        }, 0);
-
-        // Return old pagination for now (will update in setTimeout)
-        return oldPagination;
+        // Use transition to allow React to keep UI responsive
+        startPaginationTransition(() => {
+          setPagination(newPagination);
+        });
+        return oldPagination; // Return old for now, transition will update
       }
 
       return newPagination;
     });
-  };
+  }, []);
+
+  // Derive loading state from transition pending state
+  const isPaginationLoading = isPaginationPending;
 
   // Handle column sizing changes with minimum width enforcement
   const handleColumnSizingChange = useCallback(
@@ -2510,8 +2554,8 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
-          const value = row.getValue("fixtureId");
+        cell: ({ row }: FixtureCellContext<string>) => {
+          const value = row.getValue("fixtureId") as string;
           return (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -2529,14 +2573,14 @@ function Fixtures() {
             </Tooltip>
           );
         },
-        aggregatedCell: ({ row, table }: any) => {
+        aggregatedCell: ({ row, table }: FixtureCellContext<string>) => {
           const count = row.subRows?.length || 0;
           const isGroupedByFixtureId = row.groupingColumnId === "fixtureId";
           const isFixtureIdHidden = table.getState().columnVisibility.fixtureId === false;
 
           // Only display Order ID when grouped by fixtureId AND fixtureId column is hidden
           if (isGroupedByFixtureId && isFixtureIdHidden) {
-            const orderIds = row.subRows?.map((r: any) => r.original?.orderId).filter(Boolean) || [];
+            const orderIds = row.subRows?.map((r) => r.original?.orderId).filter(Boolean) || [];
             const uniqueOrderIds = new Set(orderIds);
 
             if (uniqueOrderIds.size === 1 && orderIds.length > 0) {
@@ -2566,7 +2610,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row, table }: any) => {
+        cell: ({ row, table }: FixtureCellContext) => {
           // Grouped row (has subRows): Only show special display when grouped by fixtureId with it hidden
           if (row.subRows?.length > 0) {
             const isGroupedByFixtureId = row.groupingColumnId === "fixtureId";
@@ -2602,7 +2646,7 @@ function Fixtures() {
           }
 
           // Leaf row: Use row.original to get actual order ID
-          const value = row.original?.orderId;
+          const value = row.original?.orderId || "";
           if (!value) {
             return (
               <div className="text-body-sm text-[var(--color-text-secondary)]">
@@ -2622,7 +2666,7 @@ function Fixtures() {
             </button>
           );
         },
-        aggregatedCell: ({ row }: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
           const orderId = row.subRows[0]?.original?.orderId;
           // Show bold when: (1) grouped by orderId OR (2) grouped by fixtureId (All Fixtures with orderId as display column)
           const isGroupedByOrderId = row.groupingColumnId === "orderId" || row.groupingColumnId === "fixtureId";
@@ -2650,7 +2694,7 @@ function Fixtures() {
           align: "left",
         },
         enableGrouping: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const negotiationId = row.getValue("negotiationId") as string;
           if (negotiationId === "-") {
             return (
@@ -2665,8 +2709,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const negotiationIds = row.subRows.map((r: any) => r.original?.negotiationId).filter((id: string) => id && id !== "-");
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const negotiationIds = row.subRows.map((r) => r.original?.negotiationId).filter((id: string) => id && id !== "-");
           const uniqueNegotiationIds = Array.from(new Set(negotiationIds)) as string[];
 
           // No negotiation IDs - show em dash
@@ -2704,7 +2748,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const cpId = row.getValue("cpId") as string | undefined;
 
           // Parent rows without cpId show em dash
@@ -2728,8 +2772,8 @@ function Fixtures() {
             </button>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const cpIds = row.subRows.map((r: any) => r.original?.cpId).filter(Boolean);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const cpIds = row.subRows.map((r) => r.original?.cpId).filter(Boolean);
           const uniqueCpIds = Array.from(new Set(cpIds)) as string[];
 
           // No CP IDs - show em dash
@@ -2771,22 +2815,22 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="file-text" className={className} />,
         },
         enableGrouping: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const status = row.getValue("status") as string;
           return (
             <div className="flex items-center overflow-visible">
-              <FixtureStatus value={status as any} className="overflow-visible" asBadge showObject />
+              <FixtureStatus value={status as StatusValue} className="overflow-visible" asBadge showObject />
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const allStatuses = (row.subRows?.map((r: any) => r.original.status) || []) as string[];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const allStatuses = (row.subRows?.map((r) => r.original.status) || []) as string[];
 
           // Single item group - show full status label with object prefix
           if (row.subRows?.length === 1) {
             return (
               <div className="flex items-center justify-start overflow-visible">
-                <FixtureStatus value={allStatuses[0] as any} className="overflow-visible" asBadge showObject />
+                <FixtureStatus value={allStatuses[0] as StatusValue} className="overflow-visible" asBadge showObject />
               </div>
             );
           }
@@ -2816,7 +2860,7 @@ function Fixtures() {
           return (
             <div className="flex items-center justify-start gap-1 overflow-visible">
               {allStatuses.map((status, index) => (
-                <FixtureStatus key={index} value={status as any} iconOnly showObject className="overflow-visible" />
+                <FixtureStatus key={index} value={status as StatusValue} iconOnly showObject className="overflow-visible" />
               ))}
             </div>
           );
@@ -2858,7 +2902,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const vessels = row.getValue("vessels") as string;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
@@ -2866,8 +2910,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const uniqueVessels = new Set(row.subRows?.map((r: any) => r.original.vessels) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const uniqueVessels = new Set(row.subRows?.map((r) => r.original.vessels) || []);
 
           // If only one unique vessel, show the name with highlighting
           if (uniqueVessels.size === 1) {
@@ -2900,7 +2944,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const owner = row.getValue("owner") as string;
           const ownerAvatarUrl = row.original.ownerAvatarUrl;
           return (
@@ -2915,11 +2959,11 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
           // Collect unique owners with avatar data
           const uniqueOwners = Array.from(
             new Map(
-              row.subRows?.map((r: any) => [
+              row.subRows?.map((r) => [
                 r.original.owner,
                 { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
               ])
@@ -2985,7 +3029,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const broker = row.getValue("broker") as string;
           const brokerAvatarUrl = row.original.brokerAvatarUrl;
           return (
@@ -3000,11 +3044,11 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
           // Collect unique brokers with avatar data
           const uniqueBrokers = Array.from(
             new Map(
-              row.subRows?.map((r: any) => [
+              row.subRows?.map((r) => [
                 r.original.broker,
                 { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
               ])
@@ -3070,7 +3114,7 @@ function Fixtures() {
         },
         enableGrouping: true,
         enableGlobalFilter: true,
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const charterer = row.getValue("charterer") as string;
           const chartererAvatarUrl = row.original.chartererAvatarUrl;
           return (
@@ -3085,11 +3129,11 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
           // Collect unique charterers with avatar data
           const uniqueCharterers = Array.from(
             new Map(
-              row.subRows?.map((r: any) => [
+              row.subRows?.map((r) => [
                 r.original.charterer,
                 { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
               ])
@@ -3166,8 +3210,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortName) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.loadPortName) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3208,8 +3252,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.loadPortCountry) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.loadPortCountry) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             const countryCode = row.subRows?.[0]?.original.loadPort?.countryCode;
@@ -3250,8 +3294,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.loadDeliveryType) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.loadDeliveryType) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3291,8 +3335,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortName) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.dischargePortName) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3333,8 +3377,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.dischargePortCountry) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.dischargePortCountry) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             const countryCode = row.subRows?.[0]?.original.dischargePort?.countryCode;
@@ -3375,8 +3419,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.dischargeRedeliveryType) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.dischargeRedeliveryType) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3415,8 +3459,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.cargoTypeName) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.cargoTypeName) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3449,7 +3493,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? value.toLocaleString() : "–"}
+              {value ? formatQuantity(value) : "–"}
             </div>
           );
         },
@@ -3477,11 +3521,11 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const laycans = row.subRows?.map((r: any) => ({
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const laycans = row.subRows?.map((r) => ({
             start: r.original.laycanStart,
             end: r.original.laycanEnd
-          })).filter((l: any) => l.start && l.end) || [];
+          })).filter((l): l is { start: number; end: number } => l.start != null && l.end != null) || [];
 
           if (laycans.length === 0) {
             return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
@@ -3489,7 +3533,7 @@ function Fixtures() {
 
           // Check if all laycans are the same
           const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
-          const allSame = laycans.every((l: any) =>
+          const allSame = laycans.every((l) =>
             formatLaycanRange(l.start, l.end) === firstLaycan
           );
 
@@ -3528,22 +3572,22 @@ function Fixtures() {
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue ? `$${numValue.toFixed(2)}` : "–"}
+              {numValue ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => {
             const v = r.original.finalFreightRate;
             return typeof v === 'string' ? parseFloat(v) : v;
-          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          }).filter((v): v is number => v != null && !isNaN(v)) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
 
@@ -3565,19 +3609,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.highestFreightRateIndication).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.highestFreightRateIndication).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3597,19 +3641,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateIndication).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.lowestFreightRateIndication).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3629,19 +3673,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.firstFreightRateIndication).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.firstFreightRateIndication).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3661,19 +3705,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.highestFreightRateLastDay).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.highestFreightRateLastDay).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3693,19 +3737,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.lowestFreightRateLastDay).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.lowestFreightRateLastDay).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3725,19 +3769,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.firstFreightRateLastDay).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.firstFreightRateLastDay).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3760,7 +3804,7 @@ function Fixtures() {
           const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
           return (
             <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+              {formatPercent(value, 2, true)}
             </div>
           );
         },
@@ -3782,19 +3826,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.marketIndex).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.marketIndex).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3818,8 +3862,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.marketIndexName) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.marketIndexName) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -3855,7 +3899,7 @@ function Fixtures() {
           const color = value < 0 ? "text-[var(--green-600)]" : value > 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
           return (
             <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+              {formatPercent(value, 2, true)}
             </div>
           );
         },
@@ -3877,19 +3921,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value ? formatCurrency(value) : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.grossFreight).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.grossFreight).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">{formatCurrency(min)}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">{formatCurrency(min)} – {formatCurrency(max)}</div>;
         },
       },
 
@@ -3912,22 +3956,22 @@ function Fixtures() {
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue ? `$${numValue.toFixed(2)}` : "–"}
+              {numValue ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => {
             const v = r.original.finalDemurrageRate;
             return typeof v === 'string' ? parseFloat(v) : v;
-          }).filter((v: any) => v != null && !isNaN(v)) || [];
+          }).filter((v): v is number => v != null && !isNaN(v)) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3947,19 +3991,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.highestDemurrageIndication).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.highestDemurrageIndication).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -3979,19 +4023,19 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toFixed(2)}` : "–"}
+              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = row.subRows?.map((r: any) => r.original.lowestDemurrageIndication).filter((v: any) => v != null) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = row.subRows?.map((r) => r.original.lowestDemurrageIndication).filter((v): v is number => v != null) || [];
           if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
           const min = Math.min(...values);
           const max = Math.max(...values);
           if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toFixed(2)}</div>;
+            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
           }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toFixed(2)} – ${max.toFixed(2)}</div>;
+          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
         },
       },
       {
@@ -4014,7 +4058,7 @@ function Fixtures() {
           const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
           return (
             <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {value > 0 ? "+" : ""}{value.toFixed(2)}%
+              {formatPercent(value, 2, true)}
             </div>
           );
         },
@@ -4038,7 +4082,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `${value.toFixed(2)}%` : "–"}
+              {value ? formatPercent(value, 2) : "–"}
             </div>
           );
         },
@@ -4060,7 +4104,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value ? formatCurrency(value) : "–"}
             </div>
           );
         },
@@ -4082,7 +4126,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `${value.toFixed(2)}%` : "–"}
+              {value ? formatPercent(value, 2) : "–"}
             </div>
           );
         },
@@ -4104,7 +4148,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value ? formatCurrency(value) : "–"}
             </div>
           );
         },
@@ -4132,8 +4176,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.cpDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.cpDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4164,8 +4208,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.workingCopyDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.workingCopyDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4196,8 +4240,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.finalDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.finalDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4228,8 +4272,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.fullySignedDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.fullySignedDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4258,7 +4302,7 @@ function Fixtures() {
 
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+              {value === 0 ? "Same day" : pluralize(value, "day")}
             </div>
           );
         },
@@ -4282,7 +4326,7 @@ function Fixtures() {
 
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+              {value === 0 ? "Same day" : pluralize(value, "day")}
             </div>
           );
         },
@@ -4306,7 +4350,7 @@ function Fixtures() {
 
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : value === 1 ? "1 day" : `${value} days`}
+              {value === 0 ? "Same day" : pluralize(value, "day")}
             </div>
           );
         },
@@ -4334,8 +4378,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.ownerApprovalStatus) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.ownerApprovalStatus) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4394,8 +4438,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.ownerApprovalDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.ownerApprovalDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4426,8 +4470,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.chartererApprovalStatus) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.chartererApprovalStatus) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4486,8 +4530,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.chartererApprovalDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.chartererApprovalDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4520,8 +4564,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.ownerSignatureStatus) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.ownerSignatureStatus) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4580,8 +4624,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.ownerSignatureDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.ownerSignatureDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4612,8 +4656,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.chartererSignatureStatus) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.chartererSignatureStatus) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4672,8 +4716,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const timestamps = row.subRows?.map((r: any) => r.original.chartererSignatureDate).filter(Boolean) || [];
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const timestamps = row.subRows?.map((r) => r.original.chartererSignatureDate).filter(isDefined) || [];
           if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
           const earliest = Math.min(...timestamps);
           const latest = Math.max(...timestamps);
@@ -4706,8 +4750,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.dealCaptureUser) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.dealCaptureUser) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4744,8 +4788,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.orderCreatedBy) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.orderCreatedBy) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4782,8 +4826,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.negotiationCreatedBy) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.negotiationCreatedBy) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4822,8 +4866,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.parentCpId) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.parentCpId) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             return (
@@ -4865,8 +4909,8 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
-          const values = new Set(row.subRows?.map((r: any) => r.original.contractType) || []);
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          const values = new Set(row.subRows?.map((r) => r.original.contractType) || []);
           if (values.size === 1) {
             const value = Array.from(values)[0] as string;
             const displayValue = value === "voyage-charter" ? "Voyage charter"
@@ -4901,12 +4945,14 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
         enableGrouping: false,
-        aggregationFn: (columnId: string, leafRows: any[]) => {
+        aggregationFn: (columnId: string, leafRows: FixtureRow[]) => {
           // For sorting: return the most recent (maximum) timestamp
-          const timestamps = leafRows.map((row) => row.getValue(columnId)).filter(Boolean);
+          const timestamps = leafRows
+            .map((row) => row.getValue(columnId) as number | undefined)
+            .filter(isDefined);
           return timestamps.length > 0 ? Math.max(...timestamps) : 0;
         },
-        cell: ({ row }: any) => {
+        cell: ({ row }: FixtureCellContext) => {
           const timestamp = row.getValue("lastUpdated") as number;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)]">
@@ -4914,9 +4960,9 @@ function Fixtures() {
             </div>
           );
         },
-        aggregatedCell: ({ row }: any) => {
+        aggregatedCell: ({ row }: FixtureCellContext) => {
           // For grouped rows, show date range
-          const timestamps = row.subRows?.map((r: any) => r.original?.lastUpdated).filter(Boolean) || [];
+          const timestamps = row.subRows?.map((r) => r.original?.lastUpdated).filter(isDefined) || [];
           if (timestamps.length === 0) {
             return (
               <div className="text-body-sm text-[var(--color-text-secondary)]">
@@ -4946,7 +4992,7 @@ function Fixtures() {
         },
       },
     ],
-    [setSelectedFixture, columnVisibility, globalSearchTerms],
+    [setSelectedFixture, globalSearchTerms],
   );
 
   // Prepare available columns for export
@@ -4957,7 +5003,7 @@ function Fixtures() {
       )
       .map((col) => ({
         id: col.accessorKey,
-        label: ((col.meta as any)?.label || col.header) as string,
+        label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
       }));
   }, [fixtureColumns]);
 
@@ -5355,7 +5401,7 @@ function Fixtures() {
   );
 
   // Helper function to calculate count for a bookmark
-  const calculateBookmarkCount = (bookmark: Bookmark): number => {
+  const calculateBookmarkCount = useCallback((bookmark: Bookmark): number => {
     if (!bookmark.filtersState) return fixtureData.length;
 
     // Step 1: Apply bookmark and field filters (non-search filters)
@@ -5518,7 +5564,7 @@ function Fixtures() {
     }
 
     return data.length;
-  };
+  }, [fixtureData]);
 
   // Dynamically calculate counts for all bookmarks
   const systemBookmarksWithCounts = useMemo(() => {
@@ -5527,7 +5573,7 @@ function Fixtures() {
       count: calculateBookmarkCount(bookmark),
       isLoadingCount: isLoadingFixtures,
     }));
-  }, [fixtureData, systemBookmarks, isLoadingFixtures]);
+  }, [calculateBookmarkCount, systemBookmarks, isLoadingFixtures]);
 
   const bookmarksWithCounts = useMemo(() => {
     return bookmarks.map((bookmark) => ({
@@ -5535,7 +5581,7 @@ function Fixtures() {
       count: calculateBookmarkCount(bookmark),
       isLoadingCount: isLoadingFixtures,
     }));
-  }, [bookmarks, fixtureData, isLoadingFixtures]);
+  }, [bookmarks, calculateBookmarkCount, isLoadingFixtures]);
 
   // Get active bookmark
   const activeBookmark = useMemo(() => {
@@ -5607,7 +5653,7 @@ function Fixtures() {
   const bookmarkData = useMemo(() => {
     if (!activeBookmark?.filtersState) {
       // If no saved filters, return data filtered by bookmark type only
-      let data = fixtureData.filter((fixture) => {
+      const data = fixtureData.filter((fixture) => {
         // Special filter for Negotiations bookmark
         if (activeBookmarkId === "system-negotiations") {
           if (!fixture.negotiationId || fixture.negotiationId === "-") {
@@ -5627,7 +5673,7 @@ function Fixtures() {
 
     // Apply bookmark's saved filters
     const savedFilters = activeBookmark.filtersState.activeFilters;
-    let data = fixtureData.filter((fixture) => {
+    const data = fixtureData.filter((fixture) => {
       // Special filter for Negotiations bookmark
       if (activeBookmarkId === "system-negotiations") {
         if (!fixture.negotiationId || fixture.negotiationId === "-") {
@@ -5773,7 +5819,7 @@ function Fixtures() {
   }, [globalSearchTerms]);
 
   // Helper function to check if a fixture matches global search terms
-  const matchesGlobalSearch = (fixture: FixtureData): boolean => {
+  const matchesGlobalSearch = useCallback((fixture: FixtureData): boolean => {
     if (globalSearchTerms.length === 0) return true;
 
     // Searchable fields
@@ -5794,7 +5840,7 @@ function Fixtures() {
     return globalSearchTerms.every(term =>
       searchableText.includes(term.toLowerCase())
     );
-  };
+  }, [globalSearchTerms]);
 
   // Data filtering with group-preserving search logic
   const filteredData = useMemo(() => {
@@ -5929,7 +5975,7 @@ function Fixtures() {
     }
 
     return data;
-  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping]);
+  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping, matchesGlobalSearch]);
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
@@ -6162,7 +6208,7 @@ function Fixtures() {
   };
 
   // Handle row clicks to open sidebar
-  const handleRowClick = (row: any) => {
+  const handleRowClick = (row: FixtureRow) => {
     // For single-item groups, get the data from the first (and only) subrow
     const fixtureData = row.getIsGrouped() && row.subRows?.length === 1
       ? row.subRows[0].original
@@ -6194,7 +6240,7 @@ function Fixtures() {
                     alert(`Account synced successfully! ${result.message}\n\nThe page will reload in 2 seconds...`);
                     // Use a hard reload with cache clearing
                     setTimeout(() => {
-                      window.location.href = window.location.href;
+                      window.location.reload();
                     }, 2000);
                   } else {
                     alert(`Sync failed: ${result.message}`);
@@ -6235,8 +6281,8 @@ function Fixtures() {
               onFilterReset={handleFilterReset}
               enableGlobalSearch={true}
               globalSearchTerms={globalSearchTerms}
-              onGlobalSearchChange={setGlobalSearchTerms}
-              globalSearchPlaceholder="Search fixtures…"
+              onGlobalSearchChange={handleGlobalSearchChange}
+              globalSearchPlaceholder={isSearchPending ? "Searching…" : "Search fixtures…"}
               hideReset={true}
             />
           </Bookmarks.Content>
@@ -6284,7 +6330,7 @@ function Fixtures() {
                 )
                 .map((col) => ({
                   id: col.accessorKey,
-                  label: ((col.meta as any)?.label || col.header) as string,
+                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
                 }))}
               selectedSortColumn={sorting[0]?.id}
               sortDirection={sorting[0]?.desc ? "desc" : "asc"}
@@ -6313,7 +6359,7 @@ function Fixtures() {
                 )
                 .map((col) => ({
                   id: col.accessorKey,
-                  label: ((col.meta as any)?.label || col.header) as string,
+                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
                 }))}
               selectedGroupColumn={grouping[0] || ""}
               onGroupChange={(columnId) => {
@@ -6331,7 +6377,7 @@ function Fixtures() {
                 )
                 .map((col) => ({
                   id: ("accessorKey" in col ? col.accessorKey : col.id) as string,
-                  label: ((col.meta as any)?.label || col.header) as string,
+                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
                 }))}
               visibleColumns={Object.entries(columnVisibility)
                 .filter(([_, visible]) => visible !== false)
