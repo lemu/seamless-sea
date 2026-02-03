@@ -2,18 +2,10 @@ import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { ChartWidget } from "./ChartWidget";
 import { TableWidget } from "./TableWidget";
 import { EmptyWidget } from "./EmptyWidget";
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { WidgetDocument } from "../../types/widgets";
 
 interface WidgetRendererProps {
-  widget: {
-    _id: Id<"widgets">;
-    boardId: Id<"boards">;
-    type: "chart" | "table" | "empty";
-    title: string;
-    config: any;
-    createdAt: number;
-    updatedAt: number;
-  };
+  widget: WidgetDocument;
   isEditable?: boolean;
   onEdit?: (widgetId: string) => void;
   onDelete?: (widgetId: string) => void;
@@ -30,9 +22,9 @@ export function WidgetRenderer({
   // Common props for all widgets
   const commonProps: WidgetProps = {
     config: {
-      type: widget.type,
-      title: widget.title,
       ...widget.config,
+      type: widget.type,
+      title: widget.title, // Override any title in config
     },
     isEditable,
     onEdit: onEdit ? () => onEdit(widget._id) : undefined,

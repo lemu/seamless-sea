@@ -122,34 +122,14 @@ export function BaseWidget({
   );
 }
 
-// Widget type definitions for the registry
-export type WidgetType = "chart" | "table" | "empty";
-
-export interface WidgetConfig {
-  type: WidgetType;
-  title: string;
-  // Specific config will be defined by each widget type
-  [key: string]: any;
-}
+// Re-export types from centralized types file
+export type { WidgetType, GenericWidgetConfig as WidgetConfig, WidgetDefinition } from "../../types/widgets";
+import type { GenericWidgetConfig } from "../../types/widgets";
 
 export interface WidgetProps {
-  config: WidgetConfig;
+  config: GenericWidgetConfig & { type: string };
   onEdit?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
   isEditable?: boolean;
-}
-
-// Widget registry for extensibility
-export interface WidgetDefinition {
-  type: WidgetType;
-  name: string;
-  description: string;
-  icon: string;
-  defaultConfig: Omit<WidgetConfig, "type">;
-  component: React.ComponentType<WidgetProps>;
-  minWidth?: number;
-  minHeight?: number;
-  defaultWidth?: number;
-  defaultHeight?: number;
 }

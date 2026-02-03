@@ -1,7 +1,7 @@
 import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { Icon, Chart, createChartConfig, type ChartType, type ChartDataPoint, type ChartConfig as TideChartConfig } from "@rafal.lemieszewski/tide-ui";
 
-interface ChartConfig {
+interface ChartWidgetConfig {
   chartType: ChartType;
   dataSource?: string;
   xAxis?: string;
@@ -9,12 +9,14 @@ interface ChartConfig {
   title: string;
   data?: ChartDataPoint[];
   config?: TideChartConfig;
-  // Add more chart-specific configuration as needed
 }
 
 export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable }: WidgetProps) {
+  // Cast config to chart-specific type
+  const chartConfig = config as unknown as ChartWidgetConfig;
+
   const renderChart = () => {
-    if (!config.data || config.data.length === 0) {
+    if (!chartConfig.data || chartConfig.data.length === 0) {
       return (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
@@ -28,19 +30,19 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
     }
 
     // Use provided config or create default based on chart type
-    const chartConfig = config.config || createChartConfig([config.yAxis || "value"]);
+    const tideConfig = chartConfig.config || createChartConfig([chartConfig.yAxis || "value"]);
 
     return (
       <div className="h-[200px] w-full">
         <Chart
-          type={config.chartType}
-          data={config.data}
-          config={chartConfig}
+          type={chartConfig.chartType}
+          data={chartConfig.data}
+          config={tideConfig}
           height={200}
           showGrid={true}
           showTooltip={true}
           responsive={true}
-          colorScheme={config.chartType === "line" ? "line" : "bar"}
+          colorScheme={chartConfig.chartType === "line" ? "line" : "bar"}
         />
       </div>
     );
@@ -48,7 +50,7 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
 
   return (
     <BaseWidget
-      title={config.title}
+      title={chartConfig.title}
       onEdit={onEdit}
       onDelete={onDelete}
       onDuplicate={onDuplicate}
@@ -62,7 +64,7 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
 }
 
 // Default configuration for new chart widgets
-export const defaultChartConfig: Omit<ChartConfig, "type"> = {
+export const defaultChartConfig: ChartWidgetConfig = {
   title: "New Chart",
   chartType: "bar",
   dataSource: undefined,

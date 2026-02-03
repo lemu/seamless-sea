@@ -29,12 +29,14 @@ interface AddWidgetModalProps {
   boardId: Id<"boards">;
 }
 
+import type { GenericWidgetConfig, WidgetType } from "../../types/widgets";
+
 interface WidgetTemplate {
-  type: "chart" | "table" | "empty";
+  type: WidgetType;
   name: string;
   description: string;
   icon: string;
-  defaultConfig: any;
+  defaultConfig: GenericWidgetConfig;
   preview: React.ReactNode;
 }
 

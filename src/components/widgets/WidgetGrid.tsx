@@ -15,6 +15,18 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
+import type { WidgetDocument } from "../../types/widgets";
+
+// Layout item type for grid
+interface LayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+}
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -161,8 +173,8 @@ export function WidgetGrid({
         const currentLayout = layouts[currentBreakpoint];
 
         if (currentLayout) {
-          const widgetLayout = currentLayout.find(
-            (item: any) => item.i === newWidget._id,
+          const widgetLayout = (currentLayout as LayoutItem[]).find(
+            (item) => item.i === newWidget._id,
           );
 
           if (widgetLayout) {
@@ -261,19 +273,19 @@ export function WidgetGrid({
 
   // Smart layout generation that preserves existing widget positions
   const generateDefaultLayout = useCallback(
-    (widgets: any[]) => {
+    (widgets: WidgetDocument[]) => {
       const currentCols = cols[currentBreakpoint as keyof typeof cols];
-      const existingLayouts = layouts?.[currentBreakpoint] || [];
+      const existingLayouts = (layouts?.[currentBreakpoint] || []) as LayoutItem[];
 
       // Create a map of existing widget positions
-      const existingPositions = new Map();
-      existingLayouts.forEach((item: any) => {
+      const existingPositions = new Map<string, LayoutItem>();
+      existingLayouts.forEach((item) => {
         existingPositions.set(item.i, item);
       });
 
       // Create a grid to track occupied spaces
       const occupiedGrid = new Set<string>();
-      existingLayouts.forEach((item: any) => {
+      existingLayouts.forEach((item) => {
         for (let x = item.x; x < item.x + item.w; x++) {
           for (let y = item.y; y < item.y + item.h; y++) {
             occupiedGrid.add(`${x},${y}`);
@@ -359,9 +371,9 @@ export function WidgetGrid({
     const breakpointsToUpdate = Object.keys(updatedLayouts);
 
     for (const breakpoint of breakpointsToUpdate) {
-      const existingLayout = updatedLayouts[breakpoint] || [];
+      const existingLayout = (updatedLayouts[breakpoint] || []) as LayoutItem[];
       const existingWidgetIds = new Set(
-        existingLayout.map((item: any) => item.i),
+        existingLayout.map((item) => item.i),
       );
       const newWidgets = widgets.filter(
         (widget) => !existingWidgetIds.has(widget._id),
@@ -371,7 +383,7 @@ export function WidgetGrid({
         // Create occupied grid for this breakpoint
         const currentCols = cols[breakpoint as keyof typeof cols];
         const occupiedGrid = new Set<string>();
-        existingLayout.forEach((item: any) => {
+        (existingLayout as LayoutItem[]).forEach((item) => {
           for (let x = item.x; x < item.x + item.w; x++) {
             for (let y = item.y; y < item.y + item.h; y++) {
               occupiedGrid.add(`${x},${y}`);
@@ -440,7 +452,7 @@ export function WidgetGrid({
           allowOverlap={false}
           maxRows={maxRows}
         >
-          {widgets.map((widget: any) => (
+          {widgets.map((widget) => (
             <div key={widget._id} className="relative h-full w-full">
               <WidgetRenderer
                 widget={widget}
