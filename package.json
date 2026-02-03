@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@convex-dev/better-auth": "^0.10.10",
-    "@rafal.lemieszewski/tide-ui": "^0.68.4",
+    "@rafal.lemieszewski/tide-ui": "^0.71.0",
     "@types/papaparse": "^5.5.0",
     "@types/react-router": "^5.1.20",
     "bcryptjs": "^2.4.3",

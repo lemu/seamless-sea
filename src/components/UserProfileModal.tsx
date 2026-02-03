@@ -53,7 +53,7 @@ export function UserProfileModal({ onClose }: UserProfileModalProps) {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[var(--color-text-secondary)]">Member Since:</span>
-            <span>{formatMemberSince(user.createdAt).replace("Member since ", "")}</span>
+            <span>{formatMemberSince(user.createdAt.getTime()).replace("Member since ", "")}</span>
           </div>
         </div>
 

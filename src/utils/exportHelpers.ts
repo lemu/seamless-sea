@@ -10,6 +10,14 @@ import type {
 } from "../types/export";
 import { formatDateTime } from "./dataUtils";
 
+// Type augmentation for jsPDF internal properties
+interface JsPDFInternal {
+  internal: {
+    pages: unknown[];
+    getCurrentPageInfo(): { pageNumber: number };
+  };
+}
+
 /**
  * Download a file to the user's device
  */
@@ -27,7 +35,7 @@ export function downloadFile(blob: Blob, fileName: string): void {
 /**
  * Filter data by date range
  */
-function filterByDateRange<T extends Record<string, any>>(
+function filterByDateRange<T extends Record<string, unknown>>(
   data: T[],
   dateField: string,
   from?: Date,
@@ -36,7 +44,9 @@ function filterByDateRange<T extends Record<string, any>>(
   if (!from && !to) return data;
 
   return data.filter((row) => {
-    const rowDate = new Date(row[dateField]);
+    const dateValue = row[dateField];
+    if (typeof dateValue !== 'number' && typeof dateValue !== 'string') return true;
+    const rowDate = new Date(dateValue);
     if (from && rowDate < from) return false;
     if (to && rowDate > to) return false;
     return true;
@@ -115,16 +125,16 @@ function formatValueForExport(value: unknown, columnId: string): string | number
 /**
  * Select and order columns based on export configuration
  */
-function selectColumns<T extends Record<string, any>>(
+function selectColumns<T extends Record<string, unknown>>(
   data: T[],
   columns: ExportColumn[]
-): Record<string, any>[] {
+): Record<string, unknown>[] {
   const selectedColumns = columns
     .filter((col) => col.selected)
     .sort((a, b) => a.order - b.order);
 
   return data.map((row) => {
-    const newRow: Record<string, any> = {};
+    const newRow: Record<string, unknown> = {};
     selectedColumns.forEach((col) => {
       newRow[col.label] = formatValueForExport(row[col.id], col.id);
     });
@@ -140,7 +150,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * Export data as CSV
  */
-export async function exportToCSV<T extends Record<string, any>>(
+export async function exportToCSV<T extends Record<string, unknown>>(
   data: T[],
   options: ExportOptions,
   callbacks?: ExportCallbacks
@@ -210,7 +220,7 @@ export async function exportToCSV<T extends Record<string, any>>(
 /**
  * Export data as Excel
  */
-export async function exportToExcel<T extends Record<string, any>>(
+export async function exportToExcel<T extends Record<string, unknown>>(
   data: T[],
   options: ExportOptions,
   callbacks?: ExportCallbacks
@@ -315,7 +325,7 @@ export async function exportToExcel<T extends Record<string, any>>(
 /**
  * Export data as PDF
  */
-export async function exportToPDF<T extends Record<string, any>>(
+export async function exportToPDF<T extends Record<string, unknown>>(
   data: T[],
   options: ExportOptions,
   callbacks?: ExportCallbacks
@@ -351,7 +361,15 @@ export async function exportToPDF<T extends Record<string, any>>(
 
     // Prepare table data
     const headers = Object.keys(exportData[0] || {});
-    const rows = exportData.map((row) => headers.map((header) => row[header]));
+    const rows = exportData.map((row) =>
+      headers.map((header) => {
+        const value = row[header];
+        // Convert to string/number for PDF table
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string' || typeof value === 'number') return value;
+        return String(value);
+      })
+    );
 
     // Add table to PDF
     autoTable(doc, {
@@ -370,8 +388,9 @@ export async function exportToPDF<T extends Record<string, any>>(
       didDrawPage: (_data) => {
         // Add page numbers if requested
         if (options.pdf?.includePageNumbers) {
-          const pageCount = (doc as any).internal.pages.length - 1;
-          const currentPage = (doc as any).internal.getCurrentPageInfo().pageNumber;
+          const docInternal = doc as unknown as JsPDFInternal;
+          const pageCount = docInternal.internal.pages.length - 1;
+          const currentPage = docInternal.internal.getCurrentPageInfo().pageNumber;
           doc.setFontSize(8);
           doc.text(
             `Page ${currentPage} of ${pageCount}`,
@@ -421,7 +440,7 @@ export async function exportToPDF<T extends Record<string, any>>(
 /**
  * Main export function that delegates to format-specific exporters
  */
-export async function exportData<T extends Record<string, any>>(
+export async function exportData<T extends Record<string, unknown>>(
   data: T[],
   options: ExportOptions,
   callbacks?: ExportCallbacks

@@ -286,3 +286,23 @@ export function formatCountryName(code: string): string {
     return code;
   }
 }
+
+/**
+ * Parse and reformat a currency string to ensure thousand separators
+ * Handles formats like "$45509/day" -> "$45,509/day"
+ * @param value - The currency string to reformat
+ * @returns Reformatted currency string with thousand separators
+ */
+export function reformatCurrencyString(value: string): string {
+  const match = value.match(/^(\$?)(\d+(?:\.\d+)?)(.*?)$/);
+  if (!match) return value;
+
+  const [, prefix, numStr, suffix] = match;
+  const num = parseFloat(numStr);
+  const formatted = num.toLocaleString("en-US", {
+    minimumFractionDigits: numStr.includes(".") ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+
+  return `${prefix}${formatted}${suffix}`;
+}

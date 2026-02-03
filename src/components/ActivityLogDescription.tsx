@@ -3,7 +3,8 @@ import {
   ActivityLogDescription as TideActivityLogDescription,
   ActivityLogTime,
   ActivityLogChevron,
-  FixtureStatus
+  FixtureStatus,
+  type StatusValue,
 } from "@rafal.lemieszewski/tide-ui";
 import type { ActivityLogEntry } from "../types/activity";
 import { formatActivityLog } from "../utils/activityLogFormatter";
@@ -51,9 +52,10 @@ export function FormattedActivityLogDescription({
           return (
             <FixtureStatus
               key={index}
-              value={part.status.value as any}
-              size="sm"
+              value={part.status.value as StatusValue}
+              size="xsm"
               lowercase={true}
+              asBadge
             />
           );
         }

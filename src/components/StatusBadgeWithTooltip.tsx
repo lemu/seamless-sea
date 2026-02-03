@@ -3,6 +3,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  type StatusValue,
 } from "@rafal.lemieszewski/tide-ui";
 import { formatDuration as formatDurationUtil } from "../utils/dataUtils";
 
@@ -50,7 +51,7 @@ export function StatusBadgeWithTooltip({
   if (!timeline || (!timeline.currentStage && !timeline.previousStage)) {
     return (
       <FixtureStatus
-        value={value as any}
+        value={value as StatusValue}
         size={size}
         lowercase={lowercase}
         asBadge
@@ -80,7 +81,7 @@ export function StatusBadgeWithTooltip({
       <TooltipTrigger asChild>
         <span className="inline-block">
           <FixtureStatus
-            value={value as any}
+            value={value as StatusValue}
             size={size}
             lowercase={lowercase}
             asBadge

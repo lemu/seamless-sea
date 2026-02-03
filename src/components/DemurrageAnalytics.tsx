@@ -9,7 +9,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@rafal.lemieszewski/tide-ui";
-import { formatCurrency, formatPercent } from "../utils/dataUtils";
+import { formatPercent } from "../utils/dataUtils";
 
 interface DemurrageAnalyticsProps {
   // Negotiation history

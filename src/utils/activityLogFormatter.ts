@@ -144,12 +144,12 @@ export function extractContextFromEntry(entry: ActivityLogEntry): {
   }
 
   // Extract side (Owner/Charterer) from metadata
-  if (entry.metadata?.side) {
+  if (entry.metadata?.side && typeof entry.metadata.side === 'string') {
     context.side = entry.metadata.side;
   }
 
   // Extract rejection reason from metadata
-  if (entry.metadata?.reason) {
+  if (entry.metadata?.reason && typeof entry.metadata.reason === 'string') {
     context.reason = entry.metadata.reason;
   }
 

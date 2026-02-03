@@ -155,12 +155,21 @@ function Boards() {
           {boards?.map((board) => (
             <div
               key={board._id}
-              className="group relative cursor-pointer rounded-lg border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]"
+              role="button"
+              tabIndex={0}
+              className="group relative cursor-pointer rounded-lg border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-brand)]"
               onClick={() => navigate(`/boards/${board._id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate(`/boards/${board._id}`);
+                }
+              }}
+              aria-label={`Open board: ${board.title}`}
             >
               {/* Pin Button */}
               <button
-                className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
+                className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isPinned(board._id)) {
@@ -169,6 +178,7 @@ function Boards() {
                     handlePinBoard(board._id);
                   }
                 }}
+                aria-label={isPinned(board._id) ? `Unpin board: ${board.title}` : `Pin board: ${board.title}`}
               >
                 <Icon
                   name={isPinned(board._id) ? "pin" : "pin-off"}

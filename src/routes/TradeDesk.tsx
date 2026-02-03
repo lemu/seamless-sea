@@ -62,9 +62,39 @@ interface OrderData {
   children?: OrderData[];
 }
 
+// Negotiation data from API
+interface NegotiationItem {
+  _id: string;
+  negotiationNumber?: string;
+  status: string;
+  counterparty?: { name?: string } | null;
+  broker?: { name?: string } | null;
+  vessel?: { name?: string } | null;
+  bidPrice?: string;
+  offerPrice?: string;
+  demurrageRate?: string;
+  tce?: string;
+  validity?: string;
+}
+
+// Order with negotiations from API
+interface OrderWithNegotiations {
+  _id: string;
+  orderNumber: string;
+  title?: string;
+  type: string;
+  stage: string;
+  laycanStart?: number;
+  laycanEnd?: number;
+  demurrageRate?: string;
+  tce?: string;
+  validityHours?: number;
+  negotiations: NegotiationItem[];
+}
+
 // Transform database orders with nested negotiations into hierarchical structure
 const transformDatabaseToHierarchy = (
-  ordersWithNegotiations: any[]
+  ordersWithNegotiations: OrderWithNegotiations[]
 ): OrderData[] => {
   if (!ordersWithNegotiations || ordersWithNegotiations.length === 0) return [];
 
@@ -73,19 +103,18 @@ const transformDatabaseToHierarchy = (
     const orderNegotiations = order.negotiations || [];
 
     // Group negotiations by broker
-    const negotiationsByBroker = orderNegotiations.reduce((acc: Record<string, any[]>, neg: any) => {
+    const negotiationsByBroker = orderNegotiations.reduce<Record<string, NegotiationItem[]>>((acc, neg) => {
       const brokerName = neg.broker?.name || "Unknown Broker";
       if (!acc[brokerName]) {
         acc[brokerName] = [];
       }
       acc[brokerName].push(neg);
       return acc;
-    }, {} as Record<string, any[]>);
+    }, {});
 
     // Create broker groups (Level 2)
     const brokerGroups: OrderData[] = Object.entries(negotiationsByBroker).map(
-      ([brokerName, negs]) => {
-        const negotiations = negs as any[];
+      ([brokerName, negotiations]) => {
         return {
         id: `broker-${order.orderNumber}-${brokerName.toLowerCase().replace(/\s/g, "-")}`,
         counterparty: brokerName,
@@ -100,7 +129,7 @@ const transformDatabaseToHierarchy = (
         tce: "",
         validity: "",
         isBrokerGroup: true,
-        children: negotiations.map((neg: any) => ({
+        children: negotiations.map((neg) => ({
           id: neg.negotiationNumber || neg._id,
           counterparty: neg.counterparty?.name || "Unknown",
           broker: neg.broker?.name || "",
@@ -109,7 +138,7 @@ const transformDatabaseToHierarchy = (
             .split("-")
             .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
             .join(" "),
-          laycan: order.laycanStart
+          laycan: order.laycanStart && order.laycanEnd
             ? `${new Date(order.laycanStart).toLocaleDateString()} — ${new Date(order.laycanEnd).toLocaleDateString()}`
             : "-",
           vessel: neg.vessel?.name || "TBN",
@@ -125,7 +154,7 @@ const transformDatabaseToHierarchy = (
 
     // Calculate aggregated values for top-level order
     const allCounterparties = [
-      ...new Set(orderNegotiations.map((n: any) => n.counterparty?.name).filter(Boolean)),
+      ...new Set(orderNegotiations.map((n) => n.counterparty?.name).filter(Boolean)),
     ];
     const displayCounterparty =
       allCounterparties.length > 2
@@ -138,7 +167,7 @@ const transformDatabaseToHierarchy = (
       counterparty: displayCounterparty || "No offers",
       type: order.type.charAt(0).toUpperCase() + order.type.slice(1),
       stage: order.stage.charAt(0).toUpperCase() + order.stage.slice(1),
-      laycan: order.laycanStart
+      laycan: order.laycanStart && order.laycanEnd
         ? `${new Date(order.laycanStart).toLocaleDateString()} — ${new Date(order.laycanEnd).toLocaleDateString()}`
         : "-",
       vessel: `${orderNegotiations.length} option${orderNegotiations.length !== 1 ? "s" : ""}`,
