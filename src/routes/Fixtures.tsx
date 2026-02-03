@@ -2391,12 +2391,26 @@ function Fixtures() {
     Record<string, FilterValue>
   >({});
   const [pinnedFilters, setPinnedFilters] = useState<string[]>([
-    "vessels",
     "status",
+    "vessels",
+    "loadPortName",
+    "dischargePortName",
+    "cargoTypeName",
+    "owner",
+    "broker",
+    "charterer",
+    "cpDate",
   ]);
   const [globalPinnedFilters, setGlobalPinnedFilters] = useState<string[]>([
-    "vessels",
     "status",
+    "vessels",
+    "loadPortName",
+    "dischargePortName",
+    "cargoTypeName",
+    "owner",
+    "broker",
+    "charterer",
+    "cpDate",
   ]);
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
 
@@ -2931,261 +2945,6 @@ function Fixtures() {
           );
         },
       },
-      {
-        accessorKey: "owner",
-        header: "Owner",
-        meta: {
-          label: "Owner",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="building" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const owner = row.getValue("owner") as string;
-          const ownerAvatarUrl = row.original.ownerAvatarUrl;
-          return (
-            <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
-                <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
-              </Avatar>
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(owner, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique owners with avatar data
-          const uniqueOwners = Array.from(
-            new Map(
-              row.subRows?.map((r) => [
-                r.original.owner,
-                { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
-              ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single owner: avatar + name
-          if (uniqueOwners.length === 1) {
-            const owner = uniqueOwners[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
-                  <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(owner.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueOwners.length} owners
-              </div>
-            );
-          }
-
-          // Multiple owners: list avatars in a row
-          const displayOwners = uniqueOwners.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayOwners.map((owner, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
-                        <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{owner.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "broker",
-        header: "Broker",
-        meta: {
-          label: "Broker",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="briefcase" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const broker = row.getValue("broker") as string;
-          const brokerAvatarUrl = row.original.brokerAvatarUrl;
-          return (
-            <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
-                <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
-              </Avatar>
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(broker, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique brokers with avatar data
-          const uniqueBrokers = Array.from(
-            new Map(
-              row.subRows?.map((r) => [
-                r.original.broker,
-                { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
-              ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single broker: avatar + name
-          if (uniqueBrokers.length === 1) {
-            const broker = uniqueBrokers[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
-                  <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(broker.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueBrokers.length} brokers
-              </div>
-            );
-          }
-
-          // Multiple brokers: list avatars in a row
-          const displayBrokers = uniqueBrokers.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayBrokers.map((broker, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
-                        <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{broker.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "charterer",
-        header: "Charterer",
-        meta: {
-          label: "Charterer",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const charterer = row.getValue("charterer") as string;
-          const chartererAvatarUrl = row.original.chartererAvatarUrl;
-          return (
-            <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
-                <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
-              </Avatar>
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(charterer, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique charterers with avatar data
-          const uniqueCharterers = Array.from(
-            new Map(
-              row.subRows?.map((r) => [
-                r.original.charterer,
-                { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
-              ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single charterer: avatar + name
-          if (uniqueCharterers.length === 1) {
-            const charterer = uniqueCharterers[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
-                  <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(charterer.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueCharterers.length} charterers
-              </div>
-            );
-          }
-
-          // Multiple charterers: list avatars in a row
-          const displayCharterers = uniqueCharterers.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayCharterers.map((charterer, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
-                        <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{charterer.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
 
       // Location - Load
       {
@@ -3494,6 +3253,263 @@ function Fixtures() {
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
               {value ? formatQuantity(value) : "–"}
+            </div>
+          );
+        },
+      },
+
+      // Parties
+      {
+        accessorKey: "owner",
+        header: "Owner",
+        meta: {
+          label: "Owner",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="building" className={className} />,
+        },
+        enableGrouping: true,
+        enableGlobalFilter: true,
+        cell: ({ row }: FixtureCellContext) => {
+          const owner = row.getValue("owner") as string;
+          const ownerAvatarUrl = row.original.ownerAvatarUrl;
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
+                <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(owner, globalSearchTerms)}
+              </div>
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          // Collect unique owners with avatar data
+          const uniqueOwners = Array.from(
+            new Map(
+              row.subRows?.map((r) => [
+                r.original.owner,
+                { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
+
+          // Single owner: avatar + name
+          if (uniqueOwners.length === 1) {
+            const owner = uniqueOwners[0];
+            return (
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
+                  <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(owner.name, globalSearchTerms)}
+                </div>
+              </div>
+            );
+          }
+
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueOwners.length} owners
+              </div>
+            );
+          }
+
+          // Multiple owners: list avatars in a row
+          const displayOwners = uniqueOwners.slice(0, 5);
+          return (
+            <div className="flex items-center gap-1">
+              {displayOwners.map((owner, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
+                        <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{owner.name}</TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "broker",
+        header: "Broker",
+        meta: {
+          label: "Broker",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="briefcase" className={className} />,
+        },
+        enableGrouping: true,
+        enableGlobalFilter: true,
+        cell: ({ row }: FixtureCellContext) => {
+          const broker = row.getValue("broker") as string;
+          const brokerAvatarUrl = row.original.brokerAvatarUrl;
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
+                <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(broker, globalSearchTerms)}
+              </div>
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          // Collect unique brokers with avatar data
+          const uniqueBrokers = Array.from(
+            new Map(
+              row.subRows?.map((r) => [
+                r.original.broker,
+                { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
+
+          // Single broker: avatar + name
+          if (uniqueBrokers.length === 1) {
+            const broker = uniqueBrokers[0];
+            return (
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
+                  <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(broker.name, globalSearchTerms)}
+                </div>
+              </div>
+            );
+          }
+
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueBrokers.length} brokers
+              </div>
+            );
+          }
+
+          // Multiple brokers: list avatars in a row
+          const displayBrokers = uniqueBrokers.slice(0, 5);
+          return (
+            <div className="flex items-center gap-1">
+              {displayBrokers.map((broker, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
+                        <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{broker.name}</TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "charterer",
+        header: "Charterer",
+        meta: {
+          label: "Charterer",
+          align: "left",
+          filterable: true,
+          filterVariant: "multiselect",
+          filterGroup: "Parties",
+          icon: ({ className }) => <Icon name="user" className={className} />,
+        },
+        enableGrouping: true,
+        enableGlobalFilter: true,
+        cell: ({ row }: FixtureCellContext) => {
+          const charterer = row.getValue("charterer") as string;
+          const chartererAvatarUrl = row.original.chartererAvatarUrl;
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar type="organization" size="xxs">
+                <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
+                <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
+              </Avatar>
+              <div className="text-body-sm text-[var(--color-text-primary)]">
+                {highlightSearchTerms(charterer, globalSearchTerms)}
+              </div>
+            </div>
+          );
+        },
+        aggregatedCell: ({ row }: FixtureCellContext) => {
+          // Collect unique charterers with avatar data
+          const uniqueCharterers = Array.from(
+            new Map(
+              row.subRows?.map((r) => [
+                r.original.charterer,
+                { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
+              ])
+            ).values()
+          ) as Array<{ name: string; avatarUrl?: string }>;
+
+          // Single charterer: avatar + name
+          if (uniqueCharterers.length === 1) {
+            const charterer = uniqueCharterers[0];
+            return (
+              <div className="flex items-center gap-2">
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
+                  <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
+                </Avatar>
+                <div className="text-body-sm text-[var(--color-text-primary)]">
+                  {highlightSearchTerms(charterer.name, globalSearchTerms)}
+                </div>
+              </div>
+            );
+          }
+
+          // More than 8 total items - show count
+          if (row.subRows?.length > 8) {
+            return (
+              <div className="text-body-sm text-[var(--color-text-secondary)]">
+                {uniqueCharterers.length} charterers
+              </div>
+            );
+          }
+
+          // Multiple charterers: list avatars in a row
+          const displayCharterers = uniqueCharterers.slice(0, 5);
+          return (
+            <div className="flex items-center gap-1">
+              {displayCharterers.map((charterer, index) => (
+                <Tooltip key={index}>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Avatar type="organization" size="xxs">
+                        <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
+                        <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{charterer.name}</TooltipContent>
+                </Tooltip>
+              ))}
             </div>
           );
         },
