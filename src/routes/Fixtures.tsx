@@ -3003,6 +3003,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue, row }) => {
           const value = getValue<string>();
           const countryCode = row.original.loadPort?.countryCode;
@@ -3049,6 +3050,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -3128,6 +3130,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="map-pin" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue, row }) => {
           const value = getValue<string>();
           const countryCode = row.original.dischargePort?.countryCode;
@@ -3174,6 +3177,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="truck" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -3214,6 +3218,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="package" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -3920,6 +3925,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="activity" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -4816,6 +4822,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -4854,6 +4861,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="user" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -4932,6 +4940,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="git-branch" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           return (
@@ -4970,6 +4979,7 @@ function Fixtures() {
           icon: ({ className }) => <Icon name="file-check" className={className} />,
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ getValue }) => {
           const value = getValue<string>();
           const displayValue = value === "voyage-charter" ? "Voyage charter"
@@ -5896,15 +5906,36 @@ function Fixtures() {
   const matchesGlobalSearch = useCallback((fixture: FixtureData): boolean => {
     if (globalSearchTerms.length === 0) return true;
 
-    // Searchable fields
+    // Searchable fields - includes IDs, names, ports, cargo, and user tracking
     const searchableText = [
+      // Core identifiers
       fixture.fixtureId,
       fixture.orderId,
       fixture.cpId,
+      fixture.negotiationId,
+      // Party names
       fixture.vessels,
       fixture.owner,
       fixture.broker,
       fixture.charterer,
+      // Ports and locations
+      fixture.loadPortName,
+      fixture.dischargePortName,
+      fixture.loadPortCountry,
+      fixture.dischargePortCountry,
+      // Cargo and vessel details
+      fixture.cargoTypeName,
+      fixture.vesselImo,
+      // User tracking
+      fixture.dealCaptureUser,
+      fixture.orderCreatedBy,
+      // Market and contract info
+      fixture.marketIndexName,
+      fixture.parentCpId,
+      fixture.contractType,
+      // Delivery types
+      fixture.loadDeliveryType,
+      fixture.dischargeRedeliveryType,
     ]
       .filter(Boolean)
       .join(' ')
