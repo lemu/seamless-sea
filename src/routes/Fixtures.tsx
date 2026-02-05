@@ -2041,6 +2041,11 @@ function deriveFilterDefinitions<TData>(
         filterDef.rangeMode = true;
       }
 
+      // Add dateConfig for date filters with custom granularity
+      if (meta.filterVariant === "date" && meta.dateGranularity) {
+        filterDef.dateConfig = { granularity: meta.dateGranularity };
+      }
+
       // Add options from metadata or options map
       if (meta.filterVariant === "multiselect" || meta.filterVariant === "select") {
         // Priority: 1) metadata options, 2) optionsMap, 3) undefined
@@ -2201,6 +2206,8 @@ function Fixtures() {
     fixtureId: false,
     // Priority 1: Core Commercial Fields
     laycan: false,
+    laycanStart: false,
+    laycanEnd: false,
     loadPortName: false,
     loadPortCountry: false,
     loadDeliveryType: false,
@@ -2422,6 +2429,8 @@ function Fixtures() {
     // Hide all new columns by default
     // Priority 1: Core Commercial Fields
     laycan: false,
+    laycanStart: false,
+    laycanEnd: false,
     loadPortName: false,
     loadPortCountry: false,
     loadDeliveryType: false,
@@ -2700,6 +2709,7 @@ function Fixtures() {
           align: "left",
         },
         enableGrouping: true,
+        enableGlobalFilter: true,
         cell: ({ row }: FixtureCellContext) => {
           const negotiationId = row.getValue("negotiationId") as string;
           if (negotiationId === "-") {
@@ -3561,6 +3571,52 @@ function Fixtures() {
         },
       },
 
+      // Filter-only columns for laycan date filtering (hidden, filterable)
+      {
+        accessorKey: "laycanStart",
+        header: "Laycan Start",
+        size: 130,
+        meta: {
+          label: "Laycan Start",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "-"}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "laycanEnd",
+        header: "Laycan End",
+        size: 130,
+        meta: {
+          label: "Laycan End",
+          align: "left",
+          filterable: true,
+          filterVariant: "date",
+          filterGroup: "Date & Time",
+          icon: ({ className }) => <Icon name="calendar" className={className} />,
+        },
+        enableGrouping: false,
+        cell: ({ getValue }) => {
+          const value = getValue<number>();
+          return (
+            <div className="text-body-sm text-[var(--color-text-primary)]">
+              {value ? formatTimestamp(value) : "-"}
+            </div>
+          );
+        },
+      },
+
       // Commercial - Freight
       {
         accessorKey: "finalFreightRate",
@@ -4172,6 +4228,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4204,6 +4261,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4236,6 +4294,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4268,6 +4327,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4434,6 +4494,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4526,6 +4587,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4620,6 +4682,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
@@ -4712,6 +4775,7 @@ function Fixtures() {
           align: "left",
           filterable: true,
           filterVariant: "date",
+          dateGranularity: "day",
           filterGroup: "Date & Time",
           icon: ({ className }) => <Icon name="calendar" className={className} />,
         },
