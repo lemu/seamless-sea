@@ -244,6 +244,7 @@ declare module '@tanstack/react-table' {
     // Custom extensions (not in tide-ui)
     filterable?: boolean;
     filterGroup?: string;
+    dateGranularity?: "day" | "month";
   }
 }
 
@@ -253,6 +254,7 @@ interface ColumnMetaWithLabel {
   align?: "left" | "center" | "right";
   filterable?: boolean;
   filterGroup?: string;
+  dateGranularity?: "day" | "month";
 }
 
 // Transform database contracts and recap managers to FixtureData format
