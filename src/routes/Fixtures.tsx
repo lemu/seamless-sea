@@ -3300,10 +3300,12 @@ function Fixtures() {
           // Collect unique owners with avatar data
           const uniqueOwners = Array.from(
             new Map(
-              row.subRows?.map((r) => [
-                r.original.owner,
-                { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
-              ])
+              row.subRows
+                ?.filter((r) => r.original.owner !== "-" && r.original.owner !== "Unknown")
+                .map((r) => [
+                  r.original.owner,
+                  { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
+                ])
             ).values()
           ) as Array<{ name: string; avatarUrl?: string }>;
 
@@ -3385,10 +3387,12 @@ function Fixtures() {
           // Collect unique brokers with avatar data
           const uniqueBrokers = Array.from(
             new Map(
-              row.subRows?.map((r) => [
-                r.original.broker,
-                { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
-              ])
+              row.subRows
+                ?.filter((r) => r.original.broker !== "-" && r.original.broker !== "Unknown")
+                .map((r) => [
+                  r.original.broker,
+                  { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
+                ])
             ).values()
           ) as Array<{ name: string; avatarUrl?: string }>;
 
@@ -3470,10 +3474,12 @@ function Fixtures() {
           // Collect unique charterers with avatar data
           const uniqueCharterers = Array.from(
             new Map(
-              row.subRows?.map((r) => [
-                r.original.charterer,
-                { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
-              ])
+              row.subRows
+                ?.filter((r) => r.original.charterer !== "-" && r.original.charterer !== "Unknown")
+                .map((r) => [
+                  r.original.charterer,
+                  { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
+                ])
             ).values()
           ) as Array<{ name: string; avatarUrl?: string }>;
 
