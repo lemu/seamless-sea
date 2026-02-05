@@ -3284,12 +3284,15 @@ function Fixtures() {
         cell: ({ row }: FixtureCellContext) => {
           const owner = row.getValue("owner") as string;
           const ownerAvatarUrl = row.original.ownerAvatarUrl;
+          const isPlaceholder = owner === "-" || owner === "Unknown";
           return (
             <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
-                <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
-              </Avatar>
+              {!isPlaceholder && (
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
+                  <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
+                </Avatar>
+              )}
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {highlightSearchTerms(owner, globalSearchTerms)}
               </div>
@@ -3371,12 +3374,15 @@ function Fixtures() {
         cell: ({ row }: FixtureCellContext) => {
           const broker = row.getValue("broker") as string;
           const brokerAvatarUrl = row.original.brokerAvatarUrl;
+          const isPlaceholder = broker === "-" || broker === "Unknown";
           return (
             <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
-                <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
-              </Avatar>
+              {!isPlaceholder && (
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
+                  <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
+                </Avatar>
+              )}
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {highlightSearchTerms(broker, globalSearchTerms)}
               </div>
@@ -3458,12 +3464,15 @@ function Fixtures() {
         cell: ({ row }: FixtureCellContext) => {
           const charterer = row.getValue("charterer") as string;
           const chartererAvatarUrl = row.original.chartererAvatarUrl;
+          const isPlaceholder = charterer === "-" || charterer === "Unknown";
           return (
             <div className="flex items-center gap-2">
-              <Avatar type="organization" size="xxs">
-                <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
-                <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
-              </Avatar>
+              {!isPlaceholder && (
+                <Avatar type="organization" size="xxs">
+                  <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
+                  <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
+                </Avatar>
+              )}
               <div className="text-body-sm text-[var(--color-text-primary)]">
                 {highlightSearchTerms(charterer, globalSearchTerms)}
               </div>
