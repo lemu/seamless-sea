@@ -2830,7 +2830,7 @@ function Fixtures() {
           filterable: true,
           filterVariant: "multiselect",
           filterGroup: "Status",
-          icon: ({ className }) => <Icon name="file-text" className={className} />,
+          icon: ({ className }) => <Icon name="circle-check-big" className={className} />,
         },
         enableGrouping: true,
         cell: ({ row }: FixtureCellContext) => {
