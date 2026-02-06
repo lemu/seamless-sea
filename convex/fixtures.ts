@@ -435,6 +435,18 @@ async function enrichFixture(
   };
 }
 
+// Valid fixture status values
+const fixtureStatusValues = [
+  "draft",
+  "working-copy",
+  "final",
+  "on-subs",
+  "fully-fixed",
+  "canceled",
+] as const;
+
+type FixtureStatus = typeof fixtureStatusValues[number];
+
 // List fixtures with enriched data - PAGINATED VERSION
 // Returns cursor-based pagination for better performance with large datasets
 export const listEnrichedPaginated = query({
@@ -442,19 +454,27 @@ export const listEnrichedPaginated = query({
     organizationId: v.optional(v.id("organizations")),
     cursor: v.optional(v.string()), // Cursor is the _id of the last item from previous page
     limit: v.optional(v.number()), // Number of items per page (default 25)
+    // Server-side filters
+    status: v.optional(v.array(v.string())), // Filter by fixture status (e.g., ["final", "fully-fixed"])
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 25;
     const orgId = args.organizationId;
 
     // Build the query - order by _creationTime descending (newest first)
-    const allFixtures = orgId !== undefined
+    let allFixtures = orgId !== undefined
       ? await ctx.db
           .query("fixtures")
           .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
           .order("desc")
           .collect()
       : await ctx.db.query("fixtures").order("desc").collect();
+
+    // Apply server-side status filter if provided
+    if (args.status && args.status.length > 0) {
+      const statusSet = new Set(args.status);
+      allFixtures = allFixtures.filter(f => statusSet.has(f.status));
+    }
 
     // Find cursor position if provided
     let startIndex = 0;

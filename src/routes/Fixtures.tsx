@@ -2158,13 +2158,74 @@ function Fixtures() {
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]); // Stack of cursors for back navigation
   const [serverPageIndex, setServerPageIndex] = useState(0);
 
+  // Filters state (declared early so it's available for query params)
+  const [activeFilters, setActiveFilters] = useState<
+    Record<string, FilterValue>
+  >({});
+
+  // Extract fixture status values from activeFilters for server-side filtering
+  // The UI uses combined statuses like "contract-final", "contract-draft"
+  // We extract the base status (e.g., "final", "draft") for fixture-level filtering
+  const serverStatusFilter = useMemo(() => {
+    const statusFilter = activeFilters.status;
+    if (!statusFilter || !Array.isArray(statusFilter) || statusFilter.length === 0) {
+      return undefined;
+    }
+
+    // Map combined status values to fixture status values
+    // "contract-final" -> "final", "contract-working-copy" -> "working-copy", etc.
+    const fixtureStatuses = new Set<string>();
+    const statusMapping: Record<string, string> = {
+      'draft': 'draft',
+      'working-copy': 'working-copy',
+      'final': 'final',
+      'on-subs': 'on-subs',
+      'fully-fixed': 'fully-fixed',
+      'canceled': 'canceled',
+    };
+
+    statusFilter.forEach(status => {
+      // Extract status from combined format (e.g., "contract-final" -> "final")
+      const parts = String(status).split('-');
+      // The status is everything after the first part (which is "contract" or "recap")
+      if (parts.length >= 2) {
+        const baseStatus = parts.slice(1).join('-'); // Handle "working-copy" which has a hyphen
+        if (statusMapping[baseStatus]) {
+          fixtureStatuses.add(statusMapping[baseStatus]);
+        }
+      }
+    });
+
+    return fixtureStatuses.size > 0 ? Array.from(fixtureStatuses) : undefined;
+  }, [activeFilters.status]);
+
+  // Reset pagination when filters change
+  const prevStatusFilterRef = useRef<string[] | undefined>(undefined);
+  useEffect(() => {
+    const currentFilter = serverStatusFilter;
+    const prevFilter = prevStatusFilterRef.current;
+
+    // Check if filter changed
+    const filterChanged = JSON.stringify(currentFilter) !== JSON.stringify(prevFilter);
+    if (filterChanged && prevFilter !== undefined) {
+      // Reset pagination when status filter changes (but not on initial mount)
+      setCurrentCursor(undefined);
+      setCursorHistory([undefined]);
+      setServerPageIndex(0);
+    }
+
+    prevStatusFilterRef.current = currentFilter;
+  }, [serverStatusFilter]);
+
   // Query fixtures with enriched data using paginated query
   const paginatedFixtures = useQuery(
     api.fixtures.listEnrichedPaginated,
     organizationId ? {
       organizationId,
       cursor: currentCursor,
-      limit: serverPageSize
+      limit: serverPageSize,
+      // Server-side filters
+      status: serverStatusFilter,
     } : "skip"
   );
 
@@ -2445,10 +2506,7 @@ function Fixtures() {
     }
   }, [userBookmarksFromDb, userId]);
 
-  // Filters state
-  const [activeFilters, setActiveFilters] = useState<
-    Record<string, FilterValue>
-  >({});
+  // Note: activeFilters state is declared earlier (near query params) for server-side filtering
   const [pinnedFilters, setPinnedFilters] = useState<string[]>([
     "status",
     "vessels",
