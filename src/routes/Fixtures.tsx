@@ -2152,27 +2152,72 @@ function Fixtures() {
   // Track initial loading state to ensure skeleton shows on first load
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Query fixtures with enriched data (includes contracts, recaps, and company avatars)
-  const fixtures = useQuery(
-    api.fixtures.listEnriched,
-    organizationId ? { organizationId } : "skip"
+  // Server pagination state
+  const [serverPageSize, setServerPageSize] = useState(25);
+  const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
+  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]); // Stack of cursors for back navigation
+  const [serverPageIndex, setServerPageIndex] = useState(0);
+
+  // Query fixtures with enriched data using paginated query
+  const paginatedFixtures = useQuery(
+    api.fixtures.listEnrichedPaginated,
+    organizationId ? {
+      organizationId,
+      cursor: currentCursor,
+      limit: serverPageSize
+    } : "skip"
   );
 
   // Clear initial loading once fixtures data is available
   useEffect(() => {
-    if (fixtures !== undefined) {
+    if (paginatedFixtures !== undefined) {
       setIsInitialLoading(false);
     }
-  }, [fixtures]);
+  }, [paginatedFixtures]);
 
   // Detect loading state
-  const isLoadingFixtures = fixtures === undefined;
+  const isLoadingFixtures = paginatedFixtures === undefined;
 
   // Transform database data to fixture format
   const fixtureData = useMemo(() => {
-    if (!fixtures) return [];
-    return transformFixturesToTableData(fixtures as unknown as FixtureWithRelations[]);
-  }, [fixtures]);
+    if (!paginatedFixtures?.items) return [];
+    return transformFixturesToTableData(paginatedFixtures.items as unknown as FixtureWithRelations[]);
+  }, [paginatedFixtures?.items]);
+
+  // Server pagination info
+  const serverHasMore = paginatedFixtures?.hasMore ?? false;
+  const serverTotalCount = paginatedFixtures?.totalCount ?? 0;
+  const serverNextCursor = paginatedFixtures?.nextCursor ?? null;
+
+  // Handle server pagination - go to next page
+  const handleServerNextPage = useCallback(() => {
+    if (serverNextCursor) {
+      setCursorHistory(prev => [...prev, serverNextCursor]);
+      setCurrentCursor(serverNextCursor);
+      setServerPageIndex(prev => prev + 1);
+    }
+  }, [serverNextCursor]);
+
+  // Handle server pagination - go to previous page
+  const handleServerPrevPage = useCallback(() => {
+    if (serverPageIndex > 0) {
+      setCursorHistory(prev => {
+        const newHistory = [...prev];
+        newHistory.pop(); // Remove current cursor
+        return newHistory;
+      });
+      setCurrentCursor(cursorHistory[cursorHistory.length - 2]); // Go to previous cursor
+      setServerPageIndex(prev => prev - 1);
+    }
+  }, [serverPageIndex, cursorHistory]);
+
+  // Reset server pagination when page size changes
+  const handleServerPageSizeChange = useCallback((newSize: number) => {
+    setServerPageSize(newSize);
+    setCurrentCursor(undefined);
+    setCursorHistory([undefined]);
+    setServerPageIndex(0);
+  }, []);
 
   // Helper function to highlight search terms in text
   const highlightSearchTerms = (text: string, terms: string[]) => {
@@ -2277,6 +2322,7 @@ function Fixtures() {
   };
 
   // System bookmarks (read-only, configured via props)
+  // Note: count shows serverTotalCount for accurate representation of total fixtures
   const systemBookmarks: Bookmark[] = [
     {
       id: "system-all",
@@ -2285,7 +2331,7 @@ function Fixtures() {
       isDefault: true,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: fixtureData.length,
+      count: serverTotalCount,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -2306,7 +2352,7 @@ function Fixtures() {
       isDefault: false,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: fixtureData.length,
+      count: serverTotalCount,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -2327,7 +2373,7 @@ function Fixtures() {
       isDefault: false,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: fixtureData.length,
+      count: serverTotalCount,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -5866,6 +5912,12 @@ function Fixtures() {
 
     setActiveBookmarkId(bookmark.id);
 
+    // Reset server pagination when switching bookmarks
+    // (filters will change which affects server-side data)
+    setCurrentCursor(undefined);
+    setCursorHistory([undefined]);
+    setServerPageIndex(0);
+
     if (bookmark.filtersState) {
       setActiveFilters(bookmark.filtersState.activeFilters);
       setGlobalSearchTerms(bookmark.filtersState.globalSearchTerms);
@@ -6590,11 +6642,54 @@ function Fixtures() {
                   ? new Set(filteredData.map(fixture => fixture[grouping[0] as keyof FixtureData])).size
                   : filteredData.length;
 
+                // Server pagination info
+                const startItem = serverPageIndex * serverPageSize + 1;
+                const endItem = Math.min((serverPageIndex + 1) * serverPageSize, serverTotalCount);
+
                 return (
-                  <span className="text-body-sm text-[var(--color-text-secondary)]">
-                    Showing <strong className="text-[var(--color-text-primary)]">{displayCount}</strong> of{" "}
-                    <strong className="text-[var(--color-text-primary)]">{fixtureData.length}</strong> items
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-body-sm text-[var(--color-text-secondary)]">
+                      Showing <strong className="text-[var(--color-text-primary)]">{displayCount}</strong> items
+                      {serverTotalCount > 0 && (
+                        <> ({startItem}–{endItem} of <strong className="text-[var(--color-text-primary)]">{serverTotalCount}</strong> total)</>
+                      )}
+                    </span>
+
+                    {/* Server pagination controls */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="h-7 rounded border border-[var(--color-border-secondary)] bg-[var(--color-surface-primary)] px-2 text-body-sm text-[var(--color-text-primary)]"
+                        value={serverPageSize}
+                        onChange={(e) => handleServerPageSizeChange(Number(e.target.value))}
+                      >
+                        <option value={25}>25 per page</option>
+                        <option value={50}>50 per page</option>
+                        <option value={100}>100 per page</option>
+                      </select>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleServerPrevPage}
+                        disabled={serverPageIndex === 0}
+                        icon="chevron-left"
+                      >
+                        Prev
+                      </Button>
+                      <span className="text-body-sm text-[var(--color-text-secondary)]">
+                        Page {serverPageIndex + 1}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleServerNextPage}
+                        disabled={!serverHasMore}
+                        icon="chevron-right"
+                        iconPosition="right"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 );
               })()
             }

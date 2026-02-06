@@ -121,7 +121,374 @@ export const listByOrganization = query({
   },
 });
 
+// Helper function to enrich a single fixture with all related data
+async function enrichFixture(
+  ctx: { db: any; storage: any },
+  fixture: any
+) {
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q: any) => q.eq("fixtureId", fixture._id))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q: any) => q.eq("fixtureId", fixture._id))
+    .collect();
+
+  // Enrich contracts with company data and avatars
+  const enrichedContracts = await Promise.all(
+    contracts.map(async (contract: any) => {
+      const owner = contract.ownerId
+        ? await ctx.db.get(contract.ownerId)
+        : null;
+      const charterer = contract.chartererId
+        ? await ctx.db.get(contract.chartererId)
+        : null;
+      const broker = contract.brokerId
+        ? await ctx.db.get(contract.brokerId)
+        : null;
+      const vessel = contract.vesselId
+        ? await ctx.db.get(contract.vesselId)
+        : null;
+      const loadPort = contract.loadPortId
+        ? await ctx.db.get(contract.loadPortId)
+        : null;
+      const dischargePort = contract.dischargePortId
+        ? await ctx.db.get(contract.dischargePortId)
+        : null;
+      const cargoType = contract.cargoTypeId
+        ? await ctx.db.get(contract.cargoTypeId)
+        : null;
+      const negotiation = contract.negotiationId
+        ? await ctx.db.get(contract.negotiationId)
+        : null;
+      const order = contract.orderId
+        ? await ctx.db.get(contract.orderId)
+        : null;
+
+      // Get avatar URLs
+      const ownerWithAvatar = owner && {
+        ...owner,
+        avatarUrl: owner.avatar
+          ? await ctx.storage.getUrl(owner.avatar)
+          : null,
+      };
+      const chartererWithAvatar = charterer && {
+        ...charterer,
+        avatarUrl: charterer.avatar
+          ? await ctx.storage.getUrl(charterer.avatar)
+          : null,
+      };
+      const brokerWithAvatar = broker && {
+        ...broker,
+        avatarUrl: broker.avatar
+          ? await ctx.storage.getUrl(broker.avatar)
+          : null,
+      };
+
+      // Get contract approvals
+      const approvals = await ctx.db
+        .query("contract_approvals")
+        .withIndex("by_contract", (q: any) => q.eq("contractId", contract._id))
+        .collect();
+
+      // Enrich approvals with company and user data
+      const enrichedApprovals = await Promise.all(
+        approvals.map(async (approval: any) => {
+          const company = await ctx.db.get(approval.companyId);
+          let user = null;
+          let userAvatarUrl = null;
+
+          if (approval.approvedBy) {
+            user = await ctx.db.get(approval.approvedBy);
+            if (user?.avatar) {
+              userAvatarUrl = await ctx.storage.getUrl(user.avatar);
+            }
+          }
+
+          let companyAvatarUrl = null;
+          if (company?.avatar) {
+            companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
+          }
+
+          return {
+            ...approval,
+            company,
+            companyAvatarUrl,
+            user,
+            userAvatarUrl,
+          };
+        })
+      );
+
+      // Calculate approval summary
+      const approvalSummary = {
+        total: approvals.length,
+        approved: approvals.filter((a: any) => a.status === "approved").length,
+        pending: approvals.filter((a: any) => a.status === "pending").length,
+        rejected: approvals.filter((a: any) => a.status === "rejected").length,
+      };
+
+      // Get contract signatures
+      const signatures = await ctx.db
+        .query("contract_signatures")
+        .withIndex("by_contract", (q: any) => q.eq("contractId", contract._id))
+        .collect();
+
+      // Enrich signatures with company and user data
+      const enrichedSignatures = await Promise.all(
+        signatures.map(async (signature: any) => {
+          const company = await ctx.db.get(signature.companyId);
+          let user = null;
+          let userAvatarUrl = null;
+
+          if (signature.signedBy) {
+            user = await ctx.db.get(signature.signedBy);
+            if (user?.avatar) {
+              userAvatarUrl = await ctx.storage.getUrl(user.avatar);
+            }
+          }
+
+          let companyAvatarUrl = null;
+          if (company?.avatar) {
+            companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
+          }
+
+          let documentUrl = null;
+          if (signature.documentStorageId) {
+            documentUrl = await ctx.storage.getUrl(signature.documentStorageId);
+          }
+
+          return {
+            ...signature,
+            company,
+            companyAvatarUrl,
+            user,
+            userAvatarUrl,
+            documentUrl,
+          };
+        })
+      );
+
+      // Calculate signature summary
+      const signatureSummary = {
+        total: signatures.length,
+        signed: signatures.filter((s: any) => s.status === "signed").length,
+        pending: signatures.filter((s: any) => s.status === "pending").length,
+        rejected: signatures.filter((s: any) => s.status === "rejected").length,
+      };
+
+      return {
+        ...contract,
+        owner: ownerWithAvatar,
+        charterer: chartererWithAvatar,
+        broker: brokerWithAvatar,
+        vessel,
+        loadPort,
+        dischargePort,
+        cargoType,
+        negotiation,
+        order,
+        approvals: enrichedApprovals,
+        approvalSummary,
+        signatures: enrichedSignatures,
+        signatureSummary,
+      };
+    })
+  );
+
+  // Enrich recap managers with company data and avatars
+  const enrichedRecaps = await Promise.all(
+    recapManagers.map(async (recap: any) => {
+      const owner = recap.ownerId
+        ? await ctx.db.get(recap.ownerId)
+        : null;
+      const charterer = recap.chartererId
+        ? await ctx.db.get(recap.chartererId)
+        : null;
+      const broker = recap.brokerId
+        ? await ctx.db.get(recap.brokerId)
+        : null;
+      const vessel = recap.vesselId
+        ? await ctx.db.get(recap.vesselId)
+        : null;
+      const loadPort = recap.loadPortId
+        ? await ctx.db.get(recap.loadPortId)
+        : null;
+      const dischargePort = recap.dischargePortId
+        ? await ctx.db.get(recap.dischargePortId)
+        : null;
+      const cargoType = recap.cargoTypeId
+        ? await ctx.db.get(recap.cargoTypeId)
+        : null;
+      const negotiation = recap.negotiationId
+        ? await ctx.db.get(recap.negotiationId)
+        : null;
+      const order = recap.orderId
+        ? await ctx.db.get(recap.orderId)
+        : null;
+
+      // Get avatar URLs
+      const ownerWithAvatar = owner && {
+        ...owner,
+        avatarUrl: owner.avatar
+          ? await ctx.storage.getUrl(owner.avatar)
+          : null,
+      };
+      const chartererWithAvatar = charterer && {
+        ...charterer,
+        avatarUrl: charterer.avatar
+          ? await ctx.storage.getUrl(charterer.avatar)
+          : null,
+      };
+      const brokerWithAvatar = broker && {
+        ...broker,
+        avatarUrl: broker.avatar
+          ? await ctx.storage.getUrl(broker.avatar)
+          : null,
+      };
+
+      return {
+        ...recap,
+        owner: ownerWithAvatar,
+        charterer: chartererWithAvatar,
+        broker: brokerWithAvatar,
+        vessel,
+        loadPort,
+        dischargePort,
+        cargoType,
+        negotiation,
+        order,
+      };
+    })
+  );
+
+  // Get order if exists
+  const order = fixture.orderId
+    ? await ctx.db.get(fixture.orderId)
+    : null;
+
+  // Get negotiations for this fixture's order (for negotiation-only fixtures)
+  let enrichedNegotiations: any[] = [];
+  if (fixture.orderId) {
+    const negotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_order", (q: any) => q.eq("orderId", fixture.orderId!))
+      .collect();
+
+    // Enrich negotiations with company data
+    enrichedNegotiations = await Promise.all(
+      negotiations.map(async (neg: any) => {
+        const counterparty = neg.counterpartyId
+          ? await ctx.db.get(neg.counterpartyId)
+          : null;
+        const broker = neg.brokerId
+          ? await ctx.db.get(neg.brokerId)
+          : null;
+        const vessel = neg.vesselId
+          ? await ctx.db.get(neg.vesselId)
+          : null;
+        const personInCharge = neg.personInChargeId
+          ? await ctx.db.get(neg.personInChargeId)
+          : null;
+
+        // Get avatar URLs
+        const counterpartyWithAvatar = counterparty && {
+          ...counterparty,
+          avatarUrl: counterparty.avatar
+            ? await ctx.storage.getUrl(counterparty.avatar)
+            : null,
+        };
+        const brokerWithAvatar = broker && {
+          ...broker,
+          avatarUrl: broker.avatar
+            ? await ctx.storage.getUrl(broker.avatar)
+            : null,
+        };
+        const personInChargeWithAvatar = personInCharge && {
+          ...personInCharge,
+          avatarUrl: personInCharge.avatar
+            ? await ctx.storage.getUrl(personInCharge.avatar)
+            : null,
+        };
+
+        return {
+          ...neg,
+          counterparty: counterpartyWithAvatar,
+          broker: brokerWithAvatar,
+          vessel,
+          personInCharge: personInChargeWithAvatar,
+        };
+      })
+    );
+  }
+
+  return {
+    ...fixture,
+    order,
+    contracts: enrichedContracts,
+    recapManagers: enrichedRecaps,
+    negotiations: enrichedNegotiations,
+  };
+}
+
+// List fixtures with enriched data - PAGINATED VERSION
+// Returns cursor-based pagination for better performance with large datasets
+export const listEnrichedPaginated = query({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    cursor: v.optional(v.string()), // Cursor is the _id of the last item from previous page
+    limit: v.optional(v.number()), // Number of items per page (default 25)
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 25;
+    const orgId = args.organizationId;
+
+    // Build the query - order by _creationTime descending (newest first)
+    const allFixtures = orgId !== undefined
+      ? await ctx.db
+          .query("fixtures")
+          .withIndex("by_organization", (q) => q.eq("organizationId", orgId))
+          .order("desc")
+          .collect()
+      : await ctx.db.query("fixtures").order("desc").collect();
+
+    // Find cursor position if provided
+    let startIndex = 0;
+    if (args.cursor) {
+      const cursorIndex = allFixtures.findIndex(f => f._id === args.cursor);
+      if (cursorIndex !== -1) {
+        startIndex = cursorIndex + 1; // Start after the cursor item
+      }
+    }
+
+    // Get the page of fixtures
+    const pageFixtures = allFixtures.slice(startIndex, startIndex + limit);
+    const hasMore = startIndex + limit < allFixtures.length;
+    const nextCursor = pageFixtures.length > 0
+      ? pageFixtures[pageFixtures.length - 1]._id
+      : null;
+
+    // Enrich each fixture
+    const enrichedFixtures = await Promise.all(
+      pageFixtures.map((fixture) => enrichFixture(ctx, fixture))
+    );
+
+    return {
+      items: enrichedFixtures,
+      nextCursor,
+      hasMore,
+      totalCount: allFixtures.length,
+    };
+  },
+});
+
 // List all fixtures with enriched contract data and company avatars
+// NOTE: This query fetches ALL data and should only be used as fallback.
+// For production use, prefer listEnrichedPaginated for better performance.
 export const listEnriched = query({
   args: {
     organizationId: v.optional(v.id("organizations")),
@@ -141,317 +508,9 @@ export const listEnriched = query({
       fixtures = await ctx.db.query("fixtures").collect();
     }
 
-    // Enrich each fixture with contracts/recaps and company data
+    // Enrich each fixture using the shared helper function
     const enrichedFixtures = await Promise.all(
-      fixtures.map(async (fixture) => {
-        // Get contracts for this fixture
-        const contracts = await ctx.db
-          .query("contracts")
-          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
-          .collect();
-
-        // Get recap managers for this fixture
-        const recapManagers = await ctx.db
-          .query("recap_managers")
-          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
-          .collect();
-
-        // Enrich contracts with company data and avatars
-        const enrichedContracts = await Promise.all(
-          contracts.map(async (contract) => {
-            const owner = contract.ownerId
-              ? await ctx.db.get(contract.ownerId)
-              : null;
-            const charterer = contract.chartererId
-              ? await ctx.db.get(contract.chartererId)
-              : null;
-            const broker = contract.brokerId
-              ? await ctx.db.get(contract.brokerId)
-              : null;
-            const vessel = contract.vesselId
-              ? await ctx.db.get(contract.vesselId)
-              : null;
-            const loadPort = contract.loadPortId
-              ? await ctx.db.get(contract.loadPortId)
-              : null;
-            const dischargePort = contract.dischargePortId
-              ? await ctx.db.get(contract.dischargePortId)
-              : null;
-            const cargoType = contract.cargoTypeId
-              ? await ctx.db.get(contract.cargoTypeId)
-              : null;
-            const negotiation = contract.negotiationId
-              ? await ctx.db.get(contract.negotiationId)
-              : null;
-            const order = contract.orderId
-              ? await ctx.db.get(contract.orderId)
-              : null;
-
-            // Get avatar URLs
-            const ownerWithAvatar = owner && {
-              ...owner,
-              avatarUrl: owner.avatar
-                ? await ctx.storage.getUrl(owner.avatar)
-                : null,
-            };
-            const chartererWithAvatar = charterer && {
-              ...charterer,
-              avatarUrl: charterer.avatar
-                ? await ctx.storage.getUrl(charterer.avatar)
-                : null,
-            };
-            const brokerWithAvatar = broker && {
-              ...broker,
-              avatarUrl: broker.avatar
-                ? await ctx.storage.getUrl(broker.avatar)
-                : null,
-            };
-
-            // Get contract approvals
-            const approvals = await ctx.db
-              .query("contract_approvals")
-              .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
-              .collect();
-
-            // Enrich approvals with company and user data
-            const enrichedApprovals = await Promise.all(
-              approvals.map(async (approval) => {
-                const company = await ctx.db.get(approval.companyId);
-                let user = null;
-                let userAvatarUrl = null;
-
-                if (approval.approvedBy) {
-                  user = await ctx.db.get(approval.approvedBy);
-                  if (user?.avatar) {
-                    userAvatarUrl = await ctx.storage.getUrl(user.avatar);
-                  }
-                }
-
-                let companyAvatarUrl = null;
-                if (company?.avatar) {
-                  companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
-                }
-
-                return {
-                  ...approval,
-                  company,
-                  companyAvatarUrl,
-                  user,
-                  userAvatarUrl,
-                };
-              })
-            );
-
-            // Calculate approval summary
-            const approvalSummary = {
-              total: approvals.length,
-              approved: approvals.filter((a) => a.status === "approved").length,
-              pending: approvals.filter((a) => a.status === "pending").length,
-              rejected: approvals.filter((a) => a.status === "rejected").length,
-            };
-
-            // Get contract signatures
-            const signatures = await ctx.db
-              .query("contract_signatures")
-              .withIndex("by_contract", (q) => q.eq("contractId", contract._id))
-              .collect();
-
-            // Enrich signatures with company and user data
-            const enrichedSignatures = await Promise.all(
-              signatures.map(async (signature) => {
-                const company = await ctx.db.get(signature.companyId);
-                let user = null;
-                let userAvatarUrl = null;
-
-                if (signature.signedBy) {
-                  user = await ctx.db.get(signature.signedBy);
-                  if (user?.avatar) {
-                    userAvatarUrl = await ctx.storage.getUrl(user.avatar);
-                  }
-                }
-
-                let companyAvatarUrl = null;
-                if (company?.avatar) {
-                  companyAvatarUrl = await ctx.storage.getUrl(company.avatar);
-                }
-
-                let documentUrl = null;
-                if (signature.documentStorageId) {
-                  documentUrl = await ctx.storage.getUrl(signature.documentStorageId);
-                }
-
-                return {
-                  ...signature,
-                  company,
-                  companyAvatarUrl,
-                  user,
-                  userAvatarUrl,
-                  documentUrl,
-                };
-              })
-            );
-
-            // Calculate signature summary
-            const signatureSummary = {
-              total: signatures.length,
-              signed: signatures.filter((s) => s.status === "signed").length,
-              pending: signatures.filter((s) => s.status === "pending").length,
-              rejected: signatures.filter((s) => s.status === "rejected").length,
-            };
-
-            return {
-              ...contract,
-              owner: ownerWithAvatar,
-              charterer: chartererWithAvatar,
-              broker: brokerWithAvatar,
-              vessel,
-              loadPort,
-              dischargePort,
-              cargoType,
-              negotiation,
-              order,
-              approvals: enrichedApprovals,
-              approvalSummary,
-              signatures: enrichedSignatures,
-              signatureSummary,
-            };
-          })
-        );
-
-        // Enrich recap managers with company data and avatars
-        const enrichedRecaps = await Promise.all(
-          recapManagers.map(async (recap) => {
-            const owner = recap.ownerId
-              ? await ctx.db.get(recap.ownerId)
-              : null;
-            const charterer = recap.chartererId
-              ? await ctx.db.get(recap.chartererId)
-              : null;
-            const broker = recap.brokerId
-              ? await ctx.db.get(recap.brokerId)
-              : null;
-            const vessel = recap.vesselId
-              ? await ctx.db.get(recap.vesselId)
-              : null;
-            const loadPort = recap.loadPortId
-              ? await ctx.db.get(recap.loadPortId)
-              : null;
-            const dischargePort = recap.dischargePortId
-              ? await ctx.db.get(recap.dischargePortId)
-              : null;
-            const cargoType = recap.cargoTypeId
-              ? await ctx.db.get(recap.cargoTypeId)
-              : null;
-            const negotiation = recap.negotiationId
-              ? await ctx.db.get(recap.negotiationId)
-              : null;
-            const order = recap.orderId
-              ? await ctx.db.get(recap.orderId)
-              : null;
-
-            // Get avatar URLs
-            const ownerWithAvatar = owner && {
-              ...owner,
-              avatarUrl: owner.avatar
-                ? await ctx.storage.getUrl(owner.avatar)
-                : null,
-            };
-            const chartererWithAvatar = charterer && {
-              ...charterer,
-              avatarUrl: charterer.avatar
-                ? await ctx.storage.getUrl(charterer.avatar)
-                : null,
-            };
-            const brokerWithAvatar = broker && {
-              ...broker,
-              avatarUrl: broker.avatar
-                ? await ctx.storage.getUrl(broker.avatar)
-                : null,
-            };
-
-            return {
-              ...recap,
-              owner: ownerWithAvatar,
-              charterer: chartererWithAvatar,
-              broker: brokerWithAvatar,
-              vessel,
-              loadPort,
-              dischargePort,
-              cargoType,
-              negotiation,
-              order,
-            };
-          })
-        );
-
-        // Get order if exists
-        const order = fixture.orderId
-          ? await ctx.db.get(fixture.orderId)
-          : null;
-
-        // Get negotiations for this fixture's order (for negotiation-only fixtures)
-        let enrichedNegotiations: any[] = [];
-        if (fixture.orderId) {
-          const negotiations = await ctx.db
-            .query("negotiations")
-            .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
-            .collect();
-
-          // Enrich negotiations with company data
-          enrichedNegotiations = await Promise.all(
-            negotiations.map(async (neg) => {
-              const counterparty = neg.counterpartyId
-                ? await ctx.db.get(neg.counterpartyId)
-                : null;
-              const broker = neg.brokerId
-                ? await ctx.db.get(neg.brokerId)
-                : null;
-              const vessel = neg.vesselId
-                ? await ctx.db.get(neg.vesselId)
-                : null;
-              const personInCharge = neg.personInChargeId
-                ? await ctx.db.get(neg.personInChargeId)
-                : null;
-
-              // Get avatar URLs
-              const counterpartyWithAvatar = counterparty && {
-                ...counterparty,
-                avatarUrl: counterparty.avatar
-                  ? await ctx.storage.getUrl(counterparty.avatar)
-                  : null,
-              };
-              const brokerWithAvatar = broker && {
-                ...broker,
-                avatarUrl: broker.avatar
-                  ? await ctx.storage.getUrl(broker.avatar)
-                  : null,
-              };
-              const personInChargeWithAvatar = personInCharge && {
-                ...personInCharge,
-                avatarUrl: personInCharge.avatar
-                  ? await ctx.storage.getUrl(personInCharge.avatar)
-                  : null,
-              };
-
-              return {
-                ...neg,
-                counterparty: counterpartyWithAvatar,
-                broker: brokerWithAvatar,
-                vessel,
-                personInCharge: personInChargeWithAvatar,
-              };
-            })
-          );
-        }
-
-        return {
-          ...fixture,
-          order,
-          contracts: enrichedContracts,
-          recapManagers: enrichedRecaps,
-          negotiations: enrichedNegotiations,
-        };
-      })
+      fixtures.map((fixture) => enrichFixture(ctx, fixture))
     );
 
     return enrichedFixtures.sort((a, b) => b._creationTime - a._creationTime);
