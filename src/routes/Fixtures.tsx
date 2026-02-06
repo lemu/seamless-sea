@@ -1200,7 +1200,9 @@ function FixtureSidebar({
                           {fixture.loadPort?.countryCode && (
                             <Flag country={fixture.loadPort.countryCode.toLowerCase()} />
                           )}
-                          {fixture.loadPort?.name}, {fixture.loadPort?.countryCode}
+                          {fixture.loadPort?.name
+                            ? `${fixture.loadPort.name}, ${fixture.loadPort.countryCode}`
+                            : "Not specified"}
                           {hasLoadPortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -1247,7 +1249,9 @@ function FixtureSidebar({
                           {fixture.dischargePort?.countryCode && (
                             <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />
                           )}
-                          {fixture.dischargePort?.name}, {fixture.dischargePort?.countryCode}
+                          {fixture.dischargePort?.name
+                            ? `${fixture.dischargePort.name}, ${fixture.dischargePort.countryCode}`
+                            : "Not specified"}
                           {hasDischargePortChanges && <AttributesChevron />}
                         </AttributesValue>
                       </AttributesRow>
@@ -3261,7 +3265,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatQuantity(value) : "–"}
+              {value != null ? formatQuantity(value) : "–"}
             </div>
           );
         },
@@ -3658,7 +3662,7 @@ function Fixtures() {
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {numValue != null && !isNaN(numValue) ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -4008,7 +4012,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatCurrency(value) : "–"}
+              {value != null ? formatCurrency(value) : "–"}
             </div>
           );
         },
@@ -4043,7 +4047,7 @@ function Fixtures() {
           const numValue = typeof value === 'string' ? parseFloat(value) : value;
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {numValue != null && !isNaN(numValue) ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -4169,7 +4173,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatPercent(value, 2) : "–"}
+              {value != null ? formatPercent(value, 2) : "–"}
             </div>
           );
         },
@@ -4191,7 +4195,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatCurrency(value) : "–"}
+              {value != null ? formatCurrency(value) : "–"}
             </div>
           );
         },
@@ -4213,7 +4217,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatPercent(value, 2) : "–"}
+              {value != null ? formatPercent(value, 2) : "–"}
             </div>
           );
         },
@@ -4235,7 +4239,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? formatCurrency(value) : "–"}
+              {value != null ? formatCurrency(value) : "–"}
             </div>
           );
         },
