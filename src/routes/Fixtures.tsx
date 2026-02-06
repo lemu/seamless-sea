@@ -2163,59 +2163,97 @@ function Fixtures() {
     Record<string, FilterValue>
   >({});
 
-  // Extract fixture status values from activeFilters for server-side filtering
-  // The UI uses combined statuses like "contract-final", "contract-draft"
-  // We extract the base status (e.g., "final", "draft") for fixture-level filtering
-  const serverStatusFilter = useMemo(() => {
-    const statusFilter = activeFilters.status;
-    if (!statusFilter || !Array.isArray(statusFilter) || statusFilter.length === 0) {
-      return undefined;
+  // Extract server-side filter values from activeFilters
+  const serverFilters = useMemo(() => {
+    // Status filter: Extract base status from combined format
+    let statusFilter: string[] | undefined = undefined;
+    if (activeFilters.status && Array.isArray(activeFilters.status) && activeFilters.status.length > 0) {
+      const fixtureStatuses = new Set<string>();
+      const statusMapping: Record<string, string> = {
+        'draft': 'draft',
+        'working-copy': 'working-copy',
+        'final': 'final',
+        'on-subs': 'on-subs',
+        'fully-fixed': 'fully-fixed',
+        'canceled': 'canceled',
+      };
+      activeFilters.status.forEach(status => {
+        const parts = String(status).split('-');
+        if (parts.length >= 2) {
+          const baseStatus = parts.slice(1).join('-');
+          if (statusMapping[baseStatus]) {
+            fixtureStatuses.add(statusMapping[baseStatus]);
+          }
+        }
+      });
+      statusFilter = fixtureStatuses.size > 0 ? Array.from(fixtureStatuses) : undefined;
     }
 
-    // Map combined status values to fixture status values
-    // "contract-final" -> "final", "contract-working-copy" -> "working-copy", etc.
-    const fixtureStatuses = new Set<string>();
-    const statusMapping: Record<string, string> = {
-      'draft': 'draft',
-      'working-copy': 'working-copy',
-      'final': 'final',
-      'on-subs': 'on-subs',
-      'fully-fixed': 'fully-fixed',
-      'canceled': 'canceled',
-    };
+    // Vessel filter: Extract vessel names
+    let vesselNames: string[] | undefined = undefined;
+    if (activeFilters.vessels && Array.isArray(activeFilters.vessels) && activeFilters.vessels.length > 0) {
+      vesselNames = activeFilters.vessels.map(v => String(v));
+    }
 
-    statusFilter.forEach(status => {
-      // Extract status from combined format (e.g., "contract-final" -> "final")
-      const parts = String(status).split('-');
-      // The status is everything after the first part (which is "contract" or "recap")
-      if (parts.length >= 2) {
-        const baseStatus = parts.slice(1).join('-'); // Handle "working-copy" which has a hyphen
-        if (statusMapping[baseStatus]) {
-          fixtureStatuses.add(statusMapping[baseStatus]);
+    // Owner filter: Extract owner company names
+    let ownerNames: string[] | undefined = undefined;
+    if (activeFilters.owner && Array.isArray(activeFilters.owner) && activeFilters.owner.length > 0) {
+      ownerNames = activeFilters.owner.map(o => String(o));
+    }
+
+    // Charterer filter: Extract charterer company names
+    let chartererNames: string[] | undefined = undefined;
+    if (activeFilters.charterer && Array.isArray(activeFilters.charterer) && activeFilters.charterer.length > 0) {
+      chartererNames = activeFilters.charterer.map(c => String(c));
+    }
+
+    // Date range filter: Extract from cpDate filter (creation date)
+    let dateRangeStart: number | undefined = undefined;
+    let dateRangeEnd: number | undefined = undefined;
+    if (activeFilters.cpDate) {
+      const cpDateFilter = activeFilters.cpDate;
+      if (Array.isArray(cpDateFilter) && cpDateFilter.length === 2) {
+        if (cpDateFilter[0] instanceof Date) {
+          dateRangeStart = cpDateFilter[0].getTime();
         }
+        if (cpDateFilter[1] instanceof Date) {
+          dateRangeEnd = cpDateFilter[1].getTime();
+        }
+      } else if (cpDateFilter instanceof Date) {
+        // Single date - use start and end of that day
+        const date = cpDateFilter;
+        dateRangeStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+        dateRangeEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999).getTime();
       }
-    });
+    }
 
-    return fixtureStatuses.size > 0 ? Array.from(fixtureStatuses) : undefined;
-  }, [activeFilters.status]);
+    return {
+      status: statusFilter,
+      vesselNames,
+      ownerNames,
+      chartererNames,
+      dateRangeStart,
+      dateRangeEnd,
+    };
+  }, [activeFilters.status, activeFilters.vessels, activeFilters.owner, activeFilters.charterer, activeFilters.cpDate]);
 
-  // Reset pagination when filters change
-  const prevStatusFilterRef = useRef<string[] | undefined>(undefined);
+  // Reset pagination when any server filter changes
+  const prevFiltersRef = useRef<typeof serverFilters | null>(null);
   useEffect(() => {
-    const currentFilter = serverStatusFilter;
-    const prevFilter = prevStatusFilterRef.current;
+    const currentFilters = serverFilters;
+    const prevFilters = prevFiltersRef.current;
 
-    // Check if filter changed
-    const filterChanged = JSON.stringify(currentFilter) !== JSON.stringify(prevFilter);
-    if (filterChanged && prevFilter !== undefined) {
-      // Reset pagination when status filter changes (but not on initial mount)
+    // Check if filters changed
+    const filtersChanged = JSON.stringify(currentFilters) !== JSON.stringify(prevFilters);
+    if (filtersChanged && prevFilters !== null) {
+      // Reset pagination when filters change (but not on initial mount)
       setCurrentCursor(undefined);
       setCursorHistory([undefined]);
       setServerPageIndex(0);
     }
 
-    prevStatusFilterRef.current = currentFilter;
-  }, [serverStatusFilter]);
+    prevFiltersRef.current = currentFilters;
+  }, [serverFilters]);
 
   // Query fixtures with enriched data using paginated query
   const paginatedFixtures = useQuery(
@@ -2225,7 +2263,12 @@ function Fixtures() {
       cursor: currentCursor,
       limit: serverPageSize,
       // Server-side filters
-      status: serverStatusFilter,
+      status: serverFilters.status,
+      vesselNames: serverFilters.vesselNames,
+      ownerNames: serverFilters.ownerNames,
+      chartererNames: serverFilters.chartererNames,
+      dateRangeStart: serverFilters.dateRangeStart,
+      dateRangeEnd: serverFilters.dateRangeEnd,
     } : "skip"
   );
 

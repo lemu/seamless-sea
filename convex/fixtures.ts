@@ -456,6 +456,11 @@ export const listEnrichedPaginated = query({
     limit: v.optional(v.number()), // Number of items per page (default 25)
     // Server-side filters
     status: v.optional(v.array(v.string())), // Filter by fixture status (e.g., ["final", "fully-fixed"])
+    vesselNames: v.optional(v.array(v.string())), // Filter by vessel names
+    ownerNames: v.optional(v.array(v.string())), // Filter by owner company names
+    chartererNames: v.optional(v.array(v.string())), // Filter by charterer company names
+    dateRangeStart: v.optional(v.number()), // Filter by createdAt >= start timestamp
+    dateRangeEnd: v.optional(v.number()), // Filter by createdAt <= end timestamp
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 25;
@@ -470,10 +475,104 @@ export const listEnrichedPaginated = query({
           .collect()
       : await ctx.db.query("fixtures").order("desc").collect();
 
-    // Apply server-side status filter if provided
+    // Apply server-side status filter if provided (fixture-level)
     if (args.status && args.status.length > 0) {
       const statusSet = new Set(args.status);
       allFixtures = allFixtures.filter(f => statusSet.has(f.status));
+    }
+
+    // Apply date range filter if provided (fixture-level, on _creationTime)
+    if (args.dateRangeStart !== undefined || args.dateRangeEnd !== undefined) {
+      allFixtures = allFixtures.filter(f => {
+        const createdAt = f._creationTime;
+        if (args.dateRangeStart !== undefined && createdAt < args.dateRangeStart) {
+          return false;
+        }
+        if (args.dateRangeEnd !== undefined && createdAt > args.dateRangeEnd) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // For contract-level filters (vessel, owner, charterer), we need to check contracts
+    const hasContractFilters =
+      (args.vesselNames && args.vesselNames.length > 0) ||
+      (args.ownerNames && args.ownerNames.length > 0) ||
+      (args.chartererNames && args.chartererNames.length > 0);
+
+    if (hasContractFilters) {
+      // Get vessel IDs for vessel name filter
+      let vesselIds: Set<string> | null = null;
+      if (args.vesselNames && args.vesselNames.length > 0) {
+        const vesselNameSet = new Set(args.vesselNames.map(n => n.toLowerCase()));
+        const vessels = await ctx.db.query("vessels").collect();
+        vesselIds = new Set(
+          vessels
+            .filter(v => vesselNameSet.has(v.name.toLowerCase()))
+            .map(v => v._id)
+        );
+      }
+
+      // Get company IDs for owner name filter
+      let ownerIds: Set<string> | null = null;
+      if (args.ownerNames && args.ownerNames.length > 0) {
+        const ownerNameSet = new Set(args.ownerNames.map(n => n.toLowerCase()));
+        const companies = await ctx.db.query("companies").collect();
+        ownerIds = new Set(
+          companies
+            .filter(c => ownerNameSet.has(c.name.toLowerCase()))
+            .map(c => c._id)
+        );
+      }
+
+      // Get company IDs for charterer name filter
+      let chartererIds: Set<string> | null = null;
+      if (args.chartererNames && args.chartererNames.length > 0) {
+        const chartererNameSet = new Set(args.chartererNames.map(n => n.toLowerCase()));
+        const companies = await ctx.db.query("companies").collect();
+        chartererIds = new Set(
+          companies
+            .filter(c => chartererNameSet.has(c.name.toLowerCase()))
+            .map(c => c._id)
+        );
+      }
+
+      // Filter fixtures that have at least one contract matching all the specified filters
+      const filteredFixtures: typeof allFixtures = [];
+      for (const fixture of allFixtures) {
+        const contracts = await ctx.db
+          .query("contracts")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        // Also get recap managers
+        const recapManagers = await ctx.db
+          .query("recap_managers")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        const allItems = [...contracts, ...recapManagers];
+
+        // Check if any contract/recap matches all filters
+        const hasMatch = allItems.some(item => {
+          if (vesselIds !== null && (!item.vesselId || !vesselIds.has(item.vesselId))) {
+            return false;
+          }
+          if (ownerIds !== null && (!item.ownerId || !ownerIds.has(item.ownerId))) {
+            return false;
+          }
+          if (chartererIds !== null && (!item.chartererId || !chartererIds.has(item.chartererId))) {
+            return false;
+          }
+          return true;
+        });
+
+        if (hasMatch) {
+          filteredFixtures.push(fixture);
+        }
+      }
+      allFixtures = filteredFixtures;
     }
 
     // Find cursor position if provided
