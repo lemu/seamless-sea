@@ -461,6 +461,8 @@ export const listEnrichedPaginated = query({
     chartererNames: v.optional(v.array(v.string())), // Filter by charterer company names
     dateRangeStart: v.optional(v.number()), // Filter by createdAt >= start timestamp
     dateRangeEnd: v.optional(v.number()), // Filter by createdAt <= end timestamp
+    // Global search
+    searchTerms: v.optional(v.array(v.string())), // Search terms for global search
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 25;
@@ -569,6 +571,76 @@ export const listEnrichedPaginated = query({
         });
 
         if (hasMatch) {
+          filteredFixtures.push(fixture);
+        }
+      }
+      allFixtures = filteredFixtures;
+    }
+
+    // Apply global search if provided
+    if (args.searchTerms && args.searchTerms.length > 0) {
+      const searchTermsLower = args.searchTerms.map(t => t.toLowerCase());
+
+      // Build a search index: get all vessels, companies, contracts for matching
+      const allVessels = await ctx.db.query("vessels").collect();
+      const allCompanies = await ctx.db.query("companies").collect();
+
+      const vesselNameById = new Map(allVessels.map(v => [v._id, v.name.toLowerCase()]));
+      const companyNameById = new Map(allCompanies.map(c => [c._id, c.name.toLowerCase()]));
+
+      const filteredFixtures: typeof allFixtures = [];
+
+      for (const fixture of allFixtures) {
+        // Get contracts and recap managers for this fixture
+        const contracts = await ctx.db
+          .query("contracts")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        const recapManagers = await ctx.db
+          .query("recap_managers")
+          .withIndex("by_fixture", (q) => q.eq("fixtureId", fixture._id))
+          .collect();
+
+        // Build searchable text for this fixture and its contracts
+        const searchableFields: string[] = [
+          fixture.fixtureNumber.toLowerCase(),
+        ];
+
+        // Add contract-level searchable fields
+        [...contracts, ...recapManagers].forEach(item => {
+          if ('contractNumber' in item && item.contractNumber) {
+            searchableFields.push(item.contractNumber.toLowerCase());
+          }
+          if ('recapNumber' in item && item.recapNumber) {
+            searchableFields.push(item.recapNumber.toLowerCase());
+          }
+          if (item.vesselId) {
+            const vesselName = vesselNameById.get(item.vesselId);
+            if (vesselName) searchableFields.push(vesselName);
+          }
+          if (item.ownerId) {
+            const ownerName = companyNameById.get(item.ownerId);
+            if (ownerName) searchableFields.push(ownerName);
+          }
+          if (item.chartererId) {
+            const chartererName = companyNameById.get(item.chartererId);
+            if (chartererName) searchableFields.push(chartererName);
+          }
+          if (item.brokerId) {
+            const brokerName = companyNameById.get(item.brokerId);
+            if (brokerName) searchableFields.push(brokerName);
+          }
+        });
+
+        const searchableText = searchableFields.join(' ');
+
+        // Check if ALL search terms are found (AND logic)
+        const matchesAllTerms = searchTermsLower.every(term =>
+          searchableText.includes(term)
+        );
+
+        if (matchesAllTerms) {
           filteredFixtures.push(fixture);
         }
       }

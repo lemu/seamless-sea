@@ -2163,6 +2163,9 @@ function Fixtures() {
     Record<string, FilterValue>
   >({});
 
+  // Global search terms (declared early so it's available for server query)
+  const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
+
   // Extract server-side filter values from activeFilters
   const serverFilters = useMemo(() => {
     // Status filter: Extract base status from combined format
@@ -2237,23 +2240,23 @@ function Fixtures() {
     };
   }, [activeFilters.status, activeFilters.vessels, activeFilters.owner, activeFilters.charterer, activeFilters.cpDate]);
 
-  // Reset pagination when any server filter changes
-  const prevFiltersRef = useRef<typeof serverFilters | null>(null);
+  // Reset pagination when any server filter or search changes
+  const prevFiltersRef = useRef<{ filters: typeof serverFilters; search: string[] } | null>(null);
   useEffect(() => {
-    const currentFilters = serverFilters;
-    const prevFilters = prevFiltersRef.current;
+    const currentState = { filters: serverFilters, search: globalSearchTerms };
+    const prevState = prevFiltersRef.current;
 
-    // Check if filters changed
-    const filtersChanged = JSON.stringify(currentFilters) !== JSON.stringify(prevFilters);
-    if (filtersChanged && prevFilters !== null) {
-      // Reset pagination when filters change (but not on initial mount)
+    // Check if filters or search changed
+    const stateChanged = JSON.stringify(currentState) !== JSON.stringify(prevState);
+    if (stateChanged && prevState !== null) {
+      // Reset pagination when filters/search change (but not on initial mount)
       setCurrentCursor(undefined);
       setCursorHistory([undefined]);
       setServerPageIndex(0);
     }
 
-    prevFiltersRef.current = currentFilters;
-  }, [serverFilters]);
+    prevFiltersRef.current = currentState;
+  }, [serverFilters, globalSearchTerms]);
 
   // Query fixtures with enriched data using paginated query
   const paginatedFixtures = useQuery(
@@ -2269,6 +2272,8 @@ function Fixtures() {
       chartererNames: serverFilters.chartererNames,
       dateRangeStart: serverFilters.dateRangeStart,
       dateRangeEnd: serverFilters.dateRangeEnd,
+      // Global search
+      searchTerms: globalSearchTerms.length > 0 ? globalSearchTerms : undefined,
     } : "skip"
   );
 
@@ -2564,7 +2569,7 @@ function Fixtures() {
     "dischargePortName",
     "cpDate",
   ]);
-  const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
+  // Note: globalSearchTerms state is declared earlier (near query params) for server-side filtering
 
   // Use transition for non-urgent search updates (improves INP)
   const [isSearchPending, startSearchTransition] = useTransition();
