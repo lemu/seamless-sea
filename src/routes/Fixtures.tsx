@@ -6125,6 +6125,11 @@ function Fixtures() {
   }, [globalSearchTerms]);
 
   // Data filtering with group-preserving search logic
+  // NOTE: Server-side filters (status, vessels, owner, charterer, dateRange, search)
+  // are already applied at the query level. Client-side filtering here handles:
+  // 1. Bookmark-specific filtering (Negotiations, Contracts views)
+  // 2. Any filters not yet migrated to server-side
+  // 3. Group-preserving search highlighting (after server search)
   const filteredData = useMemo(() => {
     // Step 1: Apply bookmark and field filters (non-search filters)
     let data = fixtureData.filter((fixture) => {
