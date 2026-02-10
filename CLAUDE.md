@@ -240,6 +240,18 @@ export function UserProfileCard({ user }) {
 }
 ```
 
+### Semantic Tailwind Utilities
+
+Use semantic utilities from the design system preset, not arbitrary CSS variable values:
+
+```typescript
+// ❌ Bad: Ambiguous — Tailwind can't determine if it's color or font-size
+className="text-[var(--color-text-primary)]"
+
+// ✅ Good: Semantic utility from tailwind-preset.js
+className="text-text-primary"
+```
+
 ## Convex Database Guidelines
 
 ### Overview
@@ -610,21 +622,56 @@ const activeBoards = await ctx.db
 - ❌ Use `v.any()` without good reason
 - ❌ Perform heavy computation in queries (use Actions)
 
+### Convex Environments
+
+This project has **two Convex environments**:
+
+| Environment | URL | Deployment Name |
+|-------------|-----|-----------------|
+| **Dev** | https://useful-toucan-91.convex.cloud | `dev:useful-toucan-91` |
+| **Production** | https://gallant-viper-145.convex.cloud | `gallant-viper-145` |
+
+The `.env.local` file contains:
+```
+CONVEX_DEPLOYMENT=dev:useful-toucan-91
+VITE_CONVEX_URL=https://useful-toucan-91.convex.cloud
+```
+
+---
+
 ### Development Commands
 
-```bash
-# Run Convex dev server (auto-deploys on save)
-npx convex dev
+| Command | Target Environment |
+|---------|-------------------|
+| `npx convex dev` | Dev (with watch mode) |
+| `npx convex dev --once` | Dev (one-time push) |
+| `npx convex deploy` | Production |
+| `npx convex dashboard` | Opens dev dashboard |
+| `npx convex codegen` | Generates types |
 
-# Deploy to production
-npx convex deploy
+---
 
-# View dashboard
-npx convex dashboard
+### Running Functions Against Specific Environments
 
-# Generate types
-npx convex codegen
-```
+| Command | Target Environment |
+|---------|-------------------|
+| `npx convex run <function>` | Production (default) |
+| `CONVEX_DEPLOYMENT=dev:useful-toucan-91 npx convex run <function>` | Dev |
+
+---
+
+### Typical Convex Workflow
+
+1. **Develop & Test**: Use `npx convex dev --once` to push changes to dev
+2. **Test Functions**: Use `CONVEX_DEPLOYMENT=dev:useful-toucan-91 npx convex run <fn>` to test
+3. **Deploy to Prod**: Use `npx convex deploy --yes` when ready for production
+4. **Run in Prod**: Use `npx convex run <fn>` to run functions in production
+
+**Important Notes:**
+- `npx convex deploy` always deploys to **production** (`gallant-viper-145`)
+- `npx convex dev` deploys to **dev** (`useful-toucan-91`)
+- `npx convex run` runs against **production** by default
+- New functions/changes may not appear immediately after deploy - use `npx convex dev --once` to push to dev first for testing
 
 ## Browser Compatibility Guidelines
 
@@ -800,6 +847,206 @@ Concise rules for building accessible, fast, delightful UIs. Use MUST/SHOULD/NEV
 
 **Note:** Vercel is configured to automatically deploy the frontend when changes are pushed to GitHub. No manual frontend deployment step is needed.
 
+## Development Best Practices
+
+### Reuse Existing Logic
+
+Before implementing new calculations or detection logic, **check if the value is already computed elsewhere**:
+
+- **Parameters**: Check if render functions already receive the value you need (e.g., `isLastRow` in DataTable)
+- **Context**: Check if React context already provides the state
+- **Computed values**: Check if TanStack Table, form libraries, etc. already expose derived state
+
+**Example of bug avoided:**
+```typescript
+// ❌ Bad: Recalculating from data array (doesn't account for sorting)
+const isLastChildInGroup = parentRow?.subRows?.[parentRow.subRows.length - 1]?.id === row.id
+
+// ✅ Good: Use the existing parameter that's already correctly calculated
+const shouldRemoveBottomBorder = isChildRow && isFirstColumn && !isLastRow
+```
+
+### Server-Side vs Client-Side Alignment
+
+When implementing pagination, sorting, or filtering:
+
+1. **Backend sorting must match UI display** - If UI shows `contract.updatedAt`, backend must sort by `contract.updatedAt`, not `fixture.updatedAt`
+2. **Test across page boundaries** - Verify that page 2 doesn't contain items that should appear before page 1 items
+3. **Denormalize carefully** - When storing computed fields, ensure the calculation matches what the UI displays
+
+**Verification checklist:**
+- Sort ascending, check page 1 → page 2 transition
+- Sort descending, check page 1 → page 2 transition
+- Filter + sort combination
+
+### TypeScript Strictness
+
+Avoid `any` types. Use proper typing:
+
+```typescript
+// ❌ Avoid
+cell: ({ row }: any) => { ... }
+
+// ✅ Prefer
+import type { CellContext, Row } from "@tanstack/react-table";
+type FixtureCellContext<TValue = unknown> = CellContext<FixtureData, TValue>;
+
+cell: ({ row }: FixtureCellContext<string>) => { ... }
+```
+
+**Patterns for strict typing:**
+- Create type aliases for frequently used generics
+- Use discriminated unions for variant types
+- Create type guards for runtime narrowing
+- Use `unknown` instead of `any`, then narrow with type guards
+
+### Understanding Library Internals
+
+When working with Radix UI, TanStack Table, or other libraries:
+
+1. **Read the source** - Understand how events propagate (e.g., Radix's DismissableLayer)
+2. **Check existing props** - Libraries often have props for edge cases (e.g., `onPointerDownOutside`)
+3. **Test race conditions** - Especially with click handlers and open/close state
+
+**Common patterns:**
+- `e.preventDefault()` to stop library default behavior
+- `modal={false}` for non-blocking overlays
+- Event handler order matters (props spread order)
+
+### Falsy Value Handling
+
+When displaying numeric values, **never use truthiness checks** — `0` is falsy and will be treated as missing:
+
+```typescript
+// ❌ Bad: 0 displays as "–"
+const display = value ? value : "–"
+const display = value || "–"
+
+// ✅ Good: 0 displays as "0"
+const display = value != null ? value : "–"
+```
+
+Apply this to: quantities, rates, percentages, commissions — any field where `0` is a valid value.
+
+### Flex Overflow Pattern
+
+When using `overflow-auto` or `overflow-hidden` on a flex child, **always add `min-w-0` (or `min-h-0` for vertical)**. Without it, flex items won't shrink below their content size:
+
+```typescript
+// ❌ Bad: Content overflows, scroll doesn't work
+<div className="flex">
+  <div className="flex-1 overflow-x-auto">
+    {/* Content wider than container won't scroll */}
+  </div>
+</div>
+
+// ✅ Good: Content scrolls properly
+<div className="flex">
+  <div className="flex-1 min-w-0 overflow-x-auto">
+    {/* Content scrolls as expected */}
+  </div>
+</div>
+```
+
+### Date & Number Formatting
+
+Always use shared formatting helpers, never browser APIs directly:
+
+```typescript
+// ❌ Bad: Browser-dependent output
+date.toLocaleDateString()
+value.toFixed(2)
+
+// ✅ Good: Consistent output via shared helpers
+formatTimestamp(date)
+formatCurrency(value)
+```
+
+Check `src/utils/` for existing formatters before creating new ones.
+
+### Deep Equality Comparisons
+
+Never use `JSON.stringify()` for equality checks — it's key-order sensitive:
+
+```typescript
+// ❌ Bad: {a:1, b:2} !== {b:2, a:1} as strings
+const isDirty = JSON.stringify(current) !== JSON.stringify(saved)
+
+// ✅ Good: Proper structural comparison
+const isDirty = !deepEqual(current, saved)
+```
+
+### CSS Box Model with JavaScript APIs
+
+When using `ResizeObserver`, `offsetWidth`, or `getBoundingClientRect()`:
+
+- **`offsetWidth`** = content + padding + border (NOT margin)
+- **`getBoundingClientRect().width`** = content + padding + border (NOT margin)
+
+If you need accurate container sizing for JS calculations, use **padding** instead of **margin** for spacing. Margins are invisible to dimension APIs.
+
+## Verification with Chrome MCP
+
+### Always Verify UI Changes
+
+After implementing UI fixes or features, **use Chrome MCP tools to verify the changes in the browser**:
+
+**Verification Workflow:**
+
+1. **Take a snapshot** to inspect the current page structure:
+   ```
+   mcp__chrome-devtools__take_snapshot
+   ```
+
+2. **Take a screenshot** to visually verify the implementation:
+   ```
+   mcp__chrome-devtools__take_screenshot
+   ```
+
+3. **Navigate to the relevant page** if needed:
+   ```
+   mcp__chrome-devtools__navigate_page (url: "http://localhost:5173/fixtures")
+   ```
+
+4. **Interact with elements** to test behavior:
+   ```
+   mcp__chrome-devtools__click (uid: "element-uid")
+   ```
+
+### When to Verify
+
+- **Bug fixes**: After fixing visual bugs (borders, spacing, colors), verify the fix renders correctly
+- **Figma implementations**: When implementing designs from Figma, compare the browser output against the Figma design
+- **Interactive features**: Test click handlers, form submissions, and state changes
+- **Responsive layouts**: Resize the page and verify at different viewports
+
+### Figma Design Verification
+
+When implementing a Figma design:
+
+1. **Get the design context** from Figma:
+   ```
+   mcp__plugin_figma_figma-desktop__get_design_context (nodeId: "123:456")
+   ```
+
+2. **Implement the design** in code
+
+3. **Verify in browser** using Chrome MCP:
+   - Take a screenshot of the implemented component
+   - Compare against the Figma screenshot
+   - Check spacing, colors, typography, and alignment match the design
+
+### Example Verification Session
+
+```typescript
+// After fixing a DataTable border issue:
+// 1. Navigate to the Fixtures page
+// 2. Expand a fixture row to show child rows
+// 3. Take a screenshot to verify borders render correctly
+// 4. Confirm non-last child rows have no bottom border
+// 5. Confirm the last child row keeps its bottom border
+```
+
 ---
 
-*Last updated: 2025-12-11*
+*Last updated: 2026-02-10*
