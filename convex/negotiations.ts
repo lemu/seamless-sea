@@ -1,10 +1,71 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 
 // Generate negotiation number (NEG12345)
 function generateNegotiationNumber(): string {
   const randomNum = Math.floor(10000 + Math.random() * 90000);
   return `NEG${randomNum}`;
+}
+
+// Helper function to calculate and update fixture's lastUpdated
+// Duplicated here to avoid circular dependency issues with internal functions
+async function updateFixtureLastUpdated(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<void> {
+  const fixture = await ctx.db.get(fixtureId);
+  if (!fixture) return;
+
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get negotiations via the order (if exists)
+  let negotiations: { updatedAt?: number; _creationTime: number }[] = [];
+  if (fixture.orderId) {
+    negotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
+      .collect();
+  }
+
+  // Calculate max timestamp from all related entities
+  const timestamps = [
+    fixture._creationTime,
+    fixture.updatedAt || 0,
+    ...contracts.map((c) => c.updatedAt || c._creationTime),
+    ...recapManagers.map((r) => r.updatedAt || r._creationTime),
+    ...negotiations.map((n) => n.updatedAt || n._creationTime),
+  ];
+
+  const lastUpdated = Math.max(...timestamps);
+  await ctx.db.patch(fixtureId, { lastUpdated });
+}
+
+// Helper function to update fixture's lastUpdated via order
+async function updateFixtureLastUpdatedViaOrder(
+  ctx: MutationCtx,
+  orderId: Id<"orders">
+): Promise<void> {
+  // Find fixture linked to this order
+  const fixture = await ctx.db
+    .query("fixtures")
+    .withIndex("by_order", (q) => q.eq("orderId", orderId))
+    .first();
+
+  if (fixture) {
+    await updateFixtureLastUpdated(ctx, fixture._id);
+  }
 }
 
 // Create a new negotiation
@@ -61,6 +122,9 @@ export const create = mutation({
       updatedAt: now,
     });
 
+    // Update the fixture's lastUpdated timestamp via the order
+    await updateFixtureLastUpdatedViaOrder(ctx, args.orderId);
+
     // TODO: Log activity
     // await logActivity(ctx, "negotiation", negotiationId, "created", ...);
 
@@ -97,6 +161,9 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
+    // Update the fixture's lastUpdated timestamp via the order
+    await updateFixtureLastUpdatedViaOrder(ctx, existing.orderId);
+
     return negotiationId;
   },
 });
@@ -131,6 +198,9 @@ export const updateStatus = mutation({
       status: args.status,
       updatedAt: Date.now(),
     });
+
+    // Update the fixture's lastUpdated timestamp via the order
+    await updateFixtureLastUpdatedViaOrder(ctx, negotiation.orderId);
 
     // TODO: Log activity
     // await logActivity(ctx, "negotiation", args.negotiationId, "status_changed", ...);
@@ -410,6 +480,9 @@ export const calculateAnalytics = mutation({
       firstDemurrageLastDay,
       updatedAt: Date.now(),
     });
+
+    // Update the fixture's lastUpdated timestamp via the order
+    await updateFixtureLastUpdatedViaOrder(ctx, negotiation.orderId);
 
     return {
       message: "Analytics calculated successfully",

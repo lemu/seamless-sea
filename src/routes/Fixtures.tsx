@@ -624,7 +624,11 @@ const transformFixturesToTableData = (
     });
   });
 
-  return tableData.sort((a, b) => b.lastUpdated - a.lastUpdated);
+  // Don't sort here - let TanStack Table handle sorting with grouping awareness
+  // Server already returns fixtures in _creationTime desc order
+  // Sorting here would break grouping because rows from the same fixture
+  // need to stay consecutive for TanStack Table's grouping to work correctly
+  return tableData;
 };
 
 // Helper function to format timestamp
@@ -2152,11 +2156,16 @@ function Fixtures() {
   // Track initial loading state to ensure skeleton shows on first load
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
-  // Server pagination state
-  const [serverPageSize, setServerPageSize] = useState(25);
+  // Cursor-based pagination state (bridges TanStack offset pagination to Convex cursor pagination)
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]); // Stack of cursors for back navigation
-  const [serverPageIndex, setServerPageIndex] = useState(0);
+  const serverNextCursorRef = useRef<string | null>(null);
+
+  // Pagination state (declared early so pageSize is available for the server query)
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25, // Default page size
+  });
 
   // Filters state (declared early so it's available for query params)
   const [activeFilters, setActiveFilters] = useState<
@@ -2252,7 +2261,7 @@ function Fixtures() {
       // Reset pagination when filters/search change (but not on initial mount)
       setCurrentCursor(undefined);
       setCursorHistory([undefined]);
-      setServerPageIndex(0);
+      setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
     }
 
     prevFiltersRef.current = currentState;
@@ -2264,7 +2273,7 @@ function Fixtures() {
     organizationId ? {
       organizationId,
       cursor: currentCursor,
-      limit: serverPageSize,
+      limit: pagination.pageSize,
       // Server-side filters
       status: serverFilters.status,
       vesselNames: serverFilters.vesselNames,
@@ -2294,39 +2303,10 @@ function Fixtures() {
   }, [paginatedFixtures?.items]);
 
   // Server pagination info
-  const serverHasMore = paginatedFixtures?.hasMore ?? false;
   const serverTotalCount = paginatedFixtures?.totalCount ?? 0;
-  const serverNextCursor = paginatedFixtures?.nextCursor ?? null;
 
-  // Handle server pagination - go to next page
-  const handleServerNextPage = useCallback(() => {
-    if (serverNextCursor) {
-      setCursorHistory(prev => [...prev, serverNextCursor]);
-      setCurrentCursor(serverNextCursor);
-      setServerPageIndex(prev => prev + 1);
-    }
-  }, [serverNextCursor]);
-
-  // Handle server pagination - go to previous page
-  const handleServerPrevPage = useCallback(() => {
-    if (serverPageIndex > 0) {
-      setCursorHistory(prev => {
-        const newHistory = [...prev];
-        newHistory.pop(); // Remove current cursor
-        return newHistory;
-      });
-      setCurrentCursor(cursorHistory[cursorHistory.length - 2]); // Go to previous cursor
-      setServerPageIndex(prev => prev - 1);
-    }
-  }, [serverPageIndex, cursorHistory]);
-
-  // Reset server pagination when page size changes
-  const handleServerPageSizeChange = useCallback((newSize: number) => {
-    setServerPageSize(newSize);
-    setCurrentCursor(undefined);
-    setCursorHistory([undefined]);
-    setServerPageIndex(0);
-  }, []);
+  // Keep ref in sync so handlePaginationChange always sees latest cursor
+  serverNextCursorRef.current = paginatedFixtures?.nextCursor ?? null;
 
   // Helper function to highlight search terms in text
   const highlightSearchTerms = (text: string, terms: string[]) => {
@@ -2662,36 +2642,59 @@ function Fixtures() {
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
-  // Pagination state
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 25, // Default page size
-  });
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
 
   // Use transition for non-urgent pagination updates (improves INP)
   const [isPaginationPending, startPaginationTransition] = useTransition();
 
-  // Handle pagination changes with transition for page size changes
+  // Bridge TanStack offset pagination to Convex cursor pagination
+  // Uses a ref to read current pagination without triggering re-renders
+  const paginationRef = useRef(pagination);
+  paginationRef.current = pagination;
+
   const handlePaginationChange = useCallback((updaterOrValue: PaginationState | ((old: PaginationState) => PaginationState)) => {
-    setPagination((oldPagination) => {
-      const newPagination = typeof updaterOrValue === 'function'
-        ? updaterOrValue(oldPagination)
-        : updaterOrValue;
+    const oldPagination = paginationRef.current;
+    const newPagination = typeof updaterOrValue === 'function'
+      ? updaterOrValue(oldPagination)
+      : updaterOrValue;
 
-      // Only use transition for page size changes (more expensive)
-      const pageSizeChanged = oldPagination.pageSize !== newPagination.pageSize;
+    // No change — bail out
+    if (oldPagination.pageSize === newPagination.pageSize && oldPagination.pageIndex === newPagination.pageIndex) {
+      return;
+    }
 
-      if (pageSizeChanged) {
-        // Use transition to allow React to keep UI responsive
-        startPaginationTransition(() => {
-          setPagination(newPagination);
+    const pageSizeChanged = oldPagination.pageSize !== newPagination.pageSize;
+    const pageIndexChanged = oldPagination.pageIndex !== newPagination.pageIndex;
+
+    if (pageSizeChanged) {
+      // Page size change: reset cursor navigation and go to page 0
+      setCurrentCursor(undefined);
+      setCursorHistory([undefined]);
+      startPaginationTransition(() => {
+        setPagination({ pageIndex: 0, pageSize: newPagination.pageSize });
+      });
+      return;
+    }
+
+    if (pageIndexChanged) {
+      const direction = newPagination.pageIndex - oldPagination.pageIndex;
+      if (direction > 0) {
+        // Next page
+        const nextCursor = serverNextCursorRef.current;
+        if (nextCursor) {
+          setCursorHistory(prev => [...prev, nextCursor]);
+          setCurrentCursor(nextCursor);
+        }
+      } else if (direction < 0) {
+        // Previous page
+        setCursorHistory(prev => {
+          const newHistory = prev.slice(0, -1); // Remove current cursor
+          setCurrentCursor(newHistory[newHistory.length - 1]); // Go to previous cursor
+          return newHistory;
         });
-        return oldPagination; // Return old for now, transition will update
       }
-
-      return newPagination;
-    });
+      setPagination(newPagination);
+    }
   }, []);
 
   // Derive loading state from transition pending state
@@ -6022,7 +6025,7 @@ function Fixtures() {
     // (filters will change which affects server-side data)
     setCurrentCursor(undefined);
     setCursorHistory([undefined]);
-    setServerPageIndex(0);
+    setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
 
     if (bookmark.filtersState) {
       setActiveFilters(bookmark.filtersState.activeFilters);
@@ -6261,6 +6264,8 @@ function Fixtures() {
       }
     }
 
+    // Note: Data is already sorted by lastUpdated on the server side
+    // TanStack Table will preserve the order for grouping (groups appear in order of first row appearance)
     return data;
   }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping, matchesGlobalSearch]);
 
@@ -6719,7 +6724,7 @@ function Fixtures() {
             storageKey="fixtures-table"
             // Group-preserving search handled via manual filtering and auto-expansion
             enableGlobalSearch={false}
-            // Controlled state
+            // Controlled state for sorting
             sorting={sorting}
             onSortingChange={setSorting}
             columnVisibility={columnVisibility}
@@ -6742,6 +6747,10 @@ function Fixtures() {
             columnSizing={columnSizing}
             onColumnSizingChange={handleColumnSizingChange}
             enableColumnResizing={true}
+            manualPagination
+            rowCount={serverTotalCount}
+            paginationVariant="default"
+            pageSizeOptions={[10, 25, 50, 100]}
             pagination={pagination}
             onPaginationChange={handlePaginationChange}
             onRowClick={handleRowClick}
@@ -6754,53 +6763,16 @@ function Fixtures() {
                   : filteredData.length;
 
                 // Server pagination info
-                const startItem = serverPageIndex * serverPageSize + 1;
-                const endItem = Math.min((serverPageIndex + 1) * serverPageSize, serverTotalCount);
+                const startItem = pagination.pageIndex * pagination.pageSize + 1;
+                const endItem = Math.min((pagination.pageIndex + 1) * pagination.pageSize, serverTotalCount);
 
                 return (
-                  <div className="flex items-center gap-4">
-                    <span className="text-body-sm text-[var(--color-text-secondary)]">
-                      Showing <strong className="text-[var(--color-text-primary)]">{displayCount}</strong> items
-                      {serverTotalCount > 0 && (
-                        <> ({startItem}–{endItem} of <strong className="text-[var(--color-text-primary)]">{serverTotalCount}</strong> total)</>
-                      )}
-                    </span>
-
-                    {/* Server pagination controls */}
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="h-7 rounded border border-[var(--color-border-secondary)] bg-[var(--color-surface-primary)] px-2 text-body-sm text-[var(--color-text-primary)]"
-                        value={serverPageSize}
-                        onChange={(e) => handleServerPageSizeChange(Number(e.target.value))}
-                      >
-                        <option value={25}>25 per page</option>
-                        <option value={50}>50 per page</option>
-                        <option value={100}>100 per page</option>
-                      </select>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleServerPrevPage}
-                        disabled={serverPageIndex === 0}
-                        icon="chevron-left"
-                      >
-                        Prev
-                      </Button>
-                      <span className="text-body-sm text-[var(--color-text-secondary)]">
-                        Page {serverPageIndex + 1}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleServerNextPage}
-                        disabled={!serverHasMore}
-                        icon="chevron-right"
-                        iconPosition="right"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  <span className="text-body-sm text-text-secondary">
+                    Showing <strong className="text-text-primary">{displayCount}</strong> items
+                    {serverTotalCount > 0 && (
+                      <> ({startItem}–{endItem} of <strong className="text-text-primary">{serverTotalCount}</strong> total)</>
+                    )}
+                  </span>
                 );
               })()
             }

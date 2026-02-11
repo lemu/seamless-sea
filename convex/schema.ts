@@ -283,6 +283,9 @@ export default defineSchema({
       v.literal("fully-fixed"),
       v.literal("canceled")
     ),
+    // Denormalized lastUpdated timestamp - max of fixture, contracts, recaps, negotiations timestamps
+    // Updated automatically when related entities change
+    lastUpdated: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

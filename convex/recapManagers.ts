@@ -1,5 +1,50 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+
+// Helper function to calculate and update fixture's lastUpdated
+// Duplicated here to avoid circular dependency issues with internal functions
+async function updateFixtureLastUpdated(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<void> {
+  const fixture = await ctx.db.get(fixtureId);
+  if (!fixture) return;
+
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get negotiations via the order (if exists)
+  let negotiations: { updatedAt?: number; _creationTime: number }[] = [];
+  if (fixture.orderId) {
+    negotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
+      .collect();
+  }
+
+  // Calculate max timestamp from all related entities
+  const timestamps = [
+    fixture._creationTime,
+    fixture.updatedAt || 0,
+    ...contracts.map((c) => c.updatedAt || c._creationTime),
+    ...recapManagers.map((r) => r.updatedAt || r._creationTime),
+    ...negotiations.map((n) => n.updatedAt || n._creationTime),
+  ];
+
+  const lastUpdated = Math.max(...timestamps);
+  await ctx.db.patch(fixtureId, { lastUpdated });
+}
 
 // Generate recap number (RCP12345)
 function generateRecapNumber(): string {
@@ -10,6 +55,7 @@ function generateRecapNumber(): string {
 // Create a new recap manager (wet market)
 export const create = mutation({
   args: {
+    fixtureId: v.optional(v.id("fixtures")),
     negotiationId: v.optional(v.id("negotiations")),
     orderId: v.optional(v.id("orders")),
     parentRecapId: v.optional(v.id("recap_managers")),
@@ -55,6 +101,7 @@ export const create = mutation({
 
     const recapId = await ctx.db.insert("recap_managers", {
       recapNumber,
+      fixtureId: args.fixtureId,
       negotiationId: args.negotiationId,
       orderId: args.orderId,
       parentRecapId: args.parentRecapId,
@@ -81,6 +128,11 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Update the fixture's lastUpdated timestamp if fixtureId is provided
+    if (args.fixtureId) {
+      await updateFixtureLastUpdated(ctx, args.fixtureId);
+    }
 
     // TODO: Log activity
 
@@ -128,6 +180,11 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
+    // Update the fixture's lastUpdated timestamp if fixtureId exists
+    if (existing.fixtureId) {
+      await updateFixtureLastUpdated(ctx, existing.fixtureId);
+    }
+
     return recapId;
   },
 });
@@ -160,6 +217,11 @@ export const updateStatus = mutation({
     }
 
     await ctx.db.patch(args.recapId, updates);
+
+    // Update the fixture's lastUpdated timestamp if fixtureId exists
+    if (recap.fixtureId) {
+      await updateFixtureLastUpdated(ctx, recap.fixtureId);
+    }
 
     // TODO: Log activity
 

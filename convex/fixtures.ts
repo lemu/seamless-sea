@@ -1,12 +1,115 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // Generate fixture number (FIX12345)
 function generateFixtureNumber(): string {
   const randomNum = Math.floor(10000 + Math.random() * 90000);
   return `FIX${randomNum}`;
 }
+
+// Internal helper function to recalculate and update fixture's lastUpdated
+// This should be called whenever contracts, recap managers, or negotiations are modified
+async function calculateFixtureLastUpdated(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<number> {
+  const fixture = await ctx.db.get(fixtureId);
+  if (!fixture) {
+    throw new Error("Fixture not found");
+  }
+
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get negotiations via the order (if exists)
+  let negotiations: { updatedAt?: number; createdAt?: number; _creationTime: number }[] = [];
+  if (fixture.orderId) {
+    negotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
+      .collect();
+  }
+
+  // Calculate max timestamp from related entities only (NOT fixture's own timestamps)
+  // This aligns with what the UI displays (contract-level dates)
+  //
+  // IMPORTANT: Use updatedAt ONLY (not _creationTime) because:
+  // - _creationTime is when the Convex document was created (e.g., when seed ran recently)
+  // - updatedAt is the logical timestamp set by business logic (e.g., seed data dates)
+  // - For sorting, we want the logical business date, not the database creation time
+  // - _creationTime would be larger (more recent) but represent the wrong time
+  const timestamps: number[] = [];
+
+  // Collect updatedAt from contracts (fall back to createdAt if no updatedAt)
+  for (const c of contracts) {
+    if (c.updatedAt !== undefined) {
+      timestamps.push(c.updatedAt);
+    } else if (c.createdAt !== undefined) {
+      timestamps.push(c.createdAt);
+    }
+  }
+
+  // Collect updatedAt from recap managers
+  for (const r of recapManagers) {
+    if (r.updatedAt !== undefined) {
+      timestamps.push(r.updatedAt);
+    } else if (r.createdAt !== undefined) {
+      timestamps.push(r.createdAt);
+    }
+  }
+
+  // Collect updatedAt from negotiations
+  for (const n of negotiations) {
+    if (n.updatedAt !== undefined) {
+      timestamps.push(n.updatedAt);
+    } else if (n.createdAt !== undefined) {
+      timestamps.push(n.createdAt);
+    }
+  }
+
+  // If no related entities exist or none have timestamps, fall back to fixture's createdAt
+  return timestamps.length > 0
+    ? Math.max(...timestamps)
+    : fixture.createdAt ?? fixture._creationTime;
+}
+
+// Public mutation to manually recalculate lastUpdated (for backfill or debugging)
+export const recalculateLastUpdated = mutation({
+  args: { fixtureId: v.id("fixtures") },
+  handler: async (ctx, args) => {
+    const lastUpdated = await calculateFixtureLastUpdated(ctx, args.fixtureId);
+    await ctx.db.patch(args.fixtureId, { lastUpdated });
+    return lastUpdated;
+  },
+});
+
+// Backfill mutation to populate lastUpdated for all existing fixtures
+export const backfillLastUpdated = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const fixtures = await ctx.db.query("fixtures").collect();
+    let updated = 0;
+
+    for (const fixture of fixtures) {
+      const lastUpdated = await calculateFixtureLastUpdated(ctx, fixture._id);
+      await ctx.db.patch(fixture._id, { lastUpdated });
+      updated++;
+    }
+
+    return { updated, message: `Updated lastUpdated for ${updated} fixtures` };
+  },
+});
 
 // Create a new fixture
 export const create = mutation({
@@ -35,6 +138,7 @@ export const create = mutation({
       title: args.title,
       organizationId: args.organizationId,
       status: args.status || "draft",
+      lastUpdated: now, // Initialize lastUpdated to creation time
       createdAt: now,
       updatedAt: now,
     });
@@ -67,9 +171,16 @@ export const update = mutation({
       throw new Error("Fixture not found");
     }
 
+    const now = Date.now();
+
+    // Recalculate lastUpdated to include this update
+    const lastUpdated = await calculateFixtureLastUpdated(ctx, fixtureId);
+    const newLastUpdated = Math.max(lastUpdated, now);
+
     await ctx.db.patch(fixtureId, {
       ...updates,
-      updatedAt: Date.now(),
+      lastUpdated: newLastUpdated,
+      updatedAt: now,
     });
 
     return fixtureId;
@@ -647,6 +758,17 @@ export const listEnrichedPaginated = query({
       allFixtures = filteredFixtures;
     }
 
+    // Use stored lastUpdated field for sorting (denormalized for stable pagination)
+    // Fallback to _creationTime if lastUpdated is not set (for backwards compatibility)
+    // Add stable secondary sort by _id to ensure deterministic ordering
+    allFixtures.sort((a, b) => {
+      const aTime = a.lastUpdated ?? a._creationTime;
+      const bTime = b.lastUpdated ?? b._creationTime;
+      if (bTime !== aTime) return bTime - aTime;
+      // Stable secondary sort by _id for consistent ordering when timestamps are equal
+      return b._id.localeCompare(a._id);
+    });
+
     // Find cursor position if provided
     let startIndex = 0;
     if (args.cursor) {
@@ -663,9 +785,13 @@ export const listEnrichedPaginated = query({
       ? pageFixtures[pageFixtures.length - 1]._id
       : null;
 
-    // Enrich each fixture
+    // Enrich each fixture (preserve lastUpdated from stored field)
     const enrichedFixtures = await Promise.all(
-      pageFixtures.map((fixture) => enrichFixture(ctx, fixture))
+      pageFixtures.map(async (fixture) => {
+        const enriched = await enrichFixture(ctx, fixture);
+        // Use stored lastUpdated or fallback to _creationTime
+        return { ...enriched, lastUpdated: fixture.lastUpdated ?? fixture._creationTime };
+      })
     );
 
     return {
@@ -1379,11 +1505,13 @@ export const seedFixturesInternal = async (ctx: MutationCtx) => {
     }) : undefined;
 
     // Create fixture (linked to order only for trade flow)
+    // Note: lastUpdated will be set after all contracts/negotiations are created
     const fixtureId = await ctx.db.insert("fixtures", {
       fixtureNumber,
       orderId: isTradeFlow ? orderId : undefined,
       organizationId: organization._id,
       status: fixtureStatus,
+      lastUpdated: now, // Will be recalculated after seeding
       createdAt: orderTimestamp,
       updatedAt: now,
     });
