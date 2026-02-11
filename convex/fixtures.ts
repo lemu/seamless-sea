@@ -588,6 +588,9 @@ export const listEnrichedPaginated = query({
           .collect()
       : await ctx.db.query("fixtures").order("desc").collect();
 
+    // Capture total count before any filters are applied
+    const unfilteredTotalCount = allFixtures.length;
+
     // Apply server-side status filter if provided (fixture-level)
     if (args.status && args.status.length > 0) {
       const statusSet = new Set(args.status);
@@ -799,6 +802,7 @@ export const listEnrichedPaginated = query({
       nextCursor,
       hasMore,
       totalCount: allFixtures.length,
+      unfilteredTotalCount,
     };
   },
 });

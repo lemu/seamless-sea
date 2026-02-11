@@ -2304,6 +2304,8 @@ function Fixtures() {
 
   // Server pagination info
   const serverTotalCount = paginatedFixtures?.totalCount ?? 0;
+  const serverUnfilteredTotalCount = paginatedFixtures?.unfilteredTotalCount ?? 0;
+  const isFiltered = serverTotalCount !== serverUnfilteredTotalCount;
 
   // Keep ref in sync so handlePaginationChange always sees latest cursor
   serverNextCursorRef.current = paginatedFixtures?.nextCursor ?? null;
@@ -6756,25 +6758,13 @@ function Fixtures() {
             onRowClick={handleRowClick}
             isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
             footerLabel={
-              (() => {
-                // When grouping is active, count groups; otherwise count fixtures
-                const displayCount = grouping.length > 0
-                  ? new Set(filteredData.map(fixture => fixture[grouping[0] as keyof FixtureData])).size
-                  : filteredData.length;
-
-                // Server pagination info
-                const startItem = pagination.pageIndex * pagination.pageSize + 1;
-                const endItem = Math.min((pagination.pageIndex + 1) * pagination.pageSize, serverTotalCount);
-
-                return (
-                  <span className="text-body-sm text-text-secondary">
-                    Showing <strong className="text-text-primary">{displayCount}</strong> items
-                    {serverTotalCount > 0 && (
-                      <> ({startItem}–{endItem} of <strong className="text-text-primary">{serverTotalCount}</strong> total)</>
-                    )}
-                  </span>
-                );
-              })()
+              <span className="text-body-sm text-text-secondary">
+                {isFiltered ? (
+                  <>Showing <strong className="text-text-primary">{serverTotalCount}</strong> from <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> fixtures in total.</>
+                ) : (
+                  <>Showing all <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> fixtures</>
+                )}
+              </span>
             }
           />
         </div>
