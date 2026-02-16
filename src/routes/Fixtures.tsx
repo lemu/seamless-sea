@@ -2495,16 +2495,6 @@ function Fixtures() {
   const { user } = useUser();
   const userId = user?.appUserId;
 
-  // Debug: Log user state on mount and when it changes
-  useEffect(() => {
-    console.log("👤 User state:", {
-      hasUser: !!user,
-      email: user?.email,
-      appUserId: userId,
-      userObject: user
-    });
-  }, [user, userId]);
-
   // Query bookmarks from Convex
   const userBookmarksFromDb = useQuery(
     api.user_bookmarks.getUserBookmarks,
@@ -2517,7 +2507,6 @@ function Fixtures() {
   const renameBookmarkMutation = useMutation(api.user_bookmarks.renameBookmark);
   const deleteBookmarkMutation = useMutation(api.user_bookmarks.deleteBookmark);
   const setDefaultBookmarkMutation = useMutation(api.user_bookmarks.setDefaultBookmark);
-  const syncUserMutation = useMutation(api.users.autoFixCurrentUser);
 
   // Local state for optimistic updates
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);
@@ -6136,7 +6125,7 @@ function Fixtures() {
   // 2. Any filters not yet migrated to server-side
   // 3. Group-preserving search highlighting (after server search)
   const filteredData = useMemo(() => {
-    // Step 1: Apply bookmark and field filters (non-search filters)
+    // Step 1: Apply bookmark filters (per-row)
     let data = fixtureData.filter((fixture) => {
       // Special filter for Negotiations bookmark
       if (activeBookmarkId === "system-negotiations") {
@@ -6152,7 +6141,11 @@ function Fixtures() {
         }
       }
 
-      // Apply active filters (from Filters sidebar)
+      return true;
+    });
+
+    // Step 2: Apply field filters (group-preserving when grouping active)
+    const matchesFieldFilters = (fixture: FixtureData): boolean => {
       for (const [filterId, filterValue] of Object.entries(activeFilters)) {
         // Handle multiselect filters (arrays of strings)
         if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
@@ -6211,9 +6204,36 @@ function Fixtures() {
       }
 
       return true;
-    });
+    };
 
-    // Step 2: Apply group-preserving global search
+    const hasActiveFieldFilters = Object.keys(activeFilters).length > 0;
+    if (hasActiveFieldFilters) {
+      const groupingColumn = grouping[0] as keyof FixtureData | undefined;
+
+      if (groupingColumn) {
+        // Group-preserving: if any row in a group matches, keep entire group
+        const rowsByGroup = new Map<string, FixtureData[]>();
+        data.forEach(row => {
+          const key = String(row[groupingColumn]);
+          if (!rowsByGroup.has(key)) rowsByGroup.set(key, []);
+          rowsByGroup.get(key)!.push(row);
+        });
+
+        const matchingGroups = new Set<string>();
+        rowsByGroup.forEach((rows, key) => {
+          if (rows.some(matchesFieldFilters)) {
+            matchingGroups.add(key);
+          }
+        });
+
+        data = data.filter(row => matchingGroups.has(String(row[groupingColumn])));
+      } else {
+        // No grouping — filter per-row
+        data = data.filter(matchesFieldFilters);
+      }
+    }
+
+    // Step 3: Apply group-preserving global search
     if (globalSearchTerms.length > 0) {
       // Get the active grouping column (fixtureId, negotiationId, or cpId)
       const groupingColumn = grouping[0] as keyof FixtureData | undefined;
@@ -6316,8 +6336,7 @@ function Fixtures() {
     console.log("💾 handleSave called:", { action, name, userId, hasUser: !!user });
 
     if (!userId) {
-      console.error("❌ User not authenticated - userId:", userId);
-      alert("Cannot save bookmark: Your account needs to be synced. Please click the 'Sync Account' button at the top of the page.");
+      console.warn("Cannot save bookmark: user not yet loaded");
       return;
     }
 
@@ -6514,42 +6533,6 @@ function Fixtures() {
   return (
     <>
       <div className="p-6 flex flex-col gap-[var(--space-lg)] max-w-full min-w-0">
-        {/* Sync Account Banner (only show if user is authenticated but no userId) */}
-        {user && !userId && (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-800">Account Sync Required</p>
-              <p className="text-sm text-yellow-700 mt-1">
-                Your account needs to be synced to save bookmarks. Click the button to sync now.
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const result = await syncUserMutation({});
-                  console.log("✅ Sync result:", result);
-                  if (result.success) {
-                    alert(`Account synced successfully! ${result.message}\n\nThe page will reload in 2 seconds...`);
-                    // Use a hard reload with cache clearing
-                    setTimeout(() => {
-                      window.location.reload();
-                    }, 2000);
-                  } else {
-                    alert(`Sync failed: ${result.message}`);
-                  }
-                } catch (error) {
-                  console.error("❌ Sync error:", error);
-                  alert("Failed to sync account. Please try again or contact support.");
-                }
-              }}
-            >
-              Sync Account
-            </Button>
-          </div>
-        )}
-
         {/* Bookmarks Tabs Row + Filters Row */}
         <Bookmarks
           variant="tabs"
