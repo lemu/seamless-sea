@@ -985,67 +985,9 @@ When using `ResizeObserver`, `offsetWidth`, or `getBoundingClientRect()`:
 
 If you need accurate container sizing for JS calculations, use **padding** instead of **margin** for spacing. Margins are invisible to dimension APIs.
 
-## Verification with Chrome MCP
+## Chrome MCP Browser Verification
 
-### Always Verify UI Changes
-
-After implementing UI fixes or features, **use Chrome MCP tools to verify the changes in the browser**:
-
-**Verification Workflow:**
-
-1. **Take a snapshot** to inspect the current page structure:
-   ```
-   mcp__chrome-devtools__take_snapshot
-   ```
-
-2. **Take a screenshot** to visually verify the implementation:
-   ```
-   mcp__chrome-devtools__take_screenshot
-   ```
-
-3. **Navigate to the relevant page** if needed:
-   ```
-   mcp__chrome-devtools__navigate_page (url: "http://localhost:5173/fixtures")
-   ```
-
-4. **Interact with elements** to test behavior:
-   ```
-   mcp__chrome-devtools__click (uid: "element-uid")
-   ```
-
-### When to Verify
-
-- **Bug fixes**: After fixing visual bugs (borders, spacing, colors), verify the fix renders correctly
-- **Figma implementations**: When implementing designs from Figma, compare the browser output against the Figma design
-- **Interactive features**: Test click handlers, form submissions, and state changes
-- **Responsive layouts**: Resize the page and verify at different viewports
-
-### Figma Design Verification
-
-When implementing a Figma design:
-
-1. **Get the design context** from Figma:
-   ```
-   mcp__plugin_figma_figma-desktop__get_design_context (nodeId: "123:456")
-   ```
-
-2. **Implement the design** in code
-
-3. **Verify in browser** using Chrome MCP:
-   - Take a screenshot of the implemented component
-   - Compare against the Figma screenshot
-   - Check spacing, colors, typography, and alignment match the design
-
-### Example Verification Session
-
-```typescript
-// After fixing a DataTable border issue:
-// 1. Navigate to the Fixtures page
-// 2. Expand a fixture row to show child rows
-// 3. Take a screenshot to verify borders render correctly
-// 4. Confirm non-last child rows have no bottom border
-// 5. Confirm the last child row keeps its bottom border
-```
+**Only use Chrome MCP tools when explicitly requested by the user.** Do not automatically verify UI changes in the browser after implementing code.
 
 ---
 
