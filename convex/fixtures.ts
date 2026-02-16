@@ -556,8 +556,6 @@ const fixtureStatusValues = [
   "canceled",
 ] as const;
 
-type FixtureStatus = typeof fixtureStatusValues[number];
-
 // List fixtures with enriched data - PAGINATED VERSION
 // Returns cursor-based pagination for better performance with large datasets
 export const listEnrichedPaginated = query({

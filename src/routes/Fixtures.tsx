@@ -2158,7 +2158,6 @@ function Fixtures() {
 
   // Cursor-based pagination state (bridges TanStack offset pagination to Convex cursor pagination)
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
-  const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([undefined]); // Stack of cursors for back navigation
   const serverNextCursorRef = useRef<string | null>(null);
 
   // Pagination state (declared early so pageSize is available for the server query)
