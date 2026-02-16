@@ -59,7 +59,7 @@ export function BaseWidget({
   }
 
   return (
-    <div className="rounded-xlg flex h-full flex-col border border-[var(--color-border-primary-bold)] bg-[var(--color-surface-primary)]">
+    <div className="rounded-xlg flex h-full flex-col border border-[var(--color-border-primary-medium)] bg-[var(--color-surface-primary)]">
       {/* Widget Header */}
       <div className="widget-drag-handle cursor-grab border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
         <div className="flex items-center justify-between">
