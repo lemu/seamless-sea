@@ -546,16 +546,6 @@ async function enrichFixture(
   };
 }
 
-// Valid fixture status values
-const fixtureStatusValues = [
-  "draft",
-  "working-copy",
-  "final",
-  "on-subs",
-  "fully-fixed",
-  "canceled",
-] as const;
-
 // List fixtures with enriched data - PAGINATED VERSION
 // Returns cursor-based pagination for better performance with large datasets
 export const listEnrichedPaginated = query({
