@@ -255,6 +255,23 @@ interface ColumnMetaWithLabel {
   filterable?: boolean;
   filterGroup?: string;
   dateGranularity?: "day" | "month";
+  filterVariant?: string;
+}
+
+function getColumnDataType(
+  meta?: ColumnMetaWithLabel,
+): "text" | "number" | "date" | "boolean" | undefined {
+  switch (meta?.filterVariant) {
+    case "multiselect":
+    case "text":
+      return "text";
+    case "number":
+      return "number";
+    case "date":
+      return "date";
+    default:
+      return undefined;
+  }
 }
 
 // Transform database contracts and recap managers to FixtureData format
@@ -596,21 +613,27 @@ const transformFixturesToTableData = (
         daysToFinal: calculateDaysBetween(item.workingCopyDate, item.finalDate) ?? undefined,
         daysToSigned: calculateDaysBetween(item.finalDate, item.fullySignedDate) ?? undefined,
 
-        // Approvals
-        ownerApprovalStatus: item.approvals?.find((a) => a.partyRole === 'owner')?.status,
-        ownerApprovedBy: item.approvals?.find((a) => a.partyRole === 'owner')?.approvedBy?.name,
-        ownerApprovalDate: item.approvals?.find((a) => a.partyRole === 'owner')?.approvedAt,
-        chartererApprovalStatus: item.approvals?.find((a) => a.partyRole === 'charterer')?.status,
-        chartererApprovedBy: item.approvals?.find((a) => a.partyRole === 'charterer')?.approvedBy?.name,
-        chartererApprovalDate: item.approvals?.find((a) => a.partyRole === 'charterer')?.approvedAt,
-
-        // Signatures
-        ownerSignatureStatus: item.signatures?.find((s) => s.partyRole === 'owner')?.status,
-        ownerSignedBy: item.signatures?.find((s) => s.partyRole === 'owner')?.signedBy?.name,
-        ownerSignatureDate: item.signatures?.find((s) => s.partyRole === 'owner')?.signedAt,
-        chartererSignatureStatus: item.signatures?.find((s) => s.partyRole === 'charterer')?.status,
-        chartererSignedBy: item.signatures?.find((s) => s.partyRole === 'charterer')?.signedBy?.name,
-        chartererSignatureDate: item.signatures?.find((s) => s.partyRole === 'charterer')?.signedAt,
+        // Approvals (cache lookups to avoid redundant .find() calls)
+        ...(() => {
+          const ownerApproval = item.approvals?.find((a) => a.partyRole === 'owner');
+          const chartererApproval = item.approvals?.find((a) => a.partyRole === 'charterer');
+          const ownerSignature = item.signatures?.find((s) => s.partyRole === 'owner');
+          const chartererSignature = item.signatures?.find((s) => s.partyRole === 'charterer');
+          return {
+            ownerApprovalStatus: ownerApproval?.status,
+            ownerApprovedBy: ownerApproval?.approvedBy?.name,
+            ownerApprovalDate: ownerApproval?.approvedAt,
+            chartererApprovalStatus: chartererApproval?.status,
+            chartererApprovedBy: chartererApproval?.approvedBy?.name,
+            chartererApprovalDate: chartererApproval?.approvedAt,
+            ownerSignatureStatus: ownerSignature?.status,
+            ownerSignedBy: ownerSignature?.signedBy?.name,
+            ownerSignatureDate: ownerSignature?.signedAt,
+            chartererSignatureStatus: chartererSignature?.status,
+            chartererSignedBy: chartererSignature?.signedBy?.name,
+            chartererSignatureDate: chartererSignature?.signedAt,
+          };
+        })(),
 
         // User Tracking
         dealCaptureUser: item.negotiation?.dealCaptureUser?.name,
@@ -753,7 +776,7 @@ function FixtureSidebar({
 
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex flex-col gap-0 bg-[var(--color-surface-base)] p-0" style={{ width: '640px', maxWidth: '640px' }}>
+      <SheetContent side="right" overlay={false} className="flex flex-col gap-0 bg-[var(--color-surface-base)] p-0" style={{ width: '640px', maxWidth: '640px' }}>
         <SheetTitle className="sr-only">Fixture {fixture.id}</SheetTitle>
 
         <Tabs defaultValue="overview" className="flex flex-1 flex-col overflow-hidden gap-0">
@@ -2129,6 +2152,7 @@ function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
   );
+  const [activeRowId, setActiveRowId] = useState<string | undefined>(undefined);
   const [showExportDialog, setShowExportDialog] = useState(false);
 
   // Memoize header actions
@@ -2158,7 +2182,7 @@ function Fixtures() {
 
   // Cursor-based pagination state (bridges TanStack offset pagination to Convex cursor pagination)
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
-  const [, setCursorHistory] = useState<(string | undefined)[]>([undefined]);
+  const cursorHistoryRef = useRef<(string | undefined)[]>([undefined]);
   const serverNextCursorRef = useRef<string | null>(null);
 
   // Pagination state (declared early so pageSize is available for the server query)
@@ -2175,30 +2199,36 @@ function Fixtures() {
   // Global search terms (declared early so it's available for server query)
   const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
 
+  // Grouping state (declared early so paginationUnit is available for server query)
+  const [grouping, setGrouping] = useState<GroupingState>([]);
+
+  // Derive pagination unit from grouping column
+  const paginationUnit = useMemo(() => {
+    const col = grouping[0];
+    if (col === "negotiationId") return "negotiation" as const;
+    if (col === "cpId") return "contract" as const;
+    return "fixture" as const;
+  }, [grouping]);
+
   // Extract server-side filter values from activeFilters
   const serverFilters = useMemo(() => {
-    // Status filter: Extract base status from combined format
+    // Status filter: Extract entity-specific status from combined format (e.g., "contract-final" → "final")
+    // For fixture pagination, map to fixture-level statuses
+    // For negotiation/contract pagination, map to entity-level statuses
     let statusFilter: string[] | undefined = undefined;
     if (activeFilters.status && Array.isArray(activeFilters.status) && activeFilters.status.length > 0) {
-      const fixtureStatuses = new Set<string>();
-      const statusMapping: Record<string, string> = {
-        'draft': 'draft',
-        'working-copy': 'working-copy',
-        'final': 'final',
-        'on-subs': 'on-subs',
-        'fully-fixed': 'fully-fixed',
-        'canceled': 'canceled',
-      };
+      const statuses = new Set<string>();
       activeFilters.status.forEach(status => {
-        const parts = String(status).split('-');
-        if (parts.length >= 2) {
-          const baseStatus = parts.slice(1).join('-');
-          if (statusMapping[baseStatus]) {
-            fixtureStatuses.add(statusMapping[baseStatus]);
-          }
+        const statusStr = String(status);
+        // Status format: "prefix-actual-status" (e.g., "contract-working-copy", "negotiation-on-subs")
+        // Extract the part after the first dash group that's the entity prefix
+        const firstDash = statusStr.indexOf('-');
+        if (firstDash !== -1) {
+          const entityStatus = statusStr.substring(firstDash + 1);
+          statuses.add(entityStatus);
         }
       });
-      statusFilter = fixtureStatuses.size > 0 ? Array.from(fixtureStatuses) : undefined;
+      statusFilter = statuses.size > 0 ? Array.from(statuses) : undefined;
     }
 
     // Vessel filter: Extract vessel names
@@ -2249,41 +2279,70 @@ function Fixtures() {
     };
   }, [activeFilters.status, activeFilters.vessels, activeFilters.owner, activeFilters.charterer, activeFilters.cpDate]);
 
-  // Reset pagination when any server filter or search changes
-  const prevFiltersRef = useRef<{ filters: typeof serverFilters; search: string[] } | null>(null);
+  // Sorting state (declared early so it can be used in the query and cursor-reset effect below)
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Reset pagination when any server filter, search, pagination unit, or sorting changes
+  const prevFiltersRef = useRef<{ filters: typeof serverFilters; search: string[]; unit: string; sort: string; sortDir: string } | null>(null);
   useEffect(() => {
-    const currentState = { filters: serverFilters, search: globalSearchTerms };
+    const currentState = {
+      filters: serverFilters,
+      search: globalSearchTerms,
+      unit: paginationUnit,
+      sort: sorting[0]?.id ?? "",
+      sortDir: sorting[0]?.desc ? "desc" : "asc",
+    };
     const prevState = prevFiltersRef.current;
 
-    // Check if filters or search changed
-    const stateChanged = JSON.stringify(currentState) !== JSON.stringify(prevState);
+    // Check if filters, search, pagination unit, or sorting changed
+    const stateChanged = !deepEqual(currentState, prevState);
     if (stateChanged && prevState !== null) {
-      // Reset pagination when filters/search change (but not on initial mount)
+      // Reset pagination when filters/search/paginationUnit/sorting change (but not on initial mount)
       setCurrentCursor(undefined);
-      setCursorHistory([undefined]);
+      cursorHistoryRef.current = [undefined];
       setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
     }
 
     prevFiltersRef.current = currentState;
-  }, [serverFilters, globalSearchTerms]);
+  }, [serverFilters, globalSearchTerms, paginationUnit, sorting]);
+
+  // Memoize query args so Convex sees stable references when values haven't changed
+  const queryArgs = useMemo(() => organizationId ? {
+    organizationId,
+    paginationUnit,
+    cursor: currentCursor,
+    limit: pagination.pageSize,
+    // Server-side filters
+    status: serverFilters.status,
+    vesselNames: serverFilters.vesselNames,
+    ownerNames: serverFilters.ownerNames,
+    chartererNames: serverFilters.chartererNames,
+    dateRangeStart: serverFilters.dateRangeStart,
+    dateRangeEnd: serverFilters.dateRangeEnd,
+    // Global search
+    searchTerms: globalSearchTerms.length > 0 ? globalSearchTerms : undefined,
+    // Sorting
+    sortField: sorting[0]?.id,
+    sortDirection: sorting[0]?.desc ? "desc" : "asc",
+  } as const : "skip" as const, [
+    organizationId, paginationUnit, currentCursor, pagination.pageSize,
+    serverFilters, globalSearchTerms, sorting,
+  ]);
 
   // Query fixtures with enriched data using paginated query
-  const paginatedFixtures = useQuery(
-    api.fixtures.listEnrichedPaginated,
-    organizationId ? {
-      organizationId,
-      cursor: currentCursor,
-      limit: pagination.pageSize,
-      // Server-side filters
-      status: serverFilters.status,
-      vesselNames: serverFilters.vesselNames,
-      ownerNames: serverFilters.ownerNames,
-      chartererNames: serverFilters.chartererNames,
-      dateRangeStart: serverFilters.dateRangeStart,
-      dateRangeEnd: serverFilters.dateRangeEnd,
-      // Global search
-      searchTerms: globalSearchTerms.length > 0 ? globalSearchTerms : undefined,
-    } : "skip"
+  const paginatedFixtures = useQuery(api.fixtures.listEnrichedPaginated, queryArgs);
+
+  // Query bookmark counts (unfiltered totals for system bookmarks)
+  const bookmarkCounts = useQuery(
+    api.fixtures.getBookmarkCounts,
+    organizationId ? { organizationId } : "skip"
+  );
+
+  // Query all unique filter options from the full unfiltered dataset
+  // so dropdown options don't shrink when a filter is applied
+  const filterOptions = useQuery(
+    api.fixtures.getFilterOptions,
+    organizationId ? { organizationId } : "skip"
   );
 
   // Clear initial loading once fixtures data is available
@@ -2297,10 +2356,12 @@ function Fixtures() {
   const isLoadingFixtures = paginatedFixtures === undefined;
 
   // Transform database data to fixture format
+  // Returns null while loading (paginatedFixtures === undefined), [] for genuinely empty results
   const fixtureData = useMemo(() => {
+    if (paginatedFixtures === undefined) return null;
     if (!paginatedFixtures?.items) return [];
     return transformFixturesToTableData(paginatedFixtures.items as unknown as FixtureWithRelations[]);
-  }, [paginatedFixtures?.items]);
+  }, [paginatedFixtures]);
 
   // Server pagination info
   const serverTotalCount = paginatedFixtures?.totalCount ?? 0;
@@ -2350,10 +2411,8 @@ function Fixtures() {
     laycan: false,
     laycanStart: false,
     laycanEnd: false,
-    loadPortName: false,
     loadPortCountry: false,
     loadDeliveryType: false,
-    dischargePortName: false,
     dischargePortCountry: false,
     dischargeRedeliveryType: false,
     vesselImo: false,
@@ -2422,7 +2481,7 @@ function Fixtures() {
       isDefault: true,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: serverTotalCount,
+      count: bookmarkCounts?.totalFixtures ?? 0,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -2443,7 +2502,7 @@ function Fixtures() {
       isDefault: false,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: serverTotalCount,
+      count: bookmarkCounts?.totalNegotiations ?? 0,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -2464,7 +2523,7 @@ function Fixtures() {
       isDefault: false,
       createdAt: new Date("2024-01-01"),
       updatedAt: new Date("2024-01-01"),
-      count: serverTotalCount,
+      count: bookmarkCounts?.totalContracts ?? 0,
       filtersState: {
         activeFilters: {},
         pinnedFilters: [],
@@ -2553,17 +2612,14 @@ function Fixtures() {
   }, []);
 
   // Table state
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     // Hide all new columns by default
     // Priority 1: Core Commercial Fields
     laycan: false,
     laycanStart: false,
     laycanEnd: false,
-    loadPortName: false,
     loadPortCountry: false,
     loadDeliveryType: false,
-    dischargePortName: false,
     dischargePortCountry: false,
     dischargeRedeliveryType: false,
     vesselImo: false,
@@ -2628,7 +2684,7 @@ function Fixtures() {
     parentCpId: false,
     contractType: false,
   });
-  const [grouping, setGrouping] = useState<GroupingState>([]);
+  // Note: grouping state is declared earlier (near query params) so paginationUnit is available for server query
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -2660,7 +2716,7 @@ function Fixtures() {
     if (pageSizeChanged) {
       // Page size change: reset cursor navigation and go to page 0
       setCurrentCursor(undefined);
-      setCursorHistory([undefined]);
+      cursorHistoryRef.current = [undefined];
       startPaginationTransition(() => {
         setPagination({ pageIndex: 0, pageSize: newPagination.pageSize });
       });
@@ -2673,16 +2729,13 @@ function Fixtures() {
         // Next page
         const nextCursor = serverNextCursorRef.current;
         if (nextCursor) {
-          setCursorHistory(prev => [...prev, nextCursor]);
+          cursorHistoryRef.current = [...cursorHistoryRef.current, nextCursor];
           setCurrentCursor(nextCursor);
         }
       } else if (direction < 0) {
         // Previous page
-        setCursorHistory(prev => {
-          const newHistory = prev.slice(0, -1); // Remove current cursor
-          setCurrentCursor(newHistory[newHistory.length - 1]); // Go to previous cursor
-          return newHistory;
-        });
+        cursorHistoryRef.current = cursorHistoryRef.current.slice(0, -1);
+        setCurrentCursor(cursorHistoryRef.current[cursorHistoryRef.current.length - 1]);
       }
       setPagination(newPagination);
     }
@@ -2731,6 +2784,7 @@ function Fixtures() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedFixture(row.original);
+                    setActiveRowId(row.id);
                   }}
                 >
                   {highlightSearchTerms(value, globalSearchTerms)}
@@ -4602,6 +4656,7 @@ function Fixtures() {
         accessorKey: "ownerApprovalStatus",
         header: "Owner Approval",
         size: 140,
+        enableSorting: false,
         meta: {
           label: "Owner Approval",
           align: "left",
@@ -4640,6 +4695,7 @@ function Fixtures() {
         accessorKey: "ownerApprovedBy",
         header: "Owner Approved By",
         size: 160,
+        enableSorting: false,
         meta: {
           label: "Owner Approved By",
           align: "left",
@@ -4662,6 +4718,7 @@ function Fixtures() {
         accessorKey: "ownerApprovalDate",
         header: "Owner Approval Date",
         size: 170,
+        enableSorting: false,
         meta: {
           label: "Owner Approval Date",
           align: "left",
@@ -4695,6 +4752,7 @@ function Fixtures() {
         accessorKey: "chartererApprovalStatus",
         header: "Charterer Approval",
         size: 160,
+        enableSorting: false,
         meta: {
           label: "Charterer Approval",
           align: "left",
@@ -4733,6 +4791,7 @@ function Fixtures() {
         accessorKey: "chartererApprovedBy",
         header: "Charterer Approved By",
         size: 180,
+        enableSorting: false,
         meta: {
           label: "Charterer Approved By",
           align: "left",
@@ -4755,6 +4814,7 @@ function Fixtures() {
         accessorKey: "chartererApprovalDate",
         header: "Charterer Approval Date",
         size: 190,
+        enableSorting: false,
         meta: {
           label: "Charterer Approval Date",
           align: "left",
@@ -4790,6 +4850,7 @@ function Fixtures() {
         accessorKey: "ownerSignatureStatus",
         header: "Owner Signature",
         size: 150,
+        enableSorting: false,
         meta: {
           label: "Owner Signature",
           align: "left",
@@ -4828,6 +4889,7 @@ function Fixtures() {
         accessorKey: "ownerSignedBy",
         header: "Owner Signed By",
         size: 150,
+        enableSorting: false,
         meta: {
           label: "Owner Signed By",
           align: "left",
@@ -4850,6 +4912,7 @@ function Fixtures() {
         accessorKey: "ownerSignatureDate",
         header: "Owner Signature Date",
         size: 170,
+        enableSorting: false,
         meta: {
           label: "Owner Signature Date",
           align: "left",
@@ -4883,6 +4946,7 @@ function Fixtures() {
         accessorKey: "chartererSignatureStatus",
         header: "Charterer Signature",
         size: 170,
+        enableSorting: false,
         meta: {
           label: "Charterer Signature",
           align: "left",
@@ -4921,6 +4985,7 @@ function Fixtures() {
         accessorKey: "chartererSignedBy",
         header: "Charterer Signed By",
         size: 170,
+        enableSorting: false,
         meta: {
           label: "Charterer Signed By",
           align: "left",
@@ -4943,6 +5008,7 @@ function Fixtures() {
         accessorKey: "chartererSignatureDate",
         header: "Charterer Signature Date",
         size: 190,
+        enableSorting: false,
         meta: {
           label: "Charterer Signature Date",
           align: "left",
@@ -4978,6 +5044,7 @@ function Fixtures() {
         accessorKey: "dealCaptureUser",
         header: "Deal Capture",
         size: 140,
+        enableSorting: false,
         meta: {
           label: "Deal Capture",
           align: "left",
@@ -5017,6 +5084,7 @@ function Fixtures() {
         accessorKey: "orderCreatedBy",
         header: "Order Created By",
         size: 160,
+        enableSorting: false,
         meta: {
           label: "Order Created By",
           align: "left",
@@ -5056,6 +5124,7 @@ function Fixtures() {
         accessorKey: "negotiationCreatedBy",
         header: "Neg. Created By",
         size: 160,
+        enableSorting: false,
         meta: {
           label: "Neg. Created By",
           align: "left",
@@ -5096,6 +5165,7 @@ function Fixtures() {
         accessorKey: "parentCpId",
         header: "Parent CP",
         size: 130,
+        enableSorting: false,
         meta: {
           label: "Parent CP",
           align: "left",
@@ -5268,20 +5338,38 @@ function Fixtures() {
   }, [fixtureColumns, columnVisibility]);
 
 
-  // Extract unique values for filters
-  const uniqueVessels = useMemo(() => {
-    const vessels = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      vessels.add(fixture.vessels);
-    });
-    return Array.from(vessels)
-      .sort()
-      .map((v) => ({ value: v, label: v }));
-  }, [fixtureData]);
+  // Filter options from full unfiltered dataset (server-provided)
+  // These don't shrink when filters are applied, unlike the old fixtureData-derived useMemos
+  const emptyOptions: Array<{ value: string; label: string }> = [];
+  const uniqueVessels = filterOptions?.vessels ?? emptyOptions;
+  const uniqueOwners = filterOptions?.owner ?? emptyOptions;
+  const uniqueBrokers = filterOptions?.broker ?? emptyOptions;
+  const uniqueCharterers = filterOptions?.charterer ?? emptyOptions;
+  const uniqueStages = filterOptions?.stage ?? emptyOptions;
+  const uniqueContractTypes = filterOptions?.contractType ?? emptyOptions;
+  const uniqueApprovalStatuses = filterOptions?.approvalStatus ?? emptyOptions;
+  const uniqueLoadPorts = filterOptions?.loadPortName ?? emptyOptions;
+  const uniqueLoadCountries = filterOptions?.loadPortCountry ?? emptyOptions;
+  const uniqueLoadDeliveryTypes = filterOptions?.loadDeliveryType ?? emptyOptions;
+  const uniqueDischargePorts = filterOptions?.dischargePortName ?? emptyOptions;
+  const uniqueDischargeCountries = filterOptions?.dischargePortCountry ?? emptyOptions;
+  const uniqueDischargeRedeliveryTypes = filterOptions?.dischargeRedeliveryType ?? emptyOptions;
+  const uniqueCargoTypes = filterOptions?.cargoTypeName ?? emptyOptions;
+  const uniqueMarketIndexNames = filterOptions?.marketIndexName ?? emptyOptions;
+  const uniqueOwnerApprovalStatuses = filterOptions?.ownerApprovalStatus ?? emptyOptions;
+  const uniqueChartererApprovalStatuses = filterOptions?.chartererApprovalStatus ?? emptyOptions;
+  const uniqueOwnerSignatureStatuses = filterOptions?.ownerSignatureStatus ?? emptyOptions;
+  const uniqueChartererSignatureStatuses = filterOptions?.chartererSignatureStatus ?? emptyOptions;
+  const uniqueDealCaptureUsers = filterOptions?.dealCaptureUser ?? emptyOptions;
+  const uniqueOrderCreatedBy = filterOptions?.orderCreatedBy ?? emptyOptions;
+  const uniqueNegotiationCreatedBy = filterOptions?.negotiationCreatedBy ?? emptyOptions;
+  const uniqueOwnerApprovedBy = filterOptions?.ownerApprovedBy ?? emptyOptions;
+  const uniqueChartererApprovedBy = filterOptions?.chartererApprovedBy ?? emptyOptions;
+  const uniqueOwnerSignedBy = filterOptions?.ownerSignedBy ?? emptyOptions;
+  const uniqueChartererSignedBy = filterOptions?.chartererSignedBy ?? emptyOptions;
 
+  // Statuses are static (derived from statusConfig, not data) — keep as-is
   const uniqueStatuses = useMemo(() => {
-    // Show all fixture-relevant statuses from statusConfig
-    // This allows filtering even when certain statuses aren't in the current data
     const fixtureRelevantStatuses = (Object.keys(statusConfig) as Array<keyof typeof statusConfig>)
       .filter((s) =>
         s.startsWith("contract-") ||
@@ -5290,13 +5378,11 @@ function Fixtures() {
         s.startsWith("order-")
       );
 
-    // Custom sort order: Order, Negotiation, Contract, Recap Manager
     const prefixOrder = ["order-", "negotiation-", "contract-", "recap-manager-"];
     fixtureRelevantStatuses.sort((a, b) => {
       const aPrefix = prefixOrder.findIndex((p) => a.startsWith(p));
       const bPrefix = prefixOrder.findIndex((p) => b.startsWith(p));
       if (aPrefix !== bPrefix) return aPrefix - bPrefix;
-      // Within same prefix, sort alphabetically
       return a.localeCompare(b);
     });
 
@@ -5305,260 +5391,6 @@ function Fixtures() {
       label: getStatusLabel(s),
     }));
   }, []);
-
-  const uniqueOwners = useMemo(() => {
-    const owners = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      owners.add(fixture.owner);
-    });
-    return Array.from(owners)
-      .sort()
-      .map((o) => ({ value: o, label: o }));
-  }, [fixtureData]);
-
-  const uniqueBrokers = useMemo(() => {
-    const brokers = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      brokers.add(fixture.broker);
-    });
-    return Array.from(brokers)
-      .sort()
-      .map((b) => ({ value: b, label: b }));
-  }, [fixtureData]);
-
-  const uniqueCharterers = useMemo(() => {
-    const charterers = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      charterers.add(fixture.charterer);
-    });
-    return Array.from(charterers)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueStages = useMemo(() => {
-    const stages = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      stages.add(fixture.stage);
-    });
-    return Array.from(stages)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueContractTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      types.add(fixture.typeOfContract);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      statuses.add(fixture.approvalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  // Priority 1: Core Commercial unique values
-  const uniqueLoadPorts = useMemo(() => {
-    const ports = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadPortName) ports.add(fixture.loadPortName);
-    });
-    return Array.from(ports)
-      .sort()
-      .map((p) => ({ value: p, label: p }));
-  }, [fixtureData]);
-
-  const uniqueLoadCountries = useMemo(() => {
-    const countries = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadPortCountry) countries.add(fixture.loadPortCountry);
-    });
-    return Array.from(countries)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueLoadDeliveryTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.loadDeliveryType) types.add(fixture.loadDeliveryType);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueDischargePorts = useMemo(() => {
-    const ports = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargePortName) ports.add(fixture.dischargePortName);
-    });
-    return Array.from(ports)
-      .sort()
-      .map((p) => ({ value: p, label: p }));
-  }, [fixtureData]);
-
-  const uniqueDischargeCountries = useMemo(() => {
-    const countries = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargePortCountry) countries.add(fixture.dischargePortCountry);
-    });
-    return Array.from(countries)
-      .sort()
-      .map((c) => ({ value: c, label: c }));
-  }, [fixtureData]);
-
-  const uniqueDischargeRedeliveryTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dischargeRedeliveryType) types.add(fixture.dischargeRedeliveryType);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  const uniqueCargoTypes = useMemo(() => {
-    const types = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.cargoTypeName) types.add(fixture.cargoTypeName);
-    });
-    return Array.from(types)
-      .sort()
-      .map((t) => ({ value: t, label: t }));
-  }, [fixtureData]);
-
-  // Keep marketIndexName (string filter)
-  const uniqueMarketIndexNames = useMemo(() => {
-    const names = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.marketIndexName) names.add(fixture.marketIndexName);
-    });
-    return Array.from(names)
-      .sort()
-      .map((n) => ({ value: n, label: n }));
-  }, [fixtureData]);
-
-  // Priority 5 & 6: Approval and Signature statuses
-  const uniqueOwnerApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerApprovalStatus) statuses.add(fixture.ownerApprovalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueChartererApprovalStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererApprovalStatus) statuses.add(fixture.chartererApprovalStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueOwnerSignatureStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerSignatureStatus) statuses.add(fixture.ownerSignatureStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  const uniqueChartererSignatureStatuses = useMemo(() => {
-    const statuses = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererSignatureStatus) statuses.add(fixture.chartererSignatureStatus);
-    });
-    return Array.from(statuses)
-      .sort()
-      .map((s) => ({ value: s, label: s }));
-  }, [fixtureData]);
-
-  // Priority 7: User Tracking
-  const uniqueDealCaptureUsers = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.dealCaptureUser) users.add(fixture.dealCaptureUser);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueOrderCreatedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.orderCreatedBy) users.add(fixture.orderCreatedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueNegotiationCreatedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.negotiationCreatedBy) users.add(fixture.negotiationCreatedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueOwnerApprovedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerApprovedBy) users.add(fixture.ownerApprovedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueChartererApprovedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererApprovedBy) users.add(fixture.chartererApprovedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueOwnerSignedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.ownerSignedBy) users.add(fixture.ownerSignedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
-
-  const uniqueChartererSignedBy = useMemo(() => {
-    const users = new Set<string>();
-    fixtureData.forEach((fixture) => {
-      if (fixture.chartererSignedBy) users.add(fixture.chartererSignedBy);
-    });
-    return Array.from(users)
-      .sort()
-      .map((u) => ({ value: u, label: u }));
-  }, [fixtureData]);
 
   // Define filter definitions
   const filterDefinitions: FilterDefinition[] = useMemo(
@@ -5617,220 +5449,25 @@ function Fixtures() {
 
       return [...derivedFilters, ...specialFilters];
     },
-    [
-      fixtureColumns,
-      uniqueVessels,
-      uniqueStatuses,
-      uniqueStages,
-      uniqueContractTypes,
-      uniqueApprovalStatuses,
-      uniqueOwners,
-      uniqueBrokers,
-      uniqueCharterers,
-      uniqueLoadPorts,
-      uniqueLoadCountries,
-      uniqueLoadDeliveryTypes,
-      uniqueDischargePorts,
-      uniqueDischargeCountries,
-      uniqueDischargeRedeliveryTypes,
-      uniqueCargoTypes,
-      uniqueMarketIndexNames,
-      uniqueOwnerApprovalStatuses,
-      uniqueChartererApprovalStatuses,
-      uniqueOwnerSignatureStatuses,
-      uniqueChartererSignatureStatuses,
-      uniqueDealCaptureUsers,
-      uniqueOrderCreatedBy,
-      uniqueNegotiationCreatedBy,
-      uniqueOwnerApprovedBy,
-      uniqueChartererApprovedBy,
-      uniqueOwnerSignedBy,
-      uniqueChartererSignedBy,
-    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- all unique* vars derive from filterOptions
+    [fixtureColumns, filterOptions],
   );
 
-  // Helper function to calculate count for a bookmark
-  const calculateBookmarkCount = useCallback((bookmark: Bookmark): number => {
-    if (!bookmark.filtersState) return fixtureData.length;
-
-    // Step 1: Apply bookmark and field filters (non-search filters)
-    let data = fixtureData.filter((fixture) => {
-      // Special filter for Negotiations bookmark: exclude fixtures without negotiation IDs
-      if (bookmark.id === "system-negotiations") {
-        if (!fixture.negotiationId || fixture.negotiationId === "-") {
-          return false;
-        }
-      }
-
-      // Apply active filters from bookmark
-      if (bookmark.filtersState) {
-        for (const [filterId, filterValue] of Object.entries(
-          bookmark.filtersState.activeFilters,
-        )) {
-          // Handle multiselect filters (arrays of strings)
-          if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
-            const fixtureValue = String(
-              fixture[filterId as keyof typeof fixture] || "",
-            );
-            const match = filterValue.some((val) =>
-              fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
-            );
-            if (!match) return false;
-          }
-
-          // Handle number filters (single number or range)
-          if (typeof filterValue === 'number') {
-            const fixtureValue = fixture[filterId as keyof typeof fixture];
-            if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
-              return false;
-            }
-          }
-
-          if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
-            const [min, max] = filterValue as [number, number];
-            const fixtureValue = fixture[filterId as keyof typeof fixture];
-            if (typeof fixtureValue === 'number') {
-              if (fixtureValue < min || fixtureValue > max) {
-                return false;
-              }
-            } else {
-              return false;
-            }
-          }
-
-          // Handle date filters (single date or range)
-          if (filterValue instanceof Date) {
-            const fixtureValue = fixture[filterId as keyof typeof fixture];
-            if (typeof fixtureValue === 'number') {
-              const fixtureDate = new Date(fixtureValue);
-              if (fixtureDate.toDateString() !== filterValue.toDateString()) {
-                return false;
-              }
-            }
-          }
-
-          if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
-            const [startDate, endDate] = filterValue as [Date, Date];
-            const fixtureValue = fixture[filterId as keyof typeof fixture];
-            if (typeof fixtureValue === 'number') {
-              const fixtureDate = new Date(fixtureValue);
-              if (fixtureDate < startDate || fixtureDate > endDate) {
-                return false;
-              }
-            } else {
-              return false;
-            }
-          }
-        }
-      }
-
-      return true;
-    });
-
-    // Step 2: Apply group-preserving global search (if grouping is enabled)
-    const searchTerms = bookmark.filtersState.globalSearchTerms || [];
-    const groupingColumn = bookmark.tableState?.grouping?.[0] as keyof FixtureData | undefined;
-
-    if (searchTerms.length > 0 && groupingColumn) {
-      // Group fixtures by their grouping column
-      const fixturesByGroup = new Map<string, FixtureData[]>();
-      data.forEach(fixture => {
-        const groupKey = String(fixture[groupingColumn]);
-        if (!fixturesByGroup.has(groupKey)) {
-          fixturesByGroup.set(groupKey, []);
-        }
-        fixturesByGroup.get(groupKey)!.push(fixture);
-      });
-
-      // Find groups where ALL search terms exist somewhere in the group
-      const matchingGroupKeys = new Set<string>();
-      fixturesByGroup.forEach((fixtures, groupKey) => {
-        // Combine searchable text from ALL fixtures in this group
-        const groupSearchableText = fixtures
-          .map(fixture => [
-            fixture.fixtureId,
-            fixture.orderId,
-            fixture.cpId,
-            fixture.vessels,
-            fixture.owner,
-            fixture.broker,
-            fixture.charterer,
-            fixture.loadPortName,
-            fixture.dischargePortName,
-            fixture.vesselImo,
-            fixture.cargoTypeName,
-            fixture.dealCaptureUser,
-          ].filter(Boolean).join(' '))
-          .join(' ')
-          .toLowerCase();
-
-        // Check if ALL search terms exist in the group's combined text (AND logic)
-        const groupMatches = searchTerms.every(term =>
-          groupSearchableText.includes(term.toLowerCase())
-        );
-
-        if (groupMatches) {
-          matchingGroupKeys.add(groupKey);
-        }
-      });
-
-      // Return count of matching groups
-      return matchingGroupKeys.size;
-    }
-
-    // Step 3: Apply fixture-level search (if no grouping but search terms exist)
-    if (searchTerms.length > 0) {
-      data = data.filter((fixture) => {
-        const searchableText = [
-          fixture.fixtureId,
-          fixture.orderId,
-          fixture.cpId,
-          fixture.vessels,
-          fixture.personInCharge,
-          fixture.owner,
-          fixture.broker,
-          fixture.charterer,
-          fixture.loadPortName,
-          fixture.dischargePortName,
-          fixture.vesselImo,
-          fixture.cargoTypeName,
-          fixture.dealCaptureUser,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return searchTerms.every((term) =>
-          searchableText.includes(term.toLowerCase())
-        );
-      });
-    }
-
-    // Step 4: Return count (groups if grouping enabled, fixtures otherwise)
-    if (groupingColumn) {
-      const uniqueGroups = new Set(
-        data.map(fixture => fixture[groupingColumn])
-      );
-      return uniqueGroups.size;
-    }
-
-    return data.length;
-  }, [fixtureData]);
-
-  // Dynamically calculate counts for all bookmarks
+  // System bookmarks already have correct server-provided counts
   const systemBookmarksWithCounts = useMemo(() => {
     return systemBookmarks.map((bookmark) => ({
       ...bookmark,
-      count: calculateBookmarkCount(bookmark),
-      isLoadingCount: isLoadingFixtures,
+      isLoadingCount: bookmarkCounts === undefined,
     }));
-  }, [calculateBookmarkCount, systemBookmarks, isLoadingFixtures]);
+  }, [systemBookmarks, bookmarkCounts]);
 
+  // User bookmarks: always use stored DB count so counts don't jump on click
   const bookmarksWithCounts = useMemo(() => {
     return bookmarks.map((bookmark) => ({
       ...bookmark,
-      count: calculateBookmarkCount(bookmark),
-      isLoadingCount: isLoadingFixtures,
+      isLoadingCount: false,
     }));
-  }, [bookmarks, calculateBookmarkCount, isLoadingFixtures]);
+  }, [bookmarks]);
 
   // Get active bookmark
   const activeBookmark = useMemo(() => {
@@ -5899,44 +5536,16 @@ function Fixtures() {
   ]);
 
   // Calculate bookmark data (data filtered by bookmark's saved filters only)
+  // Server now handles entity-type filtering via paginationUnit, so no special
+  // client-side filtering for negotiations/contracts bookmarks is needed.
   const bookmarkData = useMemo(() => {
     if (!activeBookmark?.filtersState) {
-      // If no saved filters, return data filtered by bookmark type only
-      const data = fixtureData.filter((fixture) => {
-        // Special filter for Negotiations bookmark
-        if (activeBookmarkId === "system-negotiations") {
-          if (!fixture.negotiationId || fixture.negotiationId === "-") {
-            return false;
-          }
-        }
-        // Special filter for Contracts bookmark
-        if (activeBookmarkId === "system-contracts") {
-          if (!fixture.cpId) {
-            return false;
-          }
-        }
-        return true;
-      });
-      return data;
+      return fixtureData ?? [];
     }
 
     // Apply bookmark's saved filters
     const savedFilters = activeBookmark.filtersState.activeFilters;
-    const data = fixtureData.filter((fixture) => {
-      // Special filter for Negotiations bookmark
-      if (activeBookmarkId === "system-negotiations") {
-        if (!fixture.negotiationId || fixture.negotiationId === "-") {
-          return false;
-        }
-      }
-      // Special filter for Contracts bookmark
-      if (activeBookmarkId === "system-contracts") {
-        if (!fixture.cpId) {
-          return false;
-        }
-      }
-
-      // Apply saved filters from bookmark
+    const data = (fixtureData ?? []).filter((fixture) => {
       for (const [filterId, filterValue] of Object.entries(savedFilters)) {
         // Handle multiselect filters (arrays of strings)
         if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
@@ -5998,7 +5607,7 @@ function Fixtures() {
     });
 
     return data;
-  }, [fixtureData, activeBookmark, activeBookmarkId]);
+  }, [fixtureData, activeBookmark]);
 
   // Load bookmark state
   const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
@@ -6015,7 +5624,7 @@ function Fixtures() {
     // Reset server pagination when switching bookmarks
     // (filters will change which affects server-side data)
     setCurrentCursor(undefined);
-    setCursorHistory([undefined]);
+    cursorHistoryRef.current = [undefined];
     setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
 
     if (bookmark.filtersState) {
@@ -6070,81 +5679,19 @@ function Fixtures() {
   useEffect(() => {
     if (globalSearchTerms.length > 0) {
       setExpanded(true); // Auto-expand all groups when searching
+    } else {
+      setExpanded({}); // Collapse all groups when search is cleared
     }
   }, [globalSearchTerms]);
 
-  // Helper function to check if a fixture matches global search terms
-  const matchesGlobalSearch = useCallback((fixture: FixtureData): boolean => {
-    if (globalSearchTerms.length === 0) return true;
-
-    // Searchable fields - includes IDs, names, ports, cargo, and user tracking
-    const searchableText = [
-      // Core identifiers
-      fixture.fixtureId,
-      fixture.orderId,
-      fixture.cpId,
-      fixture.negotiationId,
-      // Party names
-      fixture.vessels,
-      fixture.owner,
-      fixture.broker,
-      fixture.charterer,
-      // Ports and locations
-      fixture.loadPortName,
-      fixture.dischargePortName,
-      fixture.loadPortCountry,
-      fixture.dischargePortCountry,
-      // Cargo and vessel details
-      fixture.cargoTypeName,
-      fixture.vesselImo,
-      // User tracking
-      fixture.dealCaptureUser,
-      fixture.orderCreatedBy,
-      // Market and contract info
-      fixture.marketIndexName,
-      fixture.parentCpId,
-      fixture.contractType,
-      // Delivery types
-      fixture.loadDeliveryType,
-      fixture.dischargeRedeliveryType,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-
-    // Check if ALL search terms are present (AND logic)
-    return globalSearchTerms.every(term =>
-      searchableText.includes(term.toLowerCase())
-    );
-  }, [globalSearchTerms]);
-
-  // Data filtering with group-preserving search logic
+  // Data filtering with group-preserving field filter logic
   // NOTE: Server-side filters (status, vessels, owner, charterer, dateRange, search)
-  // are already applied at the query level. Client-side filtering here handles:
-  // 1. Bookmark-specific filtering (Negotiations, Contracts views)
-  // 2. Any filters not yet migrated to server-side
-  // 3. Group-preserving search highlighting (after server search)
+  // and entity-type scoping (paginationUnit) are already applied at the query level.
+  // Client-side filtering here handles field filters not yet migrated to server-side.
   const filteredData = useMemo(() => {
-    // Step 1: Apply bookmark filters (per-row)
-    let data = fixtureData.filter((fixture) => {
-      // Special filter for Negotiations bookmark
-      if (activeBookmarkId === "system-negotiations") {
-        if (!fixture.negotiationId || fixture.negotiationId === "-") {
-          return false;
-        }
-      }
+    let data = fixtureData ?? [];
 
-      // Special filter for Contracts bookmark
-      if (activeBookmarkId === "system-contracts") {
-        if (!fixture.cpId) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    // Step 2: Apply field filters (group-preserving when grouping active)
+    // Apply field filters (group-preserving when grouping active)
     const matchesFieldFilters = (fixture: FixtureData): boolean => {
       for (const [filterId, filterValue] of Object.entries(activeFilters)) {
         // Handle multiselect filters (arrays of strings)
@@ -6233,63 +5780,13 @@ function Fixtures() {
       }
     }
 
-    // Step 3: Apply group-preserving global search
-    if (globalSearchTerms.length > 0) {
-      // Get the active grouping column (fixtureId, negotiationId, or cpId)
-      const groupingColumn = grouping[0] as keyof FixtureData | undefined;
-
-      if (groupingColumn) {
-        // Group fixtures by their grouping column
-        const fixturesByGroup = new Map<string, FixtureData[]>();
-        data.forEach(fixture => {
-          const groupKey = String(fixture[groupingColumn]);
-          if (!fixturesByGroup.has(groupKey)) {
-            fixturesByGroup.set(groupKey, []);
-          }
-          fixturesByGroup.get(groupKey)!.push(fixture);
-        });
-
-        // Find groups where ALL search terms exist somewhere in the group
-        const matchingGroupKeys = new Set<string>();
-        fixturesByGroup.forEach((fixtures, groupKey) => {
-          // Combine searchable text from ALL fixtures in this group
-          const groupSearchableText = fixtures
-            .map(fixture => [
-              fixture.fixtureId,
-              fixture.orderId,
-              fixture.cpId,
-              fixture.vessels,
-              fixture.owner,
-              fixture.broker,
-              fixture.charterer,
-            ].filter(Boolean).join(' '))
-            .join(' ')
-            .toLowerCase();
-
-          // Check if ALL search terms exist in the group's combined text (AND logic)
-          const groupMatches = globalSearchTerms.every(term =>
-            groupSearchableText.includes(term.toLowerCase())
-          );
-
-          if (groupMatches) {
-            matchingGroupKeys.add(groupKey);
-          }
-        });
-
-        // Include ALL fixtures that belong to matching groups
-        data = data.filter(fixture =>
-          matchingGroupKeys.has(String(fixture[groupingColumn]))
-        );
-      } else {
-        // No grouping active, filter normally
-        data = data.filter(matchesGlobalSearch);
-      }
-    }
+    // Note: Global search filtering is handled server-side by listEnrichedPaginated.
+    // No client-side search filter needed — server already returns only matching fixtures.
 
     // Note: Data is already sorted by lastUpdated on the server side
     // TanStack Table will preserve the order for grouping (groups appear in order of first row appearance)
     return data;
-  }, [fixtureData, activeFilters, activeBookmarkId, globalSearchTerms, grouping, matchesGlobalSearch]);
+  }, [fixtureData, activeFilters, grouping]);
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {
@@ -6353,7 +5850,7 @@ function Fixtures() {
         columnOrder,
         columnSizing,
       },
-      count: filteredData.length,
+      count: serverTotalCount,
     };
 
     try {
@@ -6367,7 +5864,7 @@ function Fixtures() {
           type: "user",
           createdAt: now,
           updatedAt: now,
-          count: filteredData.length,
+          count: serverTotalCount,
           filtersState: bookmarkData.filtersState,
           tableState: bookmarkData.tableState,
         };
@@ -6528,6 +6025,7 @@ function Fixtures() {
       : row.original;
 
     setSelectedFixture(fixtureData);
+    setActiveRowId(row.id);
   };
 
   return (
@@ -6603,12 +6101,18 @@ function Fixtures() {
               sortableColumns={fixtureColumns
                 .filter(
                   (col): col is typeof col & { accessorKey: string } =>
-                    "accessorKey" in col && typeof col.accessorKey === "string",
+                    "accessorKey" in col &&
+                    typeof col.accessorKey === "string" &&
+                    col.enableSorting !== false,
                 )
-                .map((col) => ({
-                  id: col.accessorKey,
-                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
-                }))}
+                .map((col) => {
+                  const meta = col.meta as ColumnMetaWithLabel | undefined;
+                  return {
+                    id: col.accessorKey,
+                    label: (meta?.label || col.header) as string,
+                    dataType: getColumnDataType(meta),
+                  };
+                })}
               selectedSortColumn={sorting[0]?.id}
               sortDirection={sorting[0]?.desc ? "desc" : "asc"}
               onSortChange={(columnId) =>
@@ -6732,7 +6236,7 @@ function Fixtures() {
             columnSizing={columnSizing}
             onColumnSizingChange={handleColumnSizingChange}
             enableColumnResizing={true}
-            manualPagination
+            manualPagination={true}
             rowCount={serverTotalCount}
             paginationVariant="default"
             pageSizeOptions={[10, 25, 50, 100]}
@@ -6740,13 +6244,22 @@ function Fixtures() {
             onPaginationChange={handlePaginationChange}
             onRowClick={handleRowClick}
             isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
+            activeRowId={activeRowId}
+            getRowId={(row) => row.id}
             footerLabel={
               <span className="text-body-sm text-text-secondary">
-                {isFiltered ? (
-                  <>Showing <strong className="text-text-primary">{serverTotalCount}</strong> from <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> fixtures in total.</>
-                ) : (
-                  <>Showing all <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> fixtures</>
-                )}
+                {(() => {
+                  const entityName =
+                    paginationUnit === "negotiation" ? "negotiations"
+                    : paginationUnit === "contract" ? "contracts"
+                    : "fixtures";
+
+                  return isFiltered ? (
+                    <>Showing <strong className="text-text-primary">{serverTotalCount}</strong> from <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName} in total.</>
+                  ) : (
+                    <>Showing all <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName}</>
+                  );
+                })()}
               </span>
             }
           />
@@ -6756,7 +6269,10 @@ function Fixtures() {
         {selectedFixture && (
           <FixtureSidebar
             fixture={selectedFixture}
-            onClose={() => setSelectedFixture(null)}
+            onClose={() => {
+              setSelectedFixture(null);
+              setActiveRowId(undefined);
+            }}
           />
         )}
       </div>
@@ -6765,7 +6281,7 @@ function Fixtures() {
       <ExportDialog
         open={showExportDialog}
         onClose={() => setShowExportDialog(false)}
-        data={fixtureData}
+        data={fixtureData ?? []}
         filteredData={filteredData}
         bookmarkData={bookmarkData}
         availableColumns={availableColumnsForExport}
