@@ -12,7 +12,7 @@ export function calculateFreightSavings(
   highest: number | undefined,
   final: string | number | undefined
 ): number | null {
-  if (!highest || !final) return null;
+  if (highest == null || final == null || highest === 0) return null;
 
   const finalNum = typeof final === 'string' ? parseFloat(final) : final;
   if (isNaN(finalNum)) return null;
@@ -30,7 +30,7 @@ export function calculateDemurrageSavings(
   highest: number | undefined,
   final: string | number | undefined
 ): number | null {
-  if (!highest || !final) return null;
+  if (highest == null || final == null || highest === 0) return null;
 
   const finalNum = typeof final === 'string' ? parseFloat(final) : final;
   if (isNaN(finalNum)) return null;

@@ -29,6 +29,7 @@ import {
   type FilterValue,
   type Bookmark,
   type StatusValue,
+  toast,
 } from "@rafal.lemieszewski/tide-ui";
 import { useHeaderActions, useUser } from "../hooks";
 import { ExportDialog } from "../components/ExportDialog";
@@ -38,9 +39,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import {
   formatLaycanRange,
-  formatCargo,
   formatCurrency,
-  formatRate,
   formatPercent,
   formatQuantity,
   formatEnumLabel,
@@ -514,8 +513,8 @@ const transformFixturesToTableData = (
         signatureSummary: item.signatureSummary,
 
         // Priority 1: Core Commercial Fields
-        laycanStart: item.negotiation?.laycanStart || item.laycanStart,
-        laycanEnd: item.negotiation?.laycanEnd || item.laycanEnd,
+        laycanStart: item.negotiation?.laycanStart ?? item.laycanStart,
+        laycanEnd: item.negotiation?.laycanEnd ?? item.laycanEnd,
         loadPortName: item.loadPort?.name,
         loadPortCountry: item.loadPort?.country,
         loadDeliveryType: item.negotiation?.loadDeliveryType,
@@ -524,9 +523,9 @@ const transformFixturesToTableData = (
         dischargeRedeliveryType: item.negotiation?.dischargeRedeliveryType,
         vesselImo: item.vessel?.imoNumber,
         cargoTypeName: item.cargoType?.name,
-        cargoQuantity: item.negotiation?.quantity || item.quantity,
-        finalFreightRate: item.negotiation?.freightRate || item.freightRate,
-        finalDemurrageRate: item.negotiation?.demurrageRate || item.demurrageRate,
+        cargoQuantity: item.negotiation?.quantity ?? item.quantity,
+        finalFreightRate: item.negotiation?.freightRate ?? item.freightRate,
+        finalDemurrageRate: item.negotiation?.demurrageRate ?? item.demurrageRate,
 
         // Freight Analytics
         highestFreightRateIndication: item.negotiation?.highestFreightRateIndication,
@@ -537,12 +536,12 @@ const transformFixturesToTableData = (
         firstFreightRateLastDay: item.negotiation?.firstFreightRateLastDay,
         freightSavingsPercent: calculateFreightSavings(
           item.negotiation?.highestFreightRateIndication,
-          item.negotiation?.freightRate || item.freightRate
+          item.negotiation?.freightRate ?? item.freightRate
         ) ?? undefined,
         marketIndex: item.negotiation?.marketIndex,
         marketIndexName: item.negotiation?.marketIndexName,
         freightVsMarketPercent: calculateFreightVsMarket(
-          item.negotiation?.freightRate || item.freightRate,
+          item.negotiation?.freightRate ?? item.freightRate,
           item.negotiation?.marketIndex
         ) ?? undefined,
         grossFreight: item.negotiation?.grossFreight,
@@ -550,7 +549,7 @@ const transformFixturesToTableData = (
         lowestDemurrageIndication: item.negotiation?.lowestDemurrageIndication,
         demurrageSavingsPercent: calculateDemurrageSavings(
           item.negotiation?.highestDemurrageIndication,
-          item.negotiation?.demurrageRate || item.demurrageRate
+          item.negotiation?.demurrageRate ?? item.demurrageRate
         ) ?? undefined,
 
         // Commissions
@@ -817,6 +816,167 @@ function enforceMinColumnSizing(
   return result;
 }
 
+// Static highlight style for search term highlighting
+const HIGHLIGHT_STYLE = {
+  backgroundColor: 'var(--yellow-200, #fef08a)',
+  color: 'var(--color-text-primary, inherit)',
+  borderRadius: '2px',
+  padding: '0 2px',
+} as const;
+
+// Pure function to highlight search terms in text — no closure deps
+function highlightSearchTerms(text: string, terms: string[]) {
+  if (!terms.length || !text) return text;
+
+  const pattern = terms
+    .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+
+  const regex = new RegExp(`(${pattern})`, 'gi');
+  const parts = text.split(regex);
+
+  return parts.map((part, i) => {
+    const testRegex = new RegExp(`^(${pattern})$`, 'i');
+    if (testRegex.test(part)) {
+      return (
+        <mark key={i} style={HIGHLIGHT_STYLE}>
+          {part}
+        </mark>
+      );
+    }
+    return part;
+  });
+}
+
+// Shared filter matching logic used by both bookmarkData and filteredData
+function matchesFilters(fixture: FixtureData, filters: Record<string, unknown>): boolean {
+  for (const [filterId, filterValue] of Object.entries(filters)) {
+    // Handle multiselect filters (arrays of strings)
+    if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
+      const fixtureValue = String(
+        fixture[filterId as keyof typeof fixture] || "",
+      );
+      const match = (filterValue as string[]).some((val) =>
+        fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
+      );
+      if (!match) return false;
+    }
+
+    // Handle number filters (single number or range)
+    if (typeof filterValue === 'number') {
+      const fixtureValue = fixture[filterId as keyof typeof fixture];
+      if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
+        return false;
+      }
+    }
+
+    if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
+      const [min, max] = filterValue as [number, number];
+      const fixtureValue = fixture[filterId as keyof typeof fixture];
+      if (typeof fixtureValue === 'number') {
+        if (fixtureValue < min || fixtureValue > max) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    // Handle date filters (single date or range)
+    if (filterValue instanceof Date) {
+      const fixtureValue = fixture[filterId as keyof typeof fixture];
+      if (typeof fixtureValue === 'number') {
+        const fixtureDate = new Date(fixtureValue);
+        if (fixtureDate.toDateString() !== filterValue.toDateString()) {
+          return false;
+        }
+      }
+    }
+
+    if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
+      const [startDate, endDate] = filterValue as [Date, Date];
+      const fixtureValue = fixture[filterId as keyof typeof fixture];
+      if (typeof fixtureValue === 'number') {
+        const fixtureDate = new Date(fixtureValue);
+        if (fixtureDate < startDate || fixtureDate > endDate) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+// Default column visibility — static, extracted to avoid re-creation per render
+const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
+  fixtureId: false,
+  // Priority 1: Core Commercial Fields
+  laycan: false,
+  laycanStart: false,
+  laycanEnd: false,
+  loadPortCountry: false,
+  loadDeliveryType: false,
+  dischargePortCountry: false,
+  dischargeRedeliveryType: false,
+  vesselImo: false,
+  cargoTypeName: false,
+  cargoQuantity: false,
+  finalFreightRate: false,
+  finalDemurrageRate: false,
+  // Priority 2: Freight & Demurrage Analytics
+  highestFreightRateIndication: false,
+  lowestFreightRateIndication: false,
+  firstFreightRateIndication: false,
+  highestFreightRateLastDay: false,
+  lowestFreightRateLastDay: false,
+  firstFreightRateLastDay: false,
+  freightSavingsPercent: false,
+  marketIndex: false,
+  marketIndexName: false,
+  freightVsMarketPercent: false,
+  grossFreight: false,
+  highestDemurrageIndication: false,
+  lowestDemurrageIndication: false,
+  demurrageSavingsPercent: false,
+  // Priority 3: Commissions
+  addressCommissionPercent: false,
+  addressCommissionTotal: false,
+  brokerCommissionPercent: false,
+  brokerCommissionTotal: false,
+  // Priority 4: CP Workflow Dates
+  cpDate: false,
+  workingCopyDate: false,
+  finalDate: false,
+  fullySignedDate: false,
+  daysToWorkingCopy: false,
+  daysToFinal: false,
+  daysToSigned: false,
+  // Priority 5: Approval Status Details
+  ownerApprovalStatus: false,
+  ownerApprovedBy: false,
+  ownerApprovalDate: false,
+  chartererApprovalStatus: false,
+  chartererApprovedBy: false,
+  chartererApprovalDate: false,
+  // Priority 6: Signature Status Details
+  ownerSignatureStatus: false,
+  ownerSignedBy: false,
+  ownerSignatureDate: false,
+  chartererSignatureStatus: false,
+  chartererSignedBy: false,
+  chartererSignatureDate: false,
+  // Priority 7: User Tracking
+  dealCaptureUser: false,
+  orderCreatedBy: false,
+  negotiationCreatedBy: false,
+  // Priority 8: Parent/Child Relationships
+  parentCpId: false,
+  contractType: false,
+};
+
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
@@ -1040,109 +1200,9 @@ function Fixtures() {
   // Keep ref in sync so handlePaginationChange always sees latest cursor
   serverNextCursorRef.current = paginatedFixtures?.nextCursor ?? null;
 
-  // Helper function to highlight search terms in text
-  const highlightSearchTerms = (text: string, terms: string[]) => {
-    if (!terms.length || !text) return text;
-
-    // Create regex pattern for all terms (escape special regex characters)
-    const pattern = terms
-      .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-      .join('|');
-
-    const regex = new RegExp(`(${pattern})`, 'gi');
-    const parts = text.split(regex);
-
-    return parts.map((part, i) => {
-      const testRegex = new RegExp(`^(${pattern})$`, 'i');
-      if (testRegex.test(part)) {
-        return (
-          <mark
-            key={i}
-            style={{
-              backgroundColor: 'var(--yellow-200, #fef08a)',
-              color: 'var(--color-text-primary, inherit)',
-              borderRadius: '2px',
-              padding: '0 2px'
-            }}
-          >
-            {part}
-          </mark>
-        );
-      }
-      return part;
-    });
-  };
-
-  // Default column visibility - hide all new columns
-  const defaultHiddenColumns = {
-    fixtureId: false,
-    // Priority 1: Core Commercial Fields
-    laycan: false,
-    laycanStart: false,
-    laycanEnd: false,
-    loadPortCountry: false,
-    loadDeliveryType: false,
-    dischargePortCountry: false,
-    dischargeRedeliveryType: false,
-    vesselImo: false,
-    cargoTypeName: false,
-    cargoQuantity: false,
-    finalFreightRate: false,
-    finalDemurrageRate: false,
-    // Priority 2: Freight & Demurrage Analytics
-    highestFreightRateIndication: false,
-    lowestFreightRateIndication: false,
-    firstFreightRateIndication: false,
-    highestFreightRateLastDay: false,
-    lowestFreightRateLastDay: false,
-    firstFreightRateLastDay: false,
-    freightSavingsPercent: false,
-    marketIndex: false,
-    marketIndexName: false,
-    freightVsMarketPercent: false,
-    grossFreight: false,
-    highestDemurrageIndication: false,
-    lowestDemurrageIndication: false,
-    demurrageSavingsPercent: false,
-    // Priority 3: Commissions
-    addressCommissionPercent: false,
-    addressCommissionTotal: false,
-    brokerCommissionPercent: false,
-    brokerCommissionTotal: false,
-    // Priority 4: CP Workflow Dates
-    cpDate: false,
-    workingCopyDate: false,
-    finalDate: false,
-    fullySignedDate: false,
-    daysToWorkingCopy: false,
-    daysToFinal: false,
-    daysToSigned: false,
-    // Priority 5: Approval Status Details
-    ownerApprovalStatus: false,
-    ownerApprovedBy: false,
-    ownerApprovalDate: false,
-    chartererApprovalStatus: false,
-    chartererApprovedBy: false,
-    chartererApprovalDate: false,
-    // Priority 6: Signature Status Details
-    ownerSignatureStatus: false,
-    ownerSignedBy: false,
-    ownerSignatureDate: false,
-    chartererSignatureStatus: false,
-    chartererSignedBy: false,
-    chartererSignatureDate: false,
-    // Priority 7: User Tracking
-    dealCaptureUser: false,
-    orderCreatedBy: false,
-    negotiationCreatedBy: false,
-    // Priority 8: Parent/Child Relationships
-    parentCpId: false,
-    contractType: false,
-  };
-
   // System bookmarks (read-only, configured via props)
   // Note: count shows serverTotalCount for accurate representation of total fixtures
-  const systemBookmarks: Bookmark[] = [
+  const systemBookmarks: Bookmark[] = useMemo(() => [
     {
       id: "system-all",
       name: "All Fixtures",
@@ -1158,7 +1218,7 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: defaultHiddenColumns,
+        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
         grouping: ["fixtureId"],
         columnOrder: [],
         columnSizing: {},
@@ -1179,7 +1239,7 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: defaultHiddenColumns,
+        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
         grouping: ["negotiationId"],
         columnOrder: [],
         columnSizing: {},
@@ -1200,13 +1260,13 @@ function Fixtures() {
       },
       tableState: {
         sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: defaultHiddenColumns,
+        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
         grouping: ["cpId"],
         columnOrder: [],
         columnSizing: {},
       },
     },
-  ];
+  ], [bookmarkCounts]);
 
   // Initial user bookmarks
   const initialUserBookmarks: Bookmark[] = [];
@@ -1243,11 +1303,6 @@ function Fixtures() {
 
   // Sync from database when loaded
   useEffect(() => {
-    console.log("📚 Bookmarks sync effect:", {
-      userId,
-      userBookmarksFromDb,
-      count: userBookmarksFromDb?.length
-    });
     if (userBookmarksFromDb) {
       setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
     }
@@ -1281,78 +1336,7 @@ function Fixtures() {
   }, []);
 
   // Table state
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    // Hide all new columns by default
-    // Priority 1: Core Commercial Fields
-    laycan: false,
-    laycanStart: false,
-    laycanEnd: false,
-    loadPortCountry: false,
-    loadDeliveryType: false,
-    dischargePortCountry: false,
-    dischargeRedeliveryType: false,
-    vesselImo: false,
-    cargoTypeName: false,
-    cargoQuantity: false,
-    finalFreightRate: false,
-    finalDemurrageRate: false,
-
-    // Priority 2: Freight & Demurrage Analytics
-    highestFreightRateIndication: false,
-    lowestFreightRateIndication: false,
-    firstFreightRateIndication: false,
-    highestFreightRateLastDay: false,
-    lowestFreightRateLastDay: false,
-    firstFreightRateLastDay: false,
-    freightSavingsPercent: false,
-    marketIndex: false,
-    marketIndexName: false,
-    freightVsMarketPercent: false,
-    grossFreight: false,
-    highestDemurrageIndication: false,
-    lowestDemurrageIndication: false,
-    demurrageSavingsPercent: false,
-
-    // Priority 3: Commissions
-    addressCommissionPercent: false,
-    addressCommissionTotal: false,
-    brokerCommissionPercent: false,
-    brokerCommissionTotal: false,
-
-    // Priority 4: CP Workflow Dates
-    cpDate: false,
-    workingCopyDate: false,
-    finalDate: false,
-    fullySignedDate: false,
-    daysToWorkingCopy: false,
-    daysToFinal: false,
-    daysToSigned: false,
-
-    // Priority 5: Approval Status Details
-    ownerApprovalStatus: false,
-    ownerApprovedBy: false,
-    ownerApprovalDate: false,
-    chartererApprovalStatus: false,
-    chartererApprovedBy: false,
-    chartererApprovalDate: false,
-
-    // Priority 6: Signature Status Details
-    ownerSignatureStatus: false,
-    ownerSignedBy: false,
-    ownerSignatureDate: false,
-    chartererSignatureStatus: false,
-    chartererSignedBy: false,
-    chartererSignatureDate: false,
-
-    // Priority 7: User Tracking
-    dealCaptureUser: false,
-    orderCreatedBy: false,
-    negotiationCreatedBy: false,
-
-    // Priority 8: Parent/Child Relationships
-    parentCpId: false,
-    contractType: false,
-  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_HIDDEN_COLUMNS);
   // Note: grouping state is declared earlier (near query params) so paginationUnit is available for server query
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
@@ -2568,7 +2552,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2600,7 +2584,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2632,7 +2616,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2664,7 +2648,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2696,7 +2680,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2728,7 +2712,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2785,7 +2769,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2951,7 +2935,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -2983,7 +2967,7 @@ function Fixtures() {
           const value = getValue<number>();
           return (
             <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
+              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
             </div>
           );
         },
@@ -4214,68 +4198,7 @@ function Fixtures() {
 
     // Apply bookmark's saved filters
     const savedFilters = activeBookmark.filtersState.activeFilters;
-    const data = (fixtureData ?? []).filter((fixture) => {
-      for (const [filterId, filterValue] of Object.entries(savedFilters)) {
-        // Handle multiselect filters (arrays of strings)
-        if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
-          const fixtureValue = String(
-            fixture[filterId as keyof typeof fixture] || "",
-          );
-          const match = filterValue.some((val) =>
-            fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
-          );
-          if (!match) return false;
-        }
-
-        // Handle number filters (single number or range)
-        if (typeof filterValue === 'number') {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
-            return false;
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
-          const [min, max] = filterValue as [number, number];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            if (fixtureValue < min || fixtureValue > max) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-
-        // Handle date filters (single date or range)
-        if (filterValue instanceof Date) {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate.toDateString() !== filterValue.toDateString()) {
-              return false;
-            }
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
-          const [startDate, endDate] = filterValue as [Date, Date];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate < startDate || fixtureDate > endDate) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-      }
-
-      return true;
-    });
-
-    return data;
+    return (fixtureData ?? []).filter((fixture) => matchesFilters(fixture, savedFilters));
   }, [fixtureData, activeBookmark]);
 
   // Load bookmark state
@@ -4360,68 +4283,6 @@ function Fixtures() {
   const filteredData = useMemo(() => {
     let data = fixtureData ?? [];
 
-    // Apply field filters (group-preserving when grouping active)
-    const matchesFieldFilters = (fixture: FixtureData): boolean => {
-      for (const [filterId, filterValue] of Object.entries(activeFilters)) {
-        // Handle multiselect filters (arrays of strings)
-        if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
-          const fixtureValue = String(
-            fixture[filterId as keyof typeof fixture] || "",
-          );
-          const match = filterValue.some((val) =>
-            fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
-          );
-          if (!match) return false;
-        }
-
-        // Handle number filters (single number or range)
-        if (typeof filterValue === 'number') {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
-            return false;
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
-          const [min, max] = filterValue as [number, number];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            if (fixtureValue < min || fixtureValue > max) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-
-        // Handle date filters (single date or range)
-        if (filterValue instanceof Date) {
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate.toDateString() !== filterValue.toDateString()) {
-              return false;
-            }
-          }
-        }
-
-        if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
-          const [startDate, endDate] = filterValue as [Date, Date];
-          const fixtureValue = fixture[filterId as keyof typeof fixture];
-          if (typeof fixtureValue === 'number') {
-            const fixtureDate = new Date(fixtureValue);
-            if (fixtureDate < startDate || fixtureDate > endDate) {
-              return false;
-            }
-          } else {
-            return false;
-          }
-        }
-      }
-
-      return true;
-    };
-
     const hasActiveFieldFilters = Object.keys(activeFilters).length > 0;
     if (hasActiveFieldFilters) {
       const groupingColumn = grouping[0] as keyof FixtureData | undefined;
@@ -4437,7 +4298,7 @@ function Fixtures() {
 
         const matchingGroups = new Set<string>();
         rowsByGroup.forEach((rows, key) => {
-          if (rows.some(matchesFieldFilters)) {
+          if (rows.some(row => matchesFilters(row, activeFilters))) {
             matchingGroups.add(key);
           }
         });
@@ -4445,7 +4306,7 @@ function Fixtures() {
         data = data.filter(row => matchingGroups.has(String(row[groupingColumn])));
       } else {
         // No grouping — filter per-row
-        data = data.filter(matchesFieldFilters);
+        data = data.filter(row => matchesFilters(row, activeFilters));
       }
     }
 
@@ -4499,8 +4360,6 @@ function Fixtures() {
   };
 
   const handleSave = async (action: "update" | "create", name?: string) => {
-    console.log("💾 handleSave called:", { action, name, userId, hasUser: !!user });
-
     if (!userId) {
       console.warn("Cannot save bookmark: user not yet loaded");
       return;
@@ -4542,14 +4401,11 @@ function Fixtures() {
         setActiveBookmarkId(tempId);
 
         // Create in database
-        console.log("🔄 Creating bookmark in database...", bookmarkData);
         const newBookmark = await createBookmarkMutation({
           userId,
           name: name || "New Bookmark",
           ...bookmarkData,
         });
-        console.log("✅ Bookmark created successfully:", newBookmark);
-
         // Replace temp with real bookmark (convert from DB format)
         setBookmarks((prev) =>
           prev.map((b) => (b.id === tempId ? convertDbBookmark(newBookmark) : b))
@@ -4575,8 +4431,8 @@ function Fixtures() {
         });
       }
     } catch (error) {
-      console.error("❌ Failed to save bookmark:", error);
-      console.error("Error details:", error instanceof Error ? error.message : error);
+      console.error("Failed to save bookmark:", error);
+      toast.error("Failed to save bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
         setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
@@ -4597,6 +4453,7 @@ function Fixtures() {
       });
     } catch (error) {
       console.error("Failed to rename bookmark:", error);
+      toast.error("Failed to rename bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
         setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
@@ -4625,6 +4482,7 @@ function Fixtures() {
       });
     } catch (error) {
       console.error("Failed to delete bookmark:", error);
+      toast.error("Failed to delete bookmark");
       // Revert optimistic update
       setBookmarks(previousBookmarks);
     }
@@ -4648,6 +4506,7 @@ function Fixtures() {
       });
     } catch (error) {
       console.error("Failed to set default bookmark:", error);
+      toast.error("Failed to set default bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
         setBookmarks(userBookmarksFromDb.map(convertDbBookmark));

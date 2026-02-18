@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -108,6 +108,64 @@ const transformFieldChanges = (
     });
 };
 
+// Reusable component for field change history (replaces ~540 lines of duplicated JSX)
+function FieldChangeHistory({
+  label,
+  value,
+  changes,
+}: {
+  label: string;
+  value: React.ReactNode;
+  changes: ChangeHistoryEntry[];
+}) {
+  const hasChanges = changes.length > 0;
+  return (
+    <AttributesItem collapsible={hasChanges} defaultOpen={false}>
+      <AttributesRow asCollapsibleTrigger={hasChanges}>
+        <AttributesLabel>{label}</AttributesLabel>
+        <AttributesValue>
+          {value}
+          {hasChanges && <AttributesChevron />}
+        </AttributesValue>
+      </AttributesRow>
+      {hasChanges && (
+        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
+          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
+            <ActivityLog>
+              {changes.map((entry, index) => {
+                const userName = entry.user?.name || 'System';
+                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
+
+                return (
+                  <ActivityLogItem key={index}>
+                    <ActivityLogHeader>
+                      <Avatar size="xxs">
+                        <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
+                      </Avatar>
+                      <ActivityLogDescription>
+                        <span className="text-body-medium-sm">{userName}</span>
+                        <span>{entry.action === 'created' ? `set ${label} to` : `changed ${label} from`}</span>
+                        {entry.action === 'updated' && entry.oldValue && (
+                          <>
+                            <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
+                            <span>to</span>
+                          </>
+                        )}
+                        <ActivityLogValue>{entry.value}</ActivityLogValue>
+                        <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
+                      </ActivityLogDescription>
+                    </ActivityLogHeader>
+                  </ActivityLogItem>
+                );
+              })}
+            </ActivityLog>
+          </div>
+        </AttributesContent>
+      )}
+    </AttributesItem>
+  );
+}
+
 export function FixtureSidebar({
   fixture,
   onClose,
@@ -146,6 +204,25 @@ export function FixtureSidebar({
     ] as ActivityLogEntry[];
     return logs.sort((a, b) => a.timestamp - b.timestamp); // Oldest first
   }, [contractActivityLog, negotiationActivityLog]);
+
+  // Pre-compute field changes for conditional rendering
+  const fieldChangeData = useMemo(() => {
+    const chartererChanges = transformFieldChanges(fieldChanges, "chartererId");
+    const brokerChanges = transformFieldChanges(fieldChanges, "brokerId");
+    const ownerChanges = transformFieldChanges(fieldChanges, "ownerId");
+    const loadPortChanges = transformFieldChanges(fieldChanges, "loadPortId");
+    const dischargePortChanges = transformFieldChanges(fieldChanges, "dischargePortId");
+    const cargoChanges = transformFieldChanges(fieldChanges, "quantity");
+    const laycanChanges = transformFieldChanges(fieldChanges, "laycanStart");
+    const freightRateChanges = transformFieldChanges(fieldChanges, "freightRate");
+    const demurrageChanges = transformFieldChanges(fieldChanges, "demurrageRate");
+    return {
+      chartererChanges, brokerChanges, ownerChanges,
+      loadPortChanges, dischargePortChanges,
+      cargoChanges, laycanChanges,
+      freightRateChanges, demurrageChanges,
+    };
+  }, [fieldChanges]);
 
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
@@ -282,174 +359,41 @@ export function FixtureSidebar({
               <Card className="p-6">
                 <h3 className="mb-4 text-body-lg font-semibold text-[var(--color-text-primary)]">Fixture specification</h3>
 
-                {/* Pre-compute field changes for conditional rendering */}
-                {(() => {
-                  const chartererChanges = transformFieldChanges(fieldChanges, "chartererId");
-                  const brokerChanges = transformFieldChanges(fieldChanges, "brokerId");
-                  const ownerChanges = transformFieldChanges(fieldChanges, "ownerId");
-                  const loadPortChanges = transformFieldChanges(fieldChanges, "loadPortId");
-                  const dischargePortChanges = transformFieldChanges(fieldChanges, "dischargePortId");
-                  const cargoChanges = transformFieldChanges(fieldChanges, "quantity");
-                  const laycanChanges = transformFieldChanges(fieldChanges, "laycanStart");
-                  const freightRateChanges = transformFieldChanges(fieldChanges, "freightRate");
-                  const demurrageChanges = transformFieldChanges(fieldChanges, "demurrageRate");
-
-                  const hasChartererChanges = chartererChanges.length > 0;
-                  const hasBrokerChanges = brokerChanges.length > 0;
-                  const hasOwnerChanges = ownerChanges.length > 0;
-                  const hasLoadPortChanges = loadPortChanges.length > 0;
-                  const hasDischargePortChanges = dischargePortChanges.length > 0;
-                  const hasCargoChanges = cargoChanges.length > 0;
-                  const hasLaycanChanges = laycanChanges.length > 0;
-                  const hasFreightRateChanges = freightRateChanges.length > 0;
-                  const hasDemurrageChanges = demurrageChanges.length > 0;
-
-                  return (
                 <AttributesList style={{ gridTemplateColumns: 'minmax(140px, auto) 1fr' }}>
                   <AttributesGroup label="Involved Parties">
-                    <AttributesItem collapsible={hasChartererChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasChartererChanges}>
-                        <AttributesLabel>Charterer</AttributesLabel>
-                        <AttributesValue>
-                          <Avatar type="organization" size="xs">
-                            <AvatarImage src={fixture.chartererAvatarUrl || undefined} alt={fixture.charterer} />
-                            <AvatarFallback>{getCompanyInitials(fixture.charterer)}</AvatarFallback>
-                          </Avatar>
-                          {fixture.charterer}
-                          {hasChartererChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasChartererChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {chartererChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Charterer to' : 'changed Charterer from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasBrokerChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasBrokerChanges}>
-                        <AttributesLabel>Broker</AttributesLabel>
-                        <AttributesValue>
-                          <Avatar type="organization" size="xs">
-                            <AvatarImage src={fixture.brokerAvatarUrl || undefined} alt={fixture.broker} />
-                            <AvatarFallback>{getCompanyInitials(fixture.broker)}</AvatarFallback>
-                          </Avatar>
-                          {fixture.broker}
-                          {hasBrokerChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasBrokerChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {brokerChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Broker to' : 'changed Broker from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasOwnerChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasOwnerChanges}>
-                        <AttributesLabel>Owner</AttributesLabel>
-                        <AttributesValue>
-                          <Avatar type="organization" size="xs">
-                            <AvatarImage src={fixture.ownerAvatarUrl || undefined} alt={fixture.owner} />
-                            <AvatarFallback>{getCompanyInitials(fixture.owner)}</AvatarFallback>
-                          </Avatar>
-                          {fixture.owner}
-                          {hasOwnerChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasOwnerChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {ownerChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Owner to' : 'changed Owner from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
+                    <FieldChangeHistory
+                      label="Charterer"
+                      value={<>
+                        <Avatar type="organization" size="xs">
+                          <AvatarImage src={fixture.chartererAvatarUrl || undefined} alt={fixture.charterer} />
+                          <AvatarFallback>{getCompanyInitials(fixture.charterer)}</AvatarFallback>
+                        </Avatar>
+                        {fixture.charterer}
+                      </>}
+                      changes={fieldChangeData.chartererChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Broker"
+                      value={<>
+                        <Avatar type="organization" size="xs">
+                          <AvatarImage src={fixture.brokerAvatarUrl || undefined} alt={fixture.broker} />
+                          <AvatarFallback>{getCompanyInitials(fixture.broker)}</AvatarFallback>
+                        </Avatar>
+                        {fixture.broker}
+                      </>}
+                      changes={fieldChangeData.brokerChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Owner"
+                      value={<>
+                        <Avatar type="organization" size="xs">
+                          <AvatarImage src={fixture.ownerAvatarUrl || undefined} alt={fixture.owner} />
+                          <AvatarFallback>{getCompanyInitials(fixture.owner)}</AvatarFallback>
+                        </Avatar>
+                        {fixture.owner}
+                      </>}
+                      changes={fieldChangeData.ownerChanges}
+                    />
                   </AttributesGroup>
 
                   <AttributesSeparator />
@@ -593,194 +537,48 @@ export function FixtureSidebar({
                   <AttributesSeparator />
 
                   <AttributesGroup label="Voyage">
-                    <AttributesItem collapsible={hasLoadPortChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasLoadPortChanges}>
-                        <AttributesLabel>Load Port</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.loadPort?.countryCode && (
-                            <Flag country={fixture.loadPort.countryCode.toLowerCase()} />
-                          )}
-                          {fixture.loadPort?.name
-                            ? `${fixture.loadPort.name}, ${fixture.loadPort.countryCode}`
-                            : "Not specified"}
-                          {hasLoadPortChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasLoadPortChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {loadPortChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Load Port to' : 'changed Load Port from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasDischargePortChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasDischargePortChanges}>
-                        <AttributesLabel>Discharge Port</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.dischargePort?.countryCode && (
-                            <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />
-                          )}
-                          {fixture.dischargePort?.name
-                            ? `${fixture.dischargePort.name}, ${fixture.dischargePort.countryCode}`
-                            : "Not specified"}
-                          {hasDischargePortChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasDischargePortChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {dischargePortChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Discharge Port to' : 'changed Discharge Port from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasCargoChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasCargoChanges}>
-                        <AttributesLabel>Cargo</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.cargoType?.name && fixture.contract?.quantity
-                            ? formatCargo(
-                                fixture.contract.quantity,
-                                fixture.contract.quantityUnit || "MT",
-                                fixture.cargoType.name
-                              )
-                            : "Not specified"}
-                          {hasCargoChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasCargoChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {cargoChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Cargo to' : 'changed Cargo from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasLaycanChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasLaycanChanges}>
-                        <AttributesLabel>Laycan</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.contract?.laycanStart && fixture.contract?.laycanEnd
-                            ? formatLaycanRange(fixture.contract.laycanStart, fixture.contract.laycanEnd)
-                            : "Not specified"}
-                          {hasLaycanChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasLaycanChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {laycanChanges.map((entry, index) => (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{entry.user.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{entry.user.name}</span>
-                                      <span>{entry.action === 'created' ? 'set Laycan to' : 'changed Laycan from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                              ))}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
+                    <FieldChangeHistory
+                      label="Load Port"
+                      value={<>
+                        {fixture.loadPort?.countryCode && (
+                          <Flag country={fixture.loadPort.countryCode.toLowerCase()} />
+                        )}
+                        {fixture.loadPort?.name
+                          ? `${fixture.loadPort.name}, ${fixture.loadPort.countryCode}`
+                          : "Not specified"}
+                      </>}
+                      changes={fieldChangeData.loadPortChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Discharge Port"
+                      value={<>
+                        {fixture.dischargePort?.countryCode && (
+                          <Flag country={fixture.dischargePort.countryCode.toLowerCase()} />
+                        )}
+                        {fixture.dischargePort?.name
+                          ? `${fixture.dischargePort.name}, ${fixture.dischargePort.countryCode}`
+                          : "Not specified"}
+                      </>}
+                      changes={fieldChangeData.dischargePortChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Cargo"
+                      value={fixture.cargoType?.name && fixture.contract?.quantity
+                        ? formatCargo(
+                            fixture.contract.quantity,
+                            fixture.contract.quantityUnit || "MT",
+                            fixture.cargoType.name
+                          )
+                        : "Not specified"}
+                      changes={fieldChangeData.cargoChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Laycan"
+                      value={fixture.contract?.laycanStart && fixture.contract?.laycanEnd
+                        ? formatLaycanRange(fixture.contract.laycanStart, fixture.contract.laycanEnd)
+                        : "Not specified"}
+                      changes={fieldChangeData.laycanChanges}
+                    />
                   </AttributesGroup>
 
                   <AttributesSeparator />
@@ -795,97 +593,20 @@ export function FixtureSidebar({
                       </AttributesRow>
                     </AttributesItem>
 
-                    <AttributesItem collapsible={hasFreightRateChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasFreightRateChanges}>
-                        <AttributesLabel>Freight Rate</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.contract?.freightRate
-                            ? formatRate(parseFloat(fixture.contract.freightRate.replace(/[^0-9.]/g, '')), "/mt")
-                            : "Not specified"}
-                          {hasFreightRateChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasFreightRateChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {freightRateChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Freight Rate to' : 'changed Freight Rate from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
-
-                    <AttributesItem collapsible={hasDemurrageChanges} defaultOpen={false}>
-                      <AttributesRow asCollapsibleTrigger={hasDemurrageChanges}>
-                        <AttributesLabel>Demurrage / Despatch</AttributesLabel>
-                        <AttributesValue>
-                          {fixture.contract?.demurrageRate
-                            ? reformatCurrencyString(fixture.contract.demurrageRate)
-                            : "Not specified"}
-                          {hasDemurrageChanges && <AttributesChevron />}
-                        </AttributesValue>
-                      </AttributesRow>
-                      {hasDemurrageChanges && (
-                        <AttributesContent className="pb-0" style={{ gridColumn: 2 }}>
-                          <div className="rounded bg-[var(--color-surface-sunken)] p-2">
-                            <ActivityLog>
-                              {demurrageChanges.map((entry, index) => {
-                                const userName = entry.user?.name || 'System';
-                                const userInitials = userName === 'System' ? 'S' : userName.split(' ').map(n => n[0]).join('');
-
-                                return (
-                                <ActivityLogItem key={index}>
-                                  <ActivityLogHeader>
-                                    <Avatar size="xxs">
-                                      <AvatarFallback size="xxs">{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <ActivityLogDescription>
-                                      <span className="text-body-medium-sm">{userName}</span>
-                                      <span>{entry.action === 'created' ? 'set Demurrage Rate to' : 'changed Demurrage Rate from'}</span>
-                                      {entry.action === 'updated' && entry.oldValue && (
-                                        <>
-                                          <ActivityLogValue>{entry.oldValue}</ActivityLogValue>
-                                          <span>to</span>
-                                        </>
-                                      )}
-                                      <ActivityLogValue>{entry.value}</ActivityLogValue>
-                                      <ActivityLogTime>{entry.timestamp}</ActivityLogTime>
-                                    </ActivityLogDescription>
-                                  </ActivityLogHeader>
-                                </ActivityLogItem>
-                                );
-                              })}
-                            </ActivityLog>
-                          </div>
-                        </AttributesContent>
-                      )}
-                    </AttributesItem>
+                    <FieldChangeHistory
+                      label="Freight Rate"
+                      value={fixture.contract?.freightRate
+                        ? formatRate(parseFloat(fixture.contract.freightRate.replace(/[^0-9.]/g, '')), "/mt")
+                        : "Not specified"}
+                      changes={fieldChangeData.freightRateChanges}
+                    />
+                    <FieldChangeHistory
+                      label="Demurrage / Despatch"
+                      value={fixture.contract?.demurrageRate
+                        ? reformatCurrencyString(fixture.contract.demurrageRate)
+                        : "Not specified"}
+                      changes={fieldChangeData.demurrageChanges}
+                    />
 
                     {/* Gross Freight */}
                     {fixture.negotiation?.grossFreight && (
@@ -1188,8 +909,6 @@ export function FixtureSidebar({
                     </p>
                   </AttributesGroup>
                 </AttributesList>
-                  );
-                })()}
               </Card>
             </div>
           </TabsContent>
@@ -1200,9 +919,6 @@ export function FixtureSidebar({
             className="mt-0 flex-1 overflow-y-auto bg-[var(--color-surface-base)]"
           >
             <div className="flex flex-col gap-4 px-6 py-6">
-              {(() => {
-              return (
-                <>
                   {/* Negotiation Card - Only show if fixture has negotiation */}
                   {fixture.negotiation && (() => {
                     const negotiationLogs = allActivityLogs.filter((log) => log.entityType === 'negotiation');
@@ -1346,9 +1062,6 @@ export function FixtureSidebar({
                       </Card>
                     );
                   })()}
-                </>
-              );
-              })()}
             </div>
           </TabsContent>
         </Tabs>
