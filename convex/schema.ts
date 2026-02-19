@@ -292,7 +292,8 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_fixtureNumber", ["fixtureNumber"])
     .index("by_order", ["orderId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_organization_and_status", ["organizationId", "status"]),
 
   // Negotiations - Individual offers/bids (previously "offers")
   negotiations: defineTable({
