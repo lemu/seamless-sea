@@ -697,68 +697,6 @@ function highlightSearchTerms(text: string, terms: string[]) {
   });
 }
 
-// Shared filter matching logic used by both bookmarkData and filteredData
-function matchesFilters(fixture: FixtureData, filters: Record<string, unknown>): boolean {
-  for (const [filterId, filterValue] of Object.entries(filters)) {
-    // Handle multiselect filters (arrays of strings)
-    if (Array.isArray(filterValue) && filterValue.length > 0 && typeof filterValue[0] === 'string') {
-      const fixtureValue = String(
-        fixture[filterId as keyof typeof fixture] || "",
-      );
-      const match = (filterValue as string[]).some((val) =>
-        fixtureValue.toLowerCase().includes(String(val).toLowerCase()),
-      );
-      if (!match) return false;
-    }
-
-    // Handle number filters (single number or range)
-    if (typeof filterValue === 'number') {
-      const fixtureValue = fixture[filterId as keyof typeof fixture];
-      if (typeof fixtureValue === 'number' && fixtureValue !== filterValue) {
-        return false;
-      }
-    }
-
-    if (Array.isArray(filterValue) && filterValue.length === 2 && typeof filterValue[0] === 'number') {
-      const [min, max] = filterValue as [number, number];
-      const fixtureValue = fixture[filterId as keyof typeof fixture];
-      if (typeof fixtureValue === 'number') {
-        if (fixtureValue < min || fixtureValue > max) {
-          return false;
-        }
-      } else {
-        return false;
-      }
-    }
-
-    // Handle date filters (single date or range)
-    if (filterValue instanceof Date) {
-      const fixtureValue = fixture[filterId as keyof typeof fixture];
-      if (typeof fixtureValue === 'number') {
-        const fixtureDate = new Date(fixtureValue);
-        if (fixtureDate.toDateString() !== filterValue.toDateString()) {
-          return false;
-        }
-      }
-    }
-
-    if (Array.isArray(filterValue) && filterValue.length === 2 && filterValue[0] instanceof Date) {
-      const [startDate, endDate] = filterValue as [Date, Date];
-      const fixtureValue = fixture[filterId as keyof typeof fixture];
-      if (typeof fixtureValue === 'number') {
-        const fixtureDate = new Date(fixtureValue);
-        if (fixtureDate < startDate || fixtureDate > endDate) {
-          return false;
-        }
-      } else {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
 // Default column visibility — static, extracted to avoid re-creation per render
 const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
   fixtureId: false,
@@ -834,9 +772,6 @@ const convertDbBookmark = (dbBookmark: Omit<Bookmark, 'createdAt' | 'updatedAt'>
   createdAt: new Date(dbBookmark.createdAt),
   updatedAt: new Date(dbBookmark.updatedAt),
 });
-
-// Filter keys that the server already handles — skip these in client-side filtering
-const SERVER_FILTER_KEYS = new Set(['status', 'vessels', 'owner', 'charterer', 'cpDate']);
 
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
@@ -959,6 +894,51 @@ function Fixtures() {
       }
     }
 
+    // Build grouped filter arrays from all remaining activeFilters
+    const multiselectFilters: { field: string; values: string[] }[] = [];
+    const dateRangeFilters: { field: string; from?: number; to?: number }[] = [];
+    const numberRangeFilters: { field: string; min?: number; max?: number }[] = [];
+
+    for (const [key, value] of Object.entries(activeFilters)) {
+      // Skip the 5 filters already handled individually above
+      if (key === "status" || key === "vessels" || key === "owner" || key === "charterer" || key === "cpDate") continue;
+      if (value == null) continue;
+
+      // Multiselect (string array)
+      if (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") {
+        multiselectFilters.push({ field: key, values: value as string[] });
+        continue;
+      }
+
+      // Date range ([Date, Date])
+      if (Array.isArray(value) && value.length === 2 && value[0] instanceof Date) {
+        const [startDate, endDate] = value as [Date, Date];
+        dateRangeFilters.push({ field: key, from: startDate.getTime(), to: endDate.getTime() });
+        continue;
+      }
+
+      // Single date
+      if (value instanceof Date) {
+        const start = new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+        const end = new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999).getTime();
+        dateRangeFilters.push({ field: key, from: start, to: end });
+        continue;
+      }
+
+      // Number range ([number, number])
+      if (Array.isArray(value) && value.length === 2 && typeof value[0] === "number") {
+        const [min, max] = value as [number, number];
+        numberRangeFilters.push({ field: key, min, max });
+        continue;
+      }
+
+      // Single number (exact match → min === max)
+      if (typeof value === "number") {
+        numberRangeFilters.push({ field: key, min: value, max: value });
+        continue;
+      }
+    }
+
     return {
       status: statusFilter,
       vesselNames,
@@ -966,8 +946,11 @@ function Fixtures() {
       chartererNames,
       dateRangeStart,
       dateRangeEnd,
+      multiselectFilters: multiselectFilters.length > 0 ? multiselectFilters : undefined,
+      dateRangeFilters: dateRangeFilters.length > 0 ? dateRangeFilters : undefined,
+      numberRangeFilters: numberRangeFilters.length > 0 ? numberRangeFilters : undefined,
     };
-  }, [activeFilters.status, activeFilters.vessels, activeFilters.owner, activeFilters.charterer, activeFilters.cpDate]);
+  }, [activeFilters]);
 
   // Sorting state (declared early so it can be used in the query and cursor-reset effect below)
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -1009,6 +992,10 @@ function Fixtures() {
     chartererNames: serverFilters.chartererNames,
     dateRangeStart: serverFilters.dateRangeStart,
     dateRangeEnd: serverFilters.dateRangeEnd,
+    // Grouped filters (all remaining field filters)
+    multiselectFilters: serverFilters.multiselectFilters,
+    dateRangeFilters: serverFilters.dateRangeFilters,
+    numberRangeFilters: serverFilters.numberRangeFilters,
     // Global search
     searchTerms: globalSearchTerms.length > 0 ? globalSearchTerms : undefined,
     // Sorting
@@ -4042,24 +4029,11 @@ function Fixtures() {
     columnSizing,
   ]);
 
-  // Calculate bookmark data (data filtered by bookmark's saved filters only)
-  // Server now handles entity-type filtering via paginationUnit, so no special
-  // client-side filtering for negotiations/contracts bookmarks is needed.
+  // Calculate bookmark data — all filters are now server-side,
+  // so bookmark data is simply the server-returned data
   const bookmarkData = useMemo(() => {
-    if (!activeBookmark?.filtersState) {
-      return fixtureData ?? [];
-    }
-
-    // Apply only client-side filters from bookmark (server already handled its filters)
-    const savedFilters = activeBookmark.filtersState.activeFilters;
-    const clientOnlyBookmarkFilters = Object.fromEntries(
-      Object.entries(savedFilters).filter(([key]) => !SERVER_FILTER_KEYS.has(key))
-    );
-    if (Object.keys(clientOnlyBookmarkFilters).length === 0) {
-      return fixtureData ?? [];
-    }
-    return (fixtureData ?? []).filter((fixture) => matchesFilters(fixture, clientOnlyBookmarkFilters));
-  }, [fixtureData, activeBookmark]);
+    return fixtureData ?? [];
+  }, [fixtureData]);
 
   // Load bookmark state
   const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
@@ -4137,52 +4111,11 @@ function Fixtures() {
     }
   }, [globalSearchTerms]);
 
-  // Data filtering with group-preserving field filter logic
-  // NOTE: Server-side filters (status, vessels, owner, charterer, dateRange, search)
-  // and entity-type scoping (paginationUnit) are already applied at the query level.
-  // Client-side filtering here handles field filters not yet migrated to server-side.
+  // All filters are now server-side — no client-side filtering needed.
+  // Server handles: status, vessels, owner, charterer, cpDate, and all grouped filters.
   const filteredData = useMemo(() => {
-    let data = fixtureData ?? [];
-
-    // Only apply client-side filters that the server doesn't handle
-    const clientOnlyFilters = Object.fromEntries(
-      Object.entries(activeFilters).filter(([key]) => !SERVER_FILTER_KEYS.has(key))
-    );
-    const hasActiveFieldFilters = Object.keys(clientOnlyFilters).length > 0;
-
-    if (hasActiveFieldFilters) {
-      const groupingColumn = grouping[0] as keyof FixtureData | undefined;
-
-      if (groupingColumn) {
-        // Group-preserving: if any row in a group matches, keep entire group
-        const rowsByGroup = new Map<string, FixtureData[]>();
-        data.forEach(row => {
-          const key = String(row[groupingColumn]);
-          if (!rowsByGroup.has(key)) rowsByGroup.set(key, []);
-          rowsByGroup.get(key)!.push(row);
-        });
-
-        const matchingGroups = new Set<string>();
-        rowsByGroup.forEach((rows, key) => {
-          if (rows.some(row => matchesFilters(row, clientOnlyFilters))) {
-            matchingGroups.add(key);
-          }
-        });
-
-        data = data.filter(row => matchingGroups.has(String(row[groupingColumn])));
-      } else {
-        // No grouping — filter per-row
-        data = data.filter(row => matchesFilters(row, clientOnlyFilters));
-      }
-    }
-
-    // Note: Global search filtering is handled server-side by listEnrichedPaginated.
-    // No client-side search filter needed — server already returns only matching fixtures.
-
-    // Note: Data is already sorted by lastUpdated on the server side
-    // TanStack Table will preserve the order for grouping (groups appear in order of first row appearance)
-    return data;
-  }, [fixtureData, activeFilters, grouping]);
+    return fixtureData ?? [];
+  }, [fixtureData]);
 
   // Bookmark handlers
   const handleBookmarkSelect = (bookmark: Bookmark) => {

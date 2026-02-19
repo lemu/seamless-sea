@@ -564,6 +564,21 @@ const paginatedQueryArgs = {
   // Sorting
   sortField: v.optional(v.string()),
   sortDirection: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
+  // Grouped filters (replaces all client-side filtering)
+  multiselectFilters: v.optional(v.array(v.object({
+    field: v.string(),
+    values: v.array(v.string()),
+  }))),
+  dateRangeFilters: v.optional(v.array(v.object({
+    field: v.string(),
+    from: v.optional(v.number()),
+    to: v.optional(v.number()),
+  }))),
+  numberRangeFilters: v.optional(v.array(v.object({
+    field: v.string(),
+    min: v.optional(v.number()),
+    max: v.optional(v.number()),
+  }))),
 };
 
 type PaginatedQueryArgs = {
@@ -580,6 +595,9 @@ type PaginatedQueryArgs = {
   searchTerms?: string[];
   sortField?: string;
   sortDirection?: "asc" | "desc";
+  multiselectFilters?: { field: string; values: string[] }[];
+  dateRangeFilters?: { field: string; from?: number; to?: number }[];
+  numberRangeFilters?: { field: string; min?: number; max?: number }[];
 };
 
 // Helper: resolve name-based filters to ID sets (shared across pagination modes)
@@ -757,6 +775,210 @@ function computeDerivedSortValue(
   return undefined;
 }
 
+// Unified field value resolver — used by both sorting and filtering
+// Routes a field name to the correct data source (entity, negotiation, fixture, lookups, extras)
+function resolveFieldValue(
+  field: string,
+  entity: any,
+  negotiation: any,
+  fixture: any,
+  lookups: SortLookups | null,
+  extras?: { approvals?: any[]; signatures?: any[]; userNameById?: Map<string, string> },
+): unknown {
+  // Fixture-level fields
+  if (field === "lastUpdated") return fixture?.lastUpdated ?? fixture?._creationTime;
+  if (field === "fixtureId") return fixture?.fixtureNumber;
+  if (field === "orderId") return fixture?.order?.orderNumber ?? fixture?.orderId;
+  if (field === "negotiationId") return negotiation?.negotiationNumber ?? negotiation?._id;
+  if (field === "cpId") return entity?.contractNumber ?? entity?.recapNumber ?? entity?.cpNumber;
+  if (field === "parentCpId") return entity?.parentCpId;
+  if (field === "status") return entity?.status ?? negotiation?.status;
+
+  // Lookup-resolved fields
+  if (field === "loadPortName") return entity?.loadPortId ? lookups?.portById.get(entity.loadPortId)?.name : undefined;
+  if (field === "loadPortCountry") return entity?.loadPortId ? lookups?.portById.get(entity.loadPortId)?.country : undefined;
+  if (field === "dischargePortName") return entity?.dischargePortId ? lookups?.portById.get(entity.dischargePortId)?.name : undefined;
+  if (field === "dischargePortCountry") return entity?.dischargePortId ? lookups?.portById.get(entity.dischargePortId)?.country : undefined;
+  if (field === "vessels") return entity?.vesselId ? lookups?.vesselById.get(entity.vesselId)?.name : undefined;
+  if (field === "vesselImo") return entity?.vesselId ? lookups?.vesselById.get(entity.vesselId)?.imoNumber : undefined;
+  if (field === "owner") return entity?.ownerId ? lookups?.companyNameById.get(entity.ownerId) : undefined;
+  if (field === "charterer") return entity?.chartererId ? lookups?.companyNameById.get(entity.chartererId) : undefined;
+  if (field === "broker") return entity?.brokerId ? lookups?.companyNameById.get(entity.brokerId) : undefined;
+  if (field === "cargoTypeName") return entity?.cargoTypeId ? lookups?.cargoTypeNameById.get(entity.cargoTypeId) : undefined;
+
+  // Negotiation fields
+  if (NEGOTIATION_SORT_FIELDS.has(field)) return negotiation?.[field];
+
+  // Contract fields
+  if (CONTRACT_SORT_FIELDS.has(field)) return entity?.[field];
+
+  // Computed fields
+  if (COMPUTED_SORT_FIELDS.has(field)) return computeDerivedSortValue(field, entity, negotiation);
+
+  // Approval fields (conditional extras)
+  if (field === "ownerApprovalStatus") return extras?.approvals?.find((a: any) => a.partyRole === "owner")?.status;
+  if (field === "ownerApprovedBy") {
+    const a = extras?.approvals?.find((a: any) => a.partyRole === "owner");
+    return a?.approvedBy ? extras?.userNameById?.get(a.approvedBy) : undefined;
+  }
+  if (field === "ownerApprovalDate") return extras?.approvals?.find((a: any) => a.partyRole === "owner")?.approvedAt;
+  if (field === "chartererApprovalStatus") return extras?.approvals?.find((a: any) => a.partyRole === "charterer")?.status;
+  if (field === "chartererApprovedBy") {
+    const a = extras?.approvals?.find((a: any) => a.partyRole === "charterer");
+    return a?.approvedBy ? extras?.userNameById?.get(a.approvedBy) : undefined;
+  }
+  if (field === "chartererApprovalDate") return extras?.approvals?.find((a: any) => a.partyRole === "charterer")?.approvedAt;
+
+  // Signature fields (conditional extras)
+  if (field === "ownerSignatureStatus") return extras?.signatures?.find((s: any) => s.partyRole === "owner")?.status;
+  if (field === "ownerSignedBy") {
+    const s = extras?.signatures?.find((s: any) => s.partyRole === "owner");
+    return s?.signedBy ? extras?.userNameById?.get(s.signedBy) : undefined;
+  }
+  if (field === "ownerSignatureDate") return extras?.signatures?.find((s: any) => s.partyRole === "owner")?.signedAt;
+  if (field === "chartererSignatureStatus") return extras?.signatures?.find((s: any) => s.partyRole === "charterer")?.status;
+  if (field === "chartererSignedBy") {
+    const s = extras?.signatures?.find((s: any) => s.partyRole === "charterer");
+    return s?.signedBy ? extras?.userNameById?.get(s.signedBy) : undefined;
+  }
+  if (field === "chartererSignatureDate") return extras?.signatures?.find((s: any) => s.partyRole === "charterer")?.signedAt;
+
+  // User tracking fields
+  if (field === "dealCaptureUser") return negotiation?.dealCaptureUserId ? extras?.userNameById?.get(negotiation.dealCaptureUserId) : undefined;
+  if (field === "orderCreatedBy") return fixture?.order?.createdByUserId ? extras?.userNameById?.get(fixture.order.createdByUserId) : undefined;
+  if (field === "negotiationCreatedBy") return negotiation?.createdByUserId ? extras?.userNameById?.get(negotiation.createdByUserId) : undefined;
+
+  // Mapped field names (cargoQuantity → quantity, finalFreightRate → freightRate)
+  const rawField = mapSortFieldToRawField(field);
+  return entity?.[rawField] ?? negotiation?.[rawField] ?? fixture?.[rawField];
+}
+
+// Fields that require lookup tables for filtering
+const LOOKUP_FILTER_FIELDS = new Set([
+  "loadPortName", "loadPortCountry", "dischargePortName", "dischargePortCountry",
+  "cargoTypeName", "broker", "vesselImo", "vessels", "owner", "charterer",
+]);
+
+// Fields requiring approval/signature/user data
+const APPROVAL_FILTER_FIELDS = new Set([
+  "ownerApprovalStatus", "ownerApprovedBy", "ownerApprovalDate",
+  "chartererApprovalStatus", "chartererApprovedBy", "chartererApprovalDate",
+]);
+const SIGNATURE_FILTER_FIELDS = new Set([
+  "ownerSignatureStatus", "ownerSignedBy", "ownerSignatureDate",
+  "chartererSignatureStatus", "chartererSignedBy", "chartererSignatureDate",
+]);
+const USER_FILTER_FIELDS = new Set([
+  "dealCaptureUser", "orderCreatedBy", "negotiationCreatedBy",
+  "ownerApprovedBy", "chartererApprovedBy", "ownerSignedBy", "chartererSignedBy",
+]);
+
+// Check if any grouped filter references a field that needs lookups
+function filtersNeedLookups(args: PaginatedQueryArgs): boolean {
+  const allFilterFields = [
+    ...(args.multiselectFilters?.map(f => f.field) ?? []),
+    ...(args.dateRangeFilters?.map(f => f.field) ?? []),
+    ...(args.numberRangeFilters?.map(f => f.field) ?? []),
+  ];
+  return allFilterFields.some(f => LOOKUP_FILTER_FIELDS.has(f));
+}
+
+// Determine which extra data (approval/signature/user) is needed for filtering
+function needsFilterExtras(args: PaginatedQueryArgs): {
+  needsApprovals: boolean;
+  needsSignatures: boolean;
+  needsUsers: boolean;
+} {
+  const allFields = [
+    ...(args.multiselectFilters?.map(f => f.field) ?? []),
+    ...(args.dateRangeFilters?.map(f => f.field) ?? []),
+    ...(args.numberRangeFilters?.map(f => f.field) ?? []),
+  ];
+  return {
+    needsApprovals: allFields.some(f => APPROVAL_FILTER_FIELDS.has(f)),
+    needsSignatures: allFields.some(f => SIGNATURE_FILTER_FIELDS.has(f)),
+    needsUsers: allFields.some(f => USER_FILTER_FIELDS.has(f)),
+  };
+}
+
+// Load approval/signature extras for a specific contract (conditional)
+async function loadExtrasForContract(
+  ctx: { db: any },
+  contractId: any,
+  needs: { needsApprovals: boolean; needsSignatures: boolean; needsUsers: boolean },
+  userNameById: Map<string, string>,
+): Promise<{ approvals?: any[]; signatures?: any[] }> {
+  const [approvals, signatures] = await Promise.all([
+    needs.needsApprovals
+      ? ctx.db.query("contract_approvals").withIndex("by_contract", (q: any) => q.eq("contractId", contractId)).collect()
+      : Promise.resolve(undefined),
+    needs.needsSignatures
+      ? ctx.db.query("contract_signatures").withIndex("by_contract", (q: any) => q.eq("contractId", contractId)).collect()
+      : Promise.resolve(undefined),
+  ]);
+
+  // Collect user IDs that need resolving
+  if (needs.needsUsers) {
+    const userIds = new Set<string>();
+    approvals?.forEach((a: any) => { if (a.approvedBy) userIds.add(a.approvedBy); });
+    signatures?.forEach((s: any) => { if (s.signedBy) userIds.add(s.signedBy); });
+    for (const uid of userIds) {
+      if (!userNameById.has(uid)) {
+        const user = await ctx.db.get(uid);
+        if (user?.name) userNameById.set(uid, user.name);
+      }
+    }
+  }
+
+  return { approvals, signatures };
+}
+
+// Check if an item matches all 3 grouped filter arrays
+function matchesGroupedFilters(
+  args: PaginatedQueryArgs,
+  entity: any,
+  negotiation: any,
+  fixture: any,
+  lookups: SortLookups | null,
+  extras?: { approvals?: any[]; signatures?: any[]; userNameById?: Map<string, string> },
+): boolean {
+  // Multiselect filters: resolved value must match one of the filter values (case-insensitive)
+  if (args.multiselectFilters?.length) {
+    for (const filter of args.multiselectFilters) {
+      const value = resolveFieldValue(filter.field, entity, negotiation, fixture, lookups, extras);
+      if (value == null) return false;
+      const valueStr = String(value).toLowerCase();
+      if (!filter.values.some(v => valueStr.includes(v.toLowerCase()))) return false;
+    }
+  }
+
+  // Date range filters: value must be within [from, to]
+  if (args.dateRangeFilters?.length) {
+    for (const filter of args.dateRangeFilters) {
+      const value = resolveFieldValue(filter.field, entity, negotiation, fixture, lookups, extras);
+      if (value == null) return false;
+      const numValue = typeof value === "number" ? value : Number(value);
+      if (isNaN(numValue)) return false;
+      if (filter.from != null && numValue < filter.from) return false;
+      if (filter.to != null && numValue > filter.to) return false;
+    }
+  }
+
+  // Number range filters: value must be within [min, max]
+  if (args.numberRangeFilters?.length) {
+    for (const filter of args.numberRangeFilters) {
+      const value = resolveFieldValue(filter.field, entity, negotiation, fixture, lookups, extras);
+      if (value == null) return false;
+      const numValue = typeof value === "number" ? value : Number(value);
+      if (isNaN(numValue)) return false;
+      if (filter.min != null && numValue < filter.min) return false;
+      if (filter.max != null && numValue > filter.max) return false;
+    }
+  }
+
+  return true;
+}
+
 
 // Helper: build a sort comparator from query args
 function buildSortComparator<T>(
@@ -826,14 +1048,32 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
     });
   }
 
-  // Apply contract-level filters (vessel, owner, charterer)
+  // Apply contract-level filters (vessel, owner, charterer) and grouped filters
   const hasContractFilters =
     (args.vesselNames && args.vesselNames.length > 0) ||
     (args.ownerNames && args.ownerNames.length > 0) ||
     (args.chartererNames && args.chartererNames.length > 0);
+  const hasGroupedFilters = (args.multiselectFilters?.length ?? 0) > 0
+    || (args.dateRangeFilters?.length ?? 0) > 0
+    || (args.numberRangeFilters?.length ?? 0) > 0;
 
-  if (hasContractFilters) {
-    const nameFilters = await resolveNameFilters(ctx, args);
+  // Load lookup data for sorting OR filtering by related fields
+  const sortField = args.sortField ?? "";
+  const needsLookupsForSort = LOOKUP_SORT_FIELDS.has(sortField);
+  const needsLookupsForFilters = hasGroupedFilters && filtersNeedLookups(args);
+  const lookups = (needsLookupsForSort || needsLookupsForFilters) ? await loadSortLookups(ctx) : null;
+
+  if (hasContractFilters || hasGroupedFilters) {
+    const nameFilters = hasContractFilters ? await resolveNameFilters(ctx, args) : null;
+    const extrasNeeds = hasGroupedFilters ? needsFilterExtras(args) : { needsApprovals: false, needsSignatures: false, needsUsers: false };
+    const userNameById = new Map<string, string>();
+
+    // Pre-load all user names if any user-tracked filters are active
+    if (extrasNeeds.needsUsers) {
+      const allUsers = await ctx.db.query("users").collect();
+      allUsers.forEach((u: any) => userNameById.set(u._id, u.name));
+    }
+
     const filteredFixtures: typeof allFixtures = [];
     for (const fixture of allFixtures) {
       const contracts = await ctx.db
@@ -845,9 +1085,45 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
         .withIndex("by_fixture", (q: any) => q.eq("fixtureId", fixture._id))
         .collect();
 
-      if ([...contracts, ...recapManagers].some((item: any) => matchesEntityFilters(item, nameFilters))) {
-        filteredFixtures.push(fixture);
+      const entities = [...contracts, ...recapManagers];
+
+      // Existing name filters (vessel/owner/charterer)
+      if (nameFilters && !entities.some((item: any) => matchesEntityFilters(item, nameFilters))) {
+        continue;
       }
+
+      // Grouped filters — check if ANY entity matches
+      if (hasGroupedFilters) {
+        // Load negotiations for negotiation-level fields
+        let negotiations: any[] = [];
+        if (fixture.orderId) {
+          negotiations = await ctx.db.query("negotiations")
+            .withIndex("by_order", (q: any) => q.eq("orderId", fixture.orderId))
+            .collect();
+        }
+
+        let anyEntityMatches = false;
+        if (entities.length > 0) {
+          for (const entity of entities) {
+            const neg = negotiations.find((n: any) => n._id === entity.negotiationId) ?? negotiations[0];
+            let extras: { approvals?: any[]; signatures?: any[]; userNameById: Map<string, string> } = { userNameById };
+            if (extrasNeeds.needsApprovals || extrasNeeds.needsSignatures) {
+              const contractExtras = await loadExtrasForContract(ctx, entity._id, extrasNeeds, userNameById);
+              extras = { ...extras, ...contractExtras };
+            }
+            if (matchesGroupedFilters(args, entity, neg, fixture, lookups, extras)) {
+              anyEntityMatches = true;
+              break;
+            }
+          }
+        } else {
+          // Fixture has no entities yet — only match fixture-level filters
+          anyEntityMatches = matchesGroupedFilters(args, null, null, fixture, lookups, { userNameById });
+        }
+        if (!anyEntityMatches) continue;
+      }
+
+      filteredFixtures.push(fixture);
     }
     allFixtures = filteredFixtures;
   }
@@ -885,13 +1161,8 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
     allFixtures = filteredFixtures;
   }
 
-  // Load lookup data for sorting by related fields
-  const sortField = args.sortField ?? "";
-  const needsLookups = LOOKUP_SORT_FIELDS.has(sortField);
-  const lookups = needsLookups ? await loadSortLookups(ctx) : null;
-
   // For fixture mode, load representative contract + negotiation per fixture for related-field sorting
-  const needsEntityData = needsLookups || NEGOTIATION_SORT_FIELDS.has(sortField)
+  const needsEntityData = needsLookupsForSort || NEGOTIATION_SORT_FIELDS.has(sortField)
     || CONTRACT_SORT_FIELDS.has(sortField) || COMPUTED_SORT_FIELDS.has(sortField);
   let fixtureEntityMap: Map<string, { contract: any; negotiation: any }> | null = null;
   if (needsEntityData) {
@@ -1113,10 +1384,36 @@ async function paginateByNegotiation(ctx: { db: any; storage: any }, args: Pagin
     });
   }
 
-  // Load lookup data for sorting by related fields
+  // Load lookup data for sorting OR filtering by related fields
   const sortFieldNeg = args.sortField ?? "";
-  const needsLookupsNeg = LOOKUP_SORT_FIELDS.has(sortFieldNeg);
+  const hasGroupedFiltersNeg = (args.multiselectFilters?.length ?? 0) > 0
+    || (args.dateRangeFilters?.length ?? 0) > 0
+    || (args.numberRangeFilters?.length ?? 0) > 0;
+  const needsLookupsNeg = LOOKUP_SORT_FIELDS.has(sortFieldNeg) || (hasGroupedFiltersNeg && filtersNeedLookups(args));
   const lookups = needsLookupsNeg ? await loadSortLookups(ctx) : null;
+
+  // Apply grouped filters
+  if (hasGroupedFiltersNeg) {
+    const extrasNeeds = needsFilterExtras(args);
+    const userNameById = new Map<string, string>();
+    if (extrasNeeds.needsUsers) {
+      const allUsers = await ctx.db.query("users").collect();
+      allUsers.forEach((u: any) => userNameById.set(u._id, u.name));
+    }
+
+    const asyncFiltered: typeof filtered = [];
+    for (const t of filtered) {
+      let extras: { approvals?: any[]; signatures?: any[]; userNameById: Map<string, string> } = { userNameById };
+      if ((extrasNeeds.needsApprovals || extrasNeeds.needsSignatures) && t.contractEntity?._id) {
+        const contractExtras = await loadExtrasForContract(ctx, t.contractEntity._id, extrasNeeds, userNameById);
+        extras = { ...extras, ...contractExtras };
+      }
+      if (matchesGroupedFilters(args, t.contractEntity, t.negotiation, t.fixture, lookups, extras)) {
+        asyncFiltered.push(t);
+      }
+    }
+    filtered = asyncFiltered;
+  }
 
   // Sort by requested field (default: lastUpdated desc)
   filtered.sort(buildSortComparator<NegTuple>(
@@ -1319,19 +1616,45 @@ async function paginateByContract(ctx: { db: any; storage: any }, args: Paginate
     });
   }
 
-  // Load lookup data for sorting by related fields
+  // Load lookup data for sorting OR filtering by related fields
   const sortFieldContract = args.sortField ?? "";
-  const needsLookupsContract = LOOKUP_SORT_FIELDS.has(sortFieldContract);
+  const hasGroupedFiltersContract = (args.multiselectFilters?.length ?? 0) > 0
+    || (args.dateRangeFilters?.length ?? 0) > 0
+    || (args.numberRangeFilters?.length ?? 0) > 0;
+  const needsLookupsContract = LOOKUP_SORT_FIELDS.has(sortFieldContract) || (hasGroupedFiltersContract && filtersNeedLookups(args));
   const lookups = needsLookupsContract ? await loadSortLookups(ctx) : null;
 
-  // Load linked negotiations when sorting by negotiation-only or computed fields
-  const needsNegotiationContract = NEGOTIATION_SORT_FIELDS.has(sortFieldContract) || COMPUTED_SORT_FIELDS.has(sortFieldContract);
+  // Load linked negotiations when sorting/filtering by negotiation-only or computed fields
+  const needsNegotiationContract = NEGOTIATION_SORT_FIELDS.has(sortFieldContract) || COMPUTED_SORT_FIELDS.has(sortFieldContract) || hasGroupedFiltersContract;
   if (needsNegotiationContract) {
     for (const t of filtered) {
       if (t.entity.negotiationId) {
         t.negotiation = await ctx.db.get(t.entity.negotiationId);
       }
     }
+  }
+
+  // Apply grouped filters
+  if (hasGroupedFiltersContract) {
+    const extrasNeeds = needsFilterExtras(args);
+    const userNameById = new Map<string, string>();
+    if (extrasNeeds.needsUsers) {
+      const allUsers = await ctx.db.query("users").collect();
+      allUsers.forEach((u: any) => userNameById.set(u._id, u.name));
+    }
+
+    const asyncFiltered: typeof filtered = [];
+    for (const t of filtered) {
+      let extras: { approvals?: any[]; signatures?: any[]; userNameById: Map<string, string> } = { userNameById };
+      if ((extrasNeeds.needsApprovals || extrasNeeds.needsSignatures) && t.entity?._id) {
+        const contractExtras = await loadExtrasForContract(ctx, t.entity._id, extrasNeeds, userNameById);
+        extras = { ...extras, ...contractExtras };
+      }
+      if (matchesGroupedFilters(args, t.entity, t.negotiation, t.fixture, lookups, extras)) {
+        asyncFiltered.push(t);
+      }
+    }
+    filtered = asyncFiltered;
   }
 
   // Sort by requested field (default: lastUpdated desc)
