@@ -3,12 +3,13 @@
  */
 
 /**
- * Calculate freight savings percentage from highest rate to final rate
- * @param highest - Highest freight rate indication
- * @param final - Final freight rate as string or number
+ * Calculate savings percentage from highest rate to final rate.
+ * Used for both freight and demurrage savings.
+ * @param highest - Highest rate indication
+ * @param final - Final rate as string or number
  * @returns Savings percentage or null if data insufficient
  */
-export function calculateFreightSavings(
+export function calculateSavingsPercent(
   highest: number | undefined,
   final: string | number | undefined
 ): number | null {
@@ -20,23 +21,9 @@ export function calculateFreightSavings(
   return ((highest - finalNum) / highest) * 100;
 }
 
-/**
- * Calculate demurrage savings percentage from highest rate to final rate
- * @param highest - Highest demurrage rate indication
- * @param final - Final demurrage rate as string or number
- * @returns Savings percentage or null if data insufficient
- */
-export function calculateDemurrageSavings(
-  highest: number | undefined,
-  final: string | number | undefined
-): number | null {
-  if (highest == null || final == null || highest === 0) return null;
-
-  const finalNum = typeof final === 'string' ? parseFloat(final) : final;
-  if (isNaN(finalNum)) return null;
-
-  return ((highest - finalNum) / highest) * 100;
-}
+// Backward-compatible aliases
+export const calculateFreightSavings = calculateSavingsPercent;
+export const calculateDemurrageSavings = calculateSavingsPercent;
 
 /**
  * Calculate days between two dates
@@ -48,7 +35,7 @@ export function calculateDaysBetween(
   startDate: number | undefined,
   endDate: number | undefined
 ): number | null {
-  if (!startDate || !endDate) return null;
+  if (startDate == null || endDate == null) return null;
 
   const diffMs = endDate - startDate;
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -64,25 +51,12 @@ export function calculateFreightVsMarket(
   finalRate: string | number | undefined,
   marketIndex: number | undefined
 ): number | null {
-  if (!finalRate || !marketIndex) return null;
+  if (finalRate == null || marketIndex == null || marketIndex === 0) return null;
 
   const final = typeof finalRate === 'string' ? parseFloat(finalRate) : finalRate;
   if (isNaN(final)) return null;
 
   return ((final - marketIndex) / marketIndex) * 100;
-}
-
-/**
- * Format a number as percentage with specified decimal places
- * @param value - The percentage value
- * @param decimals - Number of decimal places (default: 2)
- * @returns Formatted percentage string
- */
-export function formatPercentage(value: number | null, decimals: number = 2): string {
-  if (value === null) return "-";
-
-  const formatted = value.toFixed(decimals);
-  return `${formatted}%`;
 }
 
 /**

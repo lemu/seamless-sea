@@ -508,3 +508,116 @@ export interface FieldChangeData {
   userId: Id<"users">;
   timestamp: number;
 }
+
+// ============================================================================
+// Fixture Table Data (used by DataTable in Fixtures page)
+// ============================================================================
+
+/**
+ * Flattened fixture data structure for the DataTable.
+ * Each row represents a single contract/recap within a fixture.
+ */
+export interface FixtureData {
+  id: string;
+  fixtureId: string;
+  orderId?: string;
+  cpId?: string;
+  stage: string;
+  typeOfContract: string;
+  negotiationId: string;
+  vessels: string;
+  personInCharge: string;
+  status: string;
+  approvalStatus: string;
+  owner: string;
+  ownerAvatarUrl?: string | null;
+  broker: string;
+  brokerAvatarUrl?: string | null;
+  charterer: string;
+  chartererAvatarUrl?: string | null;
+  lastUpdated: number;
+  // Full objects for sidebar display
+  contract?: ContractData | null;
+  order?: OrderData | null;
+  negotiation?: NegotiationData | null;
+  vessel?: VesselData | null;
+  loadPort?: PortData | null;
+  dischargePort?: PortData | null;
+  cargoType?: CargoTypeData | null;
+  // Approval and signature data
+  approvals?: ApprovalData[];
+  approvalSummary?: ApprovalSummary;
+  signatures?: SignatureData[];
+  signatureSummary?: SignatureSummary;
+
+  // Priority 1: Core Commercial Fields
+  laycanStart?: number;
+  laycanEnd?: number;
+  loadPortName?: string;
+  loadPortCountry?: string;
+  loadDeliveryType?: string;
+  dischargePortName?: string;
+  dischargePortCountry?: string;
+  dischargeRedeliveryType?: string;
+  vesselImo?: string;
+  cargoTypeName?: string;
+  cargoQuantity?: number;
+  finalFreightRate?: string | number;
+  finalDemurrageRate?: string | number;
+
+  // Priority 2: Freight & Demurrage Analytics
+  highestFreightRateIndication?: number;
+  lowestFreightRateIndication?: number;
+  firstFreightRateIndication?: number;
+  highestFreightRateLastDay?: number;
+  lowestFreightRateLastDay?: number;
+  firstFreightRateLastDay?: number;
+  freightSavingsPercent?: number; // calculated
+  marketIndex?: number;
+  marketIndexName?: string;
+  freightVsMarketPercent?: number; // calculated
+  grossFreight?: number;
+  highestDemurrageIndication?: number;
+  lowestDemurrageIndication?: number;
+  demurrageSavingsPercent?: number; // calculated
+
+  // Priority 3: Commissions
+  addressCommissionPercent?: number;
+  addressCommissionTotal?: number;
+  brokerCommissionPercent?: number;
+  brokerCommissionTotal?: number;
+
+  // Priority 4: CP Workflow Dates
+  cpDate?: number;
+  workingCopyDate?: number;
+  finalDate?: number;
+  fullySignedDate?: number;
+  daysToWorkingCopy?: number; // calculated
+  daysToFinal?: number; // calculated
+  daysToSigned?: number; // calculated
+
+  // Priority 5: Approval Status Details
+  ownerApprovalStatus?: string;
+  ownerApprovedBy?: string;
+  ownerApprovalDate?: number;
+  chartererApprovalStatus?: string;
+  chartererApprovedBy?: string;
+  chartererApprovalDate?: number;
+
+  // Priority 6: Signature Status Details
+  ownerSignatureStatus?: string;
+  ownerSignedBy?: string;
+  ownerSignatureDate?: number;
+  chartererSignatureStatus?: string;
+  chartererSignedBy?: string;
+  chartererSignatureDate?: number;
+
+  // Priority 7: User Tracking
+  dealCaptureUser?: string;
+  orderCreatedBy?: string;
+  negotiationCreatedBy?: string;
+
+  // Priority 8: Parent/Child Relationships
+  parentCpId?: string;
+  contractType?: string;
+}

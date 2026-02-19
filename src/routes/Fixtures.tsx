@@ -42,7 +42,9 @@ import {
   formatCurrency,
   formatPercent,
   formatQuantity,
-  formatEnumLabel,
+  formatTimestamp,
+  getStatusLabel as getStatusLabelBase,
+  getCompanyInitials,
   pluralize,
 } from "../utils/dataUtils";
 import {
@@ -52,142 +54,27 @@ import {
   calculateFreightVsMarket,
 } from "../utils/fixtureCalculations";
 
-// Helper function to get human-readable status labels
-export const getStatusLabel = (status: string): string => {
-  const config = statusConfig[status as keyof typeof statusConfig];
-  if (config) {
-    return `${config.objectLabel} • ${config.statusLabel}`;
-  }
-  // Fallback for unknown statuses - use centralized enum formatter
-  return formatEnumLabel(status);
-};
+// Re-export for backward compatibility (FixtureSidebar imports from here)
+export { getCompanyInitials };
+
+// Wrap getStatusLabel to bind statusConfig from tide-ui
+export const getStatusLabel = (status: string): string =>
+  getStatusLabelBase(status, statusConfig);
 
 // Import types for fixture structure
 import type {
   ContractData,
-  OrderData,
-  NegotiationData,
-  VesselData,
-  PortData,
-  CargoTypeData,
-  ApprovalData,
-  SignatureData,
-  ApprovalSummary,
-  SignatureSummary,
   FixtureWithRelations,
   EnrichedContractItem,
 } from "../types/fixture";
+// Re-export FixtureData for backward compat (FixtureSidebar imports from here)
+export type { FixtureData } from "../types/fixture";
+import type { FixtureData } from "../types/fixture";
 import type { CellContext, Row } from "@tanstack/react-table";
 
 // Type aliases for TanStack Table
 type FixtureCellContext<TValue = unknown> = CellContext<FixtureData, TValue>;
 type FixtureRow = Row<FixtureData>;
-
-// Define types for fixture structure
-export interface FixtureData {
-  id: string;
-  fixtureId: string;
-  orderId?: string;
-  cpId?: string;
-  stage: string;
-  typeOfContract: string;
-  negotiationId: string;
-  vessels: string;
-  personInCharge: string;
-  status: string;
-  approvalStatus: string;
-  owner: string;
-  ownerAvatarUrl?: string | null;
-  broker: string;
-  brokerAvatarUrl?: string | null;
-  charterer: string;
-  chartererAvatarUrl?: string | null;
-  lastUpdated: number;
-  // Full objects for sidebar display
-  contract?: ContractData | null;
-  order?: OrderData | null;
-  negotiation?: NegotiationData | null;
-  vessel?: VesselData | null;
-  loadPort?: PortData | null;
-  dischargePort?: PortData | null;
-  cargoType?: CargoTypeData | null;
-  // Approval and signature data
-  approvals?: ApprovalData[];
-  approvalSummary?: ApprovalSummary;
-  signatures?: SignatureData[];
-  signatureSummary?: SignatureSummary;
-
-  // Priority 1: Core Commercial Fields
-  laycanStart?: number;
-  laycanEnd?: number;
-  loadPortName?: string;
-  loadPortCountry?: string;
-  loadDeliveryType?: string;
-  dischargePortName?: string;
-  dischargePortCountry?: string;
-  dischargeRedeliveryType?: string;
-  vesselImo?: string;
-  cargoTypeName?: string;
-  cargoQuantity?: number;
-  finalFreightRate?: string | number;
-  finalDemurrageRate?: string | number;
-
-  // Priority 2: Freight & Demurrage Analytics
-  highestFreightRateIndication?: number;
-  lowestFreightRateIndication?: number;
-  firstFreightRateIndication?: number;
-  highestFreightRateLastDay?: number;
-  lowestFreightRateLastDay?: number;
-  firstFreightRateLastDay?: number;
-  freightSavingsPercent?: number; // calculated
-  marketIndex?: number;
-  marketIndexName?: string;
-  freightVsMarketPercent?: number; // calculated
-  grossFreight?: number;
-  highestDemurrageIndication?: number;
-  lowestDemurrageIndication?: number;
-  demurrageSavingsPercent?: number; // calculated
-
-  // Priority 3: Commissions
-  addressCommissionPercent?: number;
-  addressCommissionTotal?: number;
-  brokerCommissionPercent?: number;
-  brokerCommissionTotal?: number;
-
-  // Priority 4: CP Workflow Dates
-  cpDate?: number;
-  workingCopyDate?: number;
-  finalDate?: number;
-  fullySignedDate?: number;
-  daysToWorkingCopy?: number; // calculated
-  daysToFinal?: number; // calculated
-  daysToSigned?: number; // calculated
-
-  // Priority 5: Approval Status Details
-  ownerApprovalStatus?: string;
-  ownerApprovedBy?: string;
-  ownerApprovalDate?: number;
-  chartererApprovalStatus?: string;
-  chartererApprovedBy?: string;
-  chartererApprovalDate?: number;
-
-  // Priority 6: Signature Status Details
-  ownerSignatureStatus?: string;
-  ownerSignedBy?: string;
-  ownerSignatureDate?: number;
-  chartererSignatureStatus?: string;
-  chartererSignedBy?: string;
-  chartererSignatureDate?: number;
-
-  // Priority 7: User Tracking
-  dealCaptureUser?: string;
-  orderCreatedBy?: string;
-  negotiationCreatedBy?: string;
-
-  // Priority 8: Parent/Child Relationships
-  parentCpId?: string;
-  contractType?: string;
-}
 
 // Extended column metadata to support auto-generation of filter definitions
 // Note: Many properties (label, align, filterVariant, filterOptions, icon) are already
@@ -608,48 +495,10 @@ const transformFixturesToTableData = (
   return tableData;
 };
 
-// Helper function to format timestamp
-const formatTimestamp = (timestamp: number | string | undefined | null): string => {
-  // Handle null/undefined
-  if (timestamp === null || timestamp === undefined) return '–';
-
-  // Convert to number if string
-  const ts = typeof timestamp === 'string' ? parseFloat(timestamp) : timestamp;
-
-  // Validate it's a number
-  if (typeof ts !== 'number' || isNaN(ts)) {
-    console.warn('Invalid timestamp:', timestamp);
-    return '–';
-  }
-
-  // Create date and validate
-  const date = new Date(ts);
-  if (isNaN(date.getTime())) {
-    console.warn('Invalid date from timestamp:', ts);
-    return '–';
-  }
-
-  // Format the date
-  const day = date.getDate();
-  const month = date.toLocaleString('en-US', { month: 'short' });
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-
-  return `${day} ${month} ${year} ${hours}:${minutes}`;
-};
 
 // Type guard to filter out null/undefined from arrays
 const isDefined = <T,>(value: T | null | undefined): value is T => value != null;
 
-// Helper function to get company initials for avatar fallback
-export const getCompanyInitials = (companyName: string): string => {
-  const words = companyName.split(' ').filter(w => w.length > 0);
-  if (words.length === 1) {
-    return words[0].substring(0, 2).toUpperCase();
-  }
-  return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-};
 
 
 // Custom hook to enforce minimum skeleton display time
@@ -977,6 +826,18 @@ const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
   contractType: false,
 };
 
+// Helper to convert DB bookmark (with number timestamps) to Bookmark type (with Date timestamps)
+// Pure function — no component dependencies
+const convertDbBookmark = (dbBookmark: Omit<Bookmark, 'createdAt' | 'updatedAt'> & { createdAt: number; updatedAt: number; id: string }): Bookmark => ({
+  ...dbBookmark,
+  id: dbBookmark.id as string,
+  createdAt: new Date(dbBookmark.createdAt),
+  updatedAt: new Date(dbBookmark.updatedAt),
+});
+
+// Filter keys that the server already handles — skip these in client-side filtering
+const SERVER_FILTER_KEYS = new Set(['status', 'vessels', 'owner', 'charterer', 'cpDate']);
+
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
     null,
@@ -1006,8 +867,8 @@ function Fixtures() {
   const organization = useQuery(api.organizations.getFirstOrganization);
   const organizationId = organization?._id;
 
-  // Track initial loading state to ensure skeleton shows on first load
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  // Derive initial loading state — true until data arrives at least once
+  const hasEverLoadedRef = useRef(false);
 
   // Cursor-based pagination state (bridges TanStack offset pagination to Convex cursor pagination)
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
@@ -1174,12 +1035,9 @@ function Fixtures() {
     organizationId ? { organizationId } : "skip"
   );
 
-  // Clear initial loading once fixtures data is available
-  useEffect(() => {
-    if (paginatedFixtures !== undefined) {
-      setIsInitialLoading(false);
-    }
-  }, [paginatedFixtures]);
+  // Derive initial loading — once data arrives at least once, never show initial skeleton again
+  if (paginatedFixtures !== undefined) hasEverLoadedRef.current = true;
+  const isInitialLoading = !hasEverLoadedRef.current;
 
   // Detect loading state
   const isLoadingFixtures = paginatedFixtures === undefined;
@@ -1271,14 +1129,6 @@ function Fixtures() {
   // Initial user bookmarks
   const initialUserBookmarks: Bookmark[] = [];
 
-  // Helper to convert DB bookmark (with number timestamps) to Bookmark type (with Date timestamps)
-  const convertDbBookmark = (dbBookmark: typeof userBookmarksFromDb extends (infer T)[] | undefined ? T : never): Bookmark => ({
-    ...dbBookmark,
-    id: dbBookmark.id as string,
-    createdAt: new Date(dbBookmark.createdAt),
-    updatedAt: new Date(dbBookmark.updatedAt),
-  });
-
   // Get current user
   const { user } = useUser();
   const userId = user?.appUserId;
@@ -1343,6 +1193,10 @@ function Fixtures() {
   const [expanded, setExpanded] = useState<ExpandedState>({});
 
   const [isBookmarkLoading, setIsBookmarkLoading] = useState(false);
+  const bookmarkLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Clean up bookmark loading timer on unmount
+  useEffect(() => () => clearTimeout(bookmarkLoadingTimerRef.current), []);
 
   // Use transition for non-urgent pagination updates (improves INP)
   const [isPaginationPending, startPaginationTransition] = useTransition();
@@ -4196,17 +4050,24 @@ function Fixtures() {
       return fixtureData ?? [];
     }
 
-    // Apply bookmark's saved filters
+    // Apply only client-side filters from bookmark (server already handled its filters)
     const savedFilters = activeBookmark.filtersState.activeFilters;
-    return (fixtureData ?? []).filter((fixture) => matchesFilters(fixture, savedFilters));
+    const clientOnlyBookmarkFilters = Object.fromEntries(
+      Object.entries(savedFilters).filter(([key]) => !SERVER_FILTER_KEYS.has(key))
+    );
+    if (Object.keys(clientOnlyBookmarkFilters).length === 0) {
+      return fixtureData ?? [];
+    }
+    return (fixtureData ?? []).filter((fixture) => matchesFilters(fixture, clientOnlyBookmarkFilters));
   }, [fixtureData, activeBookmark]);
 
   // Load bookmark state
   const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
     // Show loading skeleton during bookmark transition (skip on initial mount)
     if (showLoading) {
+      clearTimeout(bookmarkLoadingTimerRef.current);
       setIsBookmarkLoading(true);
-      setTimeout(() => {
+      bookmarkLoadingTimerRef.current = setTimeout(() => {
         setIsBookmarkLoading(false);
       }, 300);
     }
@@ -4283,7 +4144,12 @@ function Fixtures() {
   const filteredData = useMemo(() => {
     let data = fixtureData ?? [];
 
-    const hasActiveFieldFilters = Object.keys(activeFilters).length > 0;
+    // Only apply client-side filters that the server doesn't handle
+    const clientOnlyFilters = Object.fromEntries(
+      Object.entries(activeFilters).filter(([key]) => !SERVER_FILTER_KEYS.has(key))
+    );
+    const hasActiveFieldFilters = Object.keys(clientOnlyFilters).length > 0;
+
     if (hasActiveFieldFilters) {
       const groupingColumn = grouping[0] as keyof FixtureData | undefined;
 
@@ -4298,7 +4164,7 @@ function Fixtures() {
 
         const matchingGroups = new Set<string>();
         rowsByGroup.forEach((rows, key) => {
-          if (rows.some(row => matchesFilters(row, activeFilters))) {
+          if (rows.some(row => matchesFilters(row, clientOnlyFilters))) {
             matchingGroups.add(key);
           }
         });
@@ -4306,7 +4172,7 @@ function Fixtures() {
         data = data.filter(row => matchingGroups.has(String(row[groupingColumn])));
       } else {
         // No grouping — filter per-row
-        data = data.filter(row => matchesFilters(row, activeFilters));
+        data = data.filter(row => matchesFilters(row, clientOnlyFilters));
       }
     }
 
@@ -4748,9 +4614,8 @@ function Fixtures() {
             onColumnVisibilityChange={setColumnVisibility}
             grouping={grouping}
             onGroupingChange={setGrouping}
-            initialState={{
-              expanded,
-            }}
+            expanded={expanded}
+            onExpandedChange={setExpanded}
             autoExpandChildren={globalSearchTerms.length > 0}
             groupDisplayColumn={
               grouping[0] === "fixtureId" && columnVisibility.fixtureId === false

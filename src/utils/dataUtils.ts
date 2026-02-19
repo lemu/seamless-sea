@@ -306,3 +306,56 @@ export function reformatCurrencyString(value: string): string {
 
   return `${prefix}${formatted}${suffix}`;
 }
+
+/**
+ * Get human-readable status label from a status key.
+ * Delegates to tide-ui's statusConfig for known statuses; falls back to formatEnumLabel.
+ */
+export function getStatusLabel(
+  status: string,
+  statusConfigMap: Record<string, { objectLabel: string; statusLabel: string }>
+): string {
+  const config = statusConfigMap[status as keyof typeof statusConfigMap];
+  if (config) {
+    return `${config.objectLabel} • ${config.statusLabel}`;
+  }
+  return formatEnumLabel(status);
+}
+
+/**
+ * Get company initials for avatar fallback
+ * @param companyName - The company name
+ * @returns 1-2 character initials (e.g., "AB" for "Acme Bulk")
+ */
+export function getCompanyInitials(companyName: string): string {
+  const words = companyName.split(' ').filter(w => w.length > 0);
+  if (words.length === 1) {
+    return words[0].substring(0, 2).toUpperCase();
+  }
+  return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
+/**
+ * Format a timestamp to a display-friendly string.
+ * Handles null, undefined, string timestamps, and invalid dates.
+ * @param timestamp - Unix timestamp (ms) or string representation
+ * @returns Formatted string like "5 Jan 2025 14:30" or "–" for invalid input
+ */
+export function formatTimestamp(timestamp: number | string | undefined | null): string {
+  if (timestamp === null || timestamp === undefined) return '–';
+
+  const ts = typeof timestamp === 'string' ? parseFloat(timestamp) : timestamp;
+
+  if (typeof ts !== 'number' || isNaN(ts)) return '–';
+
+  const date = new Date(ts);
+  if (isNaN(date.getTime())) return '–';
+
+  const day = date.getDate();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+
+  return `${day} ${month} ${year} ${hours}:${minutes}`;
+}

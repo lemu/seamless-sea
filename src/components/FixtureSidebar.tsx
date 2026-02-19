@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -223,6 +223,75 @@ export function FixtureSidebar({
       freightRateChanges, demurrageChanges,
     };
   }, [fieldChanges]);
+
+  // Pre-compute financial analytics (freight/demurrage savings, improvements, vs market)
+  const financialAnalytics = useMemo(() => {
+    const neg = fixture.negotiation;
+
+    // Freight savings from highest indication
+    const freightSavingsPercent = calculateFreightSavings(
+      neg?.highestFreightRateIndication,
+      neg?.freightRate
+    );
+    let freightSavingsAmount: number | null = null;
+    if (freightSavingsPercent != null && neg?.freightRate) {
+      const finalRate = parseFloat(neg.freightRate.replace(/[^0-9.]/g, ''));
+      freightSavingsAmount = (neg.highestFreightRateIndication ?? 0) - finalRate;
+    }
+
+    // Freight last day improvement
+    let freightLastDayImprovement: number | null = null;
+    let freightLastDayImprovementPercent: number | null = null;
+    if (neg?.firstFreightRateLastDay && neg?.freightRate) {
+      const finalRate = parseFloat(neg.freightRate.replace(/[^0-9.]/g, ''));
+      const improvement = neg.firstFreightRateLastDay - finalRate;
+      if (improvement > 0) {
+        freightLastDayImprovement = improvement;
+        freightLastDayImprovementPercent = (improvement / neg.firstFreightRateLastDay) * 100;
+      }
+    }
+
+    // Freight vs market
+    const freightVsMarket = calculateFreightVsMarket(
+      neg?.freightRate,
+      neg?.marketIndex
+    );
+
+    // Demurrage savings from highest indication
+    const demurrageSavingsPercent = calculateDemurrageSavings(
+      neg?.highestDemurrageIndication,
+      neg?.demurrageRate
+    );
+    let demurrageSavingsAmount: number | null = null;
+    if (demurrageSavingsPercent != null && neg?.demurrageRate) {
+      const finalRate = parseFloat(neg.demurrageRate.replace(/[^0-9.]/g, ''));
+      demurrageSavingsAmount = (neg.highestDemurrageIndication ?? 0) - finalRate;
+    }
+
+    // Demurrage last day improvement
+    let demurrageLastDayImprovement: number | null = null;
+    let demurrageLastDayImprovementPercent: number | null = null;
+    if (neg?.firstDemurrageLastDay && neg?.demurrageRate) {
+      const finalRate = parseFloat(neg.demurrageRate.replace(/[^0-9.]/g, ''));
+      const improvement = neg.firstDemurrageLastDay - finalRate;
+      if (improvement > 0) {
+        demurrageLastDayImprovement = improvement;
+        demurrageLastDayImprovementPercent = (improvement / neg.firstDemurrageLastDay) * 100;
+      }
+    }
+
+    return {
+      freightSavingsPercent,
+      freightSavingsAmount,
+      freightLastDayImprovement,
+      freightLastDayImprovementPercent,
+      freightVsMarket,
+      demurrageSavingsPercent,
+      demurrageSavingsAmount,
+      demurrageLastDayImprovement,
+      demurrageLastDayImprovementPercent,
+    };
+  }, [fixture.negotiation]);
 
   return (
     <Sheet open={true} onOpenChange={(open) => !open && onClose()}>
@@ -687,44 +756,28 @@ export function FixtureSidebar({
                       </AttributesItem>
                     )}
 
-                    {(() => {
-                      const savings = calculateFreightSavings(
-                        fixture.negotiation?.highestFreightRateIndication,
-                        fixture.negotiation?.freightRate
-                      );
-                      if (!savings) return null;
-                      const finalRate = fixture.negotiation?.freightRate ? parseFloat(fixture.negotiation.freightRate.replace(/[^0-9.]/g, '')) : 0;
-                      const savingsAmount = (fixture.negotiation?.highestFreightRateIndication || 0) - finalRate;
-                      return (
-                        <AttributesItem hidden>
-                          <AttributesRow>
-                            <AttributesLabel>Freight savings from highest</AttributesLabel>
-                            <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
-                              {formatRate(savingsAmount)} ({formatPercent(savings)})
-                              <Icon name="CheckCircle" size="sm" />
-                            </AttributesValue>
-                          </AttributesRow>
-                        </AttributesItem>
-                      );
-                    })()}
+                    {financialAnalytics.freightSavingsPercent != null && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Freight savings from highest</AttributesLabel>
+                          <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
+                            {formatRate(financialAnalytics.freightSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.freightSavingsPercent)})
+                            <Icon name="CheckCircle" size="sm" />
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    {(() => {
-                      if (!fixture.negotiation?.firstFreightRateLastDay || !fixture.negotiation?.freightRate) return null;
-                      const finalRate = parseFloat(fixture.negotiation.freightRate.replace(/[^0-9.]/g, ''));
-                      const improvement = fixture.negotiation.firstFreightRateLastDay - finalRate;
-                      const improvementPercent = (improvement / fixture.negotiation.firstFreightRateLastDay) * 100;
-                      if (improvement <= 0) return null;
-                      return (
-                        <AttributesItem hidden>
-                          <AttributesRow>
-                            <AttributesLabel>Freight last day improvement</AttributesLabel>
-                            <AttributesValue className="text-[var(--color-text-success)]">
-                              {formatRate(improvement)} ({formatPercent(improvementPercent)})
-                            </AttributesValue>
-                          </AttributesRow>
-                        </AttributesItem>
-                      );
-                    })()}
+                    {financialAnalytics.freightLastDayImprovement != null && financialAnalytics.freightLastDayImprovementPercent != null && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Freight last day improvement</AttributesLabel>
+                          <AttributesValue className="text-[var(--color-text-success)]">
+                            {formatRate(financialAnalytics.freightLastDayImprovement)} ({formatPercent(financialAnalytics.freightLastDayImprovementPercent)})
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
                     {fixture.negotiation?.marketIndex && (
                       <AttributesItem hidden>
@@ -739,36 +792,29 @@ export function FixtureSidebar({
                       </AttributesItem>
                     )}
 
-                    {(() => {
-                      const vsMarket = calculateFreightVsMarket(
-                        fixture.negotiation?.freightRate,
-                        fixture.negotiation?.marketIndex
-                      );
-                      if (vsMarket === null) return null;
-                      return (
-                        <AttributesItem hidden>
-                          <AttributesRow>
-                            <AttributesLabel>vs Market</AttributesLabel>
-                            <AttributesValue
-                              className={
-                                vsMarket < 0
-                                  ? "text-[var(--color-text-success)]"
-                                  : "text-[var(--color-text-danger)]"
-                              }
-                            >
-                              {formatPercent(vsMarket, 1, true)}
-                              {vsMarket < 0 && (
-                                <Icon
-                                  name="CheckCircle"
-                                  size="sm"
-                                  className="inline ml-1"
-                                />
-                              )}
-                            </AttributesValue>
-                          </AttributesRow>
-                        </AttributesItem>
-                      );
-                    })()}
+                    {financialAnalytics.freightVsMarket !== null && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>vs Market</AttributesLabel>
+                          <AttributesValue
+                            className={
+                              financialAnalytics.freightVsMarket < 0
+                                ? "text-[var(--color-text-success)]"
+                                : "text-[var(--color-text-danger)]"
+                            }
+                          >
+                            {formatPercent(financialAnalytics.freightVsMarket, 1, true)}
+                            {financialAnalytics.freightVsMarket < 0 && (
+                              <Icon
+                                name="CheckCircle"
+                                size="sm"
+                                className="inline ml-1"
+                              />
+                            )}
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
                     {fixture.negotiation?.highestDemurrageIndication && (
                       <AttributesItem hidden>
@@ -836,44 +882,28 @@ export function FixtureSidebar({
                       </AttributesItem>
                     )}
 
-                    {(() => {
-                      const savings = calculateDemurrageSavings(
-                        fixture.negotiation?.highestDemurrageIndication,
-                        fixture.negotiation?.demurrageRate
-                      );
-                      if (!savings) return null;
-                      const finalRate = fixture.negotiation?.demurrageRate ? parseFloat(fixture.negotiation.demurrageRate.replace(/[^0-9]/g, '')) : 0;
-                      const savingsAmount = (fixture.negotiation?.highestDemurrageIndication || 0) - finalRate;
-                      return (
-                        <AttributesItem hidden>
-                          <AttributesRow>
-                            <AttributesLabel>Demurrage savings from highest</AttributesLabel>
-                            <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
-                              {formatCurrency(savingsAmount)} ({formatPercent(savings)})
-                              <Icon name="CheckCircle" size="sm" />
-                            </AttributesValue>
-                          </AttributesRow>
-                        </AttributesItem>
-                      );
-                    })()}
+                    {financialAnalytics.demurrageSavingsPercent != null && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Demurrage savings from highest</AttributesLabel>
+                          <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
+                            {formatCurrency(financialAnalytics.demurrageSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.demurrageSavingsPercent)})
+                            <Icon name="CheckCircle" size="sm" />
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
-                    {(() => {
-                      if (!fixture.negotiation?.firstDemurrageLastDay || !fixture.negotiation?.demurrageRate) return null;
-                      const finalRate = parseFloat(fixture.negotiation.demurrageRate.replace(/[^0-9]/g, ''));
-                      const improvement = fixture.negotiation.firstDemurrageLastDay - finalRate;
-                      const improvementPercent = (improvement / fixture.negotiation.firstDemurrageLastDay) * 100;
-                      if (improvement <= 0) return null;
-                      return (
-                        <AttributesItem hidden>
-                          <AttributesRow>
-                            <AttributesLabel>Demurrage last day improvement</AttributesLabel>
-                            <AttributesValue className="text-[var(--color-text-success)]">
-                              {formatCurrency(improvement)} ({formatPercent(improvementPercent)})
-                            </AttributesValue>
-                          </AttributesRow>
-                        </AttributesItem>
-                      );
-                    })()}
+                    {financialAnalytics.demurrageLastDayImprovement != null && financialAnalytics.demurrageLastDayImprovementPercent != null && (
+                      <AttributesItem hidden>
+                        <AttributesRow>
+                          <AttributesLabel>Demurrage last day improvement</AttributesLabel>
+                          <AttributesValue className="text-[var(--color-text-success)]">
+                            {formatCurrency(financialAnalytics.demurrageLastDayImprovement)} ({formatPercent(financialAnalytics.demurrageLastDayImprovementPercent)})
+                          </AttributesValue>
+                        </AttributesRow>
+                      </AttributesItem>
+                    )}
 
                     {/* Commissions - always visible */}
                     {fixture.negotiation?.addressCommissionPercent && (

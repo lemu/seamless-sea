@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@rafal.lemieszewski/tide-ui";
-import { formatDateTime } from "../utils/dataUtils";
+import { formatDateTime, getCompanyInitials } from "../utils/dataUtils";
 
 interface ApprovalSignatureRecord {
   _id: string;
@@ -78,18 +78,6 @@ export function ApprovalSignatureRow({
   records,
   summary,
 }: ApprovalSignatureRowProps) {
-  // Helper to get company initials for avatar fallback
-  const getInitials = (name: string): string => {
-    const words = name.split(" ").filter((w) => w.length > 0);
-    if (words.length === 1) {
-      return words[0].substring(0, 2).toUpperCase();
-    }
-    return words
-      .slice(0, 2)
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase();
-  };
 
 
   // Helper to format signing method
@@ -148,7 +136,7 @@ export function ApprovalSignatureRow({
                               <AvatarImage src={record.userAvatarUrl} alt={record.user?.name} />
                             ) : (
                               <AvatarFallback size="xxs">
-                                {record.user ? getInitials(record.user.name) : "?"}
+                                {record.user ? getCompanyInitials(record.user.name) : "?"}
                               </AvatarFallback>
                             )}
                           </Avatar>
@@ -231,7 +219,7 @@ export function ApprovalSignatureRow({
                         <AvatarImage src={record.userAvatarUrl} alt={record.user?.name} />
                       ) : (
                         <AvatarFallback size="xxs">
-                          {record.user ? getInitials(record.user.name) : "?"}
+                          {record.user ? getCompanyInitials(record.user.name) : "?"}
                         </AvatarFallback>
                       )}
                     </Avatar>
