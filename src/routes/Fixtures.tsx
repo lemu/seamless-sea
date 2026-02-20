@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback, useTransition } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, useTransition, lazy, Suspense } from "react";
 import {
   type ColumnDef,
   type SortingState,
@@ -23,8 +23,12 @@ import {
 import { useHeaderActions, useFixtureUrlState, useFixtureBookmarks } from "../hooks";
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from "../hooks/useFixtureUrlState";
 import { createFixtureColumns } from "./fixtures/fixtureColumns";
-import { ExportDialog } from "../components/ExportDialog";
-import { FixtureSidebar } from "../components/FixtureSidebar";
+const ExportDialogLazy = lazy(() =>
+  import("../components/ExportDialog").then((m) => ({ default: m.ExportDialog }))
+);
+const FixtureSidebarLazy = lazy(() =>
+  import("../components/FixtureSidebar").then((m) => ({ default: m.FixtureSidebar }))
+);
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
@@ -98,6 +102,99 @@ function getColumnDataType(
   }
 }
 
+// Build a FixtureData row from a negotiation that has no contract/recap yet
+function buildNegotiationRow(
+  neg: FixtureWithRelations["negotiations"][number],
+  fixture: FixtureWithRelations,
+): FixtureData {
+  return {
+    id: neg._id,
+    fixtureId: fixture.fixtureNumber,
+    orderId: fixture.order?.orderNumber || "-",
+    cpId: "-",
+    stage: "Negotiation",
+    typeOfContract: "-",
+    negotiationId: neg.negotiationNumber || "-",
+    vessels: neg.vessel?.name || "TBN",
+    personInCharge: neg.personInCharge?.name || "User",
+    status: `negotiation-${neg.status}`,
+    approvalStatus: "Not started",
+    owner: "-",
+    ownerAvatarUrl: undefined,
+    broker: neg.broker?.name || "Unknown",
+    brokerAvatarUrl: neg.broker?.avatarUrl,
+    charterer: neg.counterparty?.name || "Unknown",
+    chartererAvatarUrl: neg.counterparty?.avatarUrl,
+    lastUpdated: neg.updatedAt || neg._creationTime,
+    contract: null,
+    order: fixture.order,
+    negotiation: neg,
+    vessel: neg.vessel,
+    loadPort: null,
+    dischargePort: null,
+    cargoType: null,
+    approvals: [],
+    approvalSummary: { total: 0, approved: 0, pending: 0, rejected: 0 },
+    signatures: [],
+    signatureSummary: { total: 0, signed: 0, pending: 0, rejected: 0 },
+    laycanStart: neg.laycanStart,
+    laycanEnd: neg.laycanEnd,
+    loadPortName: undefined,
+    loadPortCountry: undefined,
+    loadDeliveryType: neg.loadDeliveryType,
+    dischargePortName: undefined,
+    dischargePortCountry: undefined,
+    dischargeRedeliveryType: neg.dischargeRedeliveryType,
+    vesselImo: neg.vessel?.imoNumber,
+    cargoTypeName: undefined,
+    cargoQuantity: neg.quantity,
+    finalFreightRate: neg.freightRate,
+    finalDemurrageRate: neg.demurrageRate,
+    highestFreightRateIndication: neg.highestFreightRateIndication,
+    lowestFreightRateIndication: neg.lowestFreightRateIndication,
+    firstFreightRateIndication: neg.firstFreightRateIndication,
+    highestFreightRateLastDay: neg.highestFreightRateLastDay,
+    lowestFreightRateLastDay: neg.lowestFreightRateLastDay,
+    firstFreightRateLastDay: neg.firstFreightRateLastDay,
+    freightSavingsPercent: undefined,
+    marketIndex: neg.marketIndex,
+    marketIndexName: neg.marketIndexName,
+    freightVsMarketPercent: undefined,
+    grossFreight: neg.grossFreight,
+    highestDemurrageIndication: neg.highestDemurrageIndication,
+    lowestDemurrageIndication: neg.lowestDemurrageIndication,
+    demurrageSavingsPercent: undefined,
+    addressCommissionPercent: neg.addressCommissionPercent,
+    addressCommissionTotal: neg.addressCommissionTotal,
+    brokerCommissionPercent: neg.brokerCommissionPercent,
+    brokerCommissionTotal: neg.brokerCommissionTotal,
+    cpDate: undefined,
+    workingCopyDate: undefined,
+    finalDate: undefined,
+    fullySignedDate: undefined,
+    daysToWorkingCopy: undefined,
+    daysToFinal: undefined,
+    daysToSigned: undefined,
+    ownerApprovalStatus: undefined,
+    ownerApprovedBy: undefined,
+    ownerApprovalDate: undefined,
+    chartererApprovalStatus: undefined,
+    chartererApprovedBy: undefined,
+    chartererApprovalDate: undefined,
+    ownerSignatureStatus: undefined,
+    ownerSignedBy: undefined,
+    ownerSignatureDate: undefined,
+    chartererSignatureStatus: undefined,
+    chartererSignedBy: undefined,
+    chartererSignatureDate: undefined,
+    dealCaptureUser: undefined,
+    orderCreatedBy: fixture.order?.createdBy?.name,
+    negotiationCreatedBy: neg.createdBy?.name,
+    parentCpId: undefined,
+    contractType: undefined,
+  };
+}
+
 // Transform database contracts and recap managers to FixtureData format
 const transformFixturesToTableData = (
   fixtures: FixtureWithRelations[]
@@ -133,110 +230,7 @@ const transformFixturesToTableData = (
     // This covers early stages: indicative-offer, indicative-bid, firm-offer, firm-bid
     if (dedupedContracts.length === 0 && fixture.negotiations?.length > 0) {
       fixture.negotiations.forEach((neg) => {
-        tableData.push({
-          id: neg._id,
-          fixtureId: fixture.fixtureNumber,
-          orderId: fixture.order?.orderNumber || "-",
-          cpId: "-", // No contract yet
-          stage: "Negotiation",
-          typeOfContract: "-",
-          negotiationId: neg.negotiationNumber || "-",
-          vessels: neg.vessel?.name || "TBN",
-          personInCharge: neg.personInCharge?.name || "User",
-          status: `negotiation-${neg.status}`,
-          approvalStatus: "Not started",
-          owner: "-", // Not determined yet
-          ownerAvatarUrl: undefined,
-          broker: neg.broker?.name || "Unknown",
-          brokerAvatarUrl: neg.broker?.avatarUrl,
-          charterer: neg.counterparty?.name || "Unknown",
-          chartererAvatarUrl: neg.counterparty?.avatarUrl,
-          lastUpdated: neg.updatedAt || neg._creationTime,
-          // Include full objects for sidebar
-          contract: null,
-          order: fixture.order,
-          negotiation: neg,
-          vessel: neg.vessel,
-          loadPort: null,
-          dischargePort: null,
-          cargoType: null,
-          // Include approval and signature data
-          approvals: [],
-          approvalSummary: { total: 0, approved: 0, pending: 0, rejected: 0 },
-          signatures: [],
-          signatureSummary: { total: 0, signed: 0, pending: 0, rejected: 0 },
-
-          // Commercial Fields from negotiation
-          laycanStart: neg.laycanStart,
-          laycanEnd: neg.laycanEnd,
-          loadPortName: undefined,
-          loadPortCountry: undefined,
-          loadDeliveryType: neg.loadDeliveryType,
-          dischargePortName: undefined,
-          dischargePortCountry: undefined,
-          dischargeRedeliveryType: neg.dischargeRedeliveryType,
-          vesselImo: neg.vessel?.imoNumber,
-          cargoTypeName: undefined,
-          cargoQuantity: neg.quantity,
-          finalFreightRate: neg.freightRate,
-          finalDemurrageRate: neg.demurrageRate,
-
-          // Analytics fields
-          highestFreightRateIndication: neg.highestFreightRateIndication,
-          lowestFreightRateIndication: neg.lowestFreightRateIndication,
-          firstFreightRateIndication: neg.firstFreightRateIndication,
-          highestFreightRateLastDay: neg.highestFreightRateLastDay,
-          lowestFreightRateLastDay: neg.lowestFreightRateLastDay,
-          firstFreightRateLastDay: neg.firstFreightRateLastDay,
-          freightSavingsPercent: undefined,
-          marketIndex: neg.marketIndex,
-          marketIndexName: neg.marketIndexName,
-          freightVsMarketPercent: undefined,
-          grossFreight: neg.grossFreight,
-          highestDemurrageIndication: neg.highestDemurrageIndication,
-          lowestDemurrageIndication: neg.lowestDemurrageIndication,
-          demurrageSavingsPercent: undefined,
-
-          // Commissions
-          addressCommissionPercent: neg.addressCommissionPercent,
-          addressCommissionTotal: neg.addressCommissionTotal,
-          brokerCommissionPercent: neg.brokerCommissionPercent,
-          brokerCommissionTotal: neg.brokerCommissionTotal,
-
-          // Workflow dates (not applicable for negotiations)
-          cpDate: undefined,
-          workingCopyDate: undefined,
-          finalDate: undefined,
-          fullySignedDate: undefined,
-          daysToWorkingCopy: undefined,
-          daysToFinal: undefined,
-          daysToSigned: undefined,
-
-          // Approvals (not applicable for negotiations)
-          ownerApprovalStatus: undefined,
-          ownerApprovedBy: undefined,
-          ownerApprovalDate: undefined,
-          chartererApprovalStatus: undefined,
-          chartererApprovedBy: undefined,
-          chartererApprovalDate: undefined,
-
-          // Signatures (not applicable for negotiations)
-          ownerSignatureStatus: undefined,
-          ownerSignedBy: undefined,
-          ownerSignatureDate: undefined,
-          chartererSignatureStatus: undefined,
-          chartererSignedBy: undefined,
-          chartererSignatureDate: undefined,
-
-          // User tracking
-          dealCaptureUser: undefined,
-          orderCreatedBy: fixture.order?.createdBy?.name,
-          negotiationCreatedBy: neg.createdBy?.name,
-
-          // Relationships
-          parentCpId: undefined,
-          contractType: undefined,
-        });
+        tableData.push(buildNegotiationRow(neg, fixture));
       });
       return; // Skip to next fixture
     }
@@ -246,93 +240,7 @@ const transformFixturesToTableData = (
       fixture.negotiations.forEach((neg) => {
         // Skip if this negotiation already has a contract/recap
         if (negotiationsWithContracts.has(neg._id)) return;
-
-        tableData.push({
-          id: neg._id,
-          fixtureId: fixture.fixtureNumber,
-          orderId: fixture.order?.orderNumber || "-",
-          cpId: "-", // No contract yet
-          stage: "Negotiation",
-          typeOfContract: "-",
-          negotiationId: neg.negotiationNumber || "-",
-          vessels: neg.vessel?.name || "TBN",
-          personInCharge: neg.personInCharge?.name || "User",
-          status: `negotiation-${neg.status}`,
-          approvalStatus: "Not started",
-          owner: "-",
-          ownerAvatarUrl: undefined,
-          broker: neg.broker?.name || "Unknown",
-          brokerAvatarUrl: neg.broker?.avatarUrl,
-          charterer: neg.counterparty?.name || "Unknown",
-          chartererAvatarUrl: neg.counterparty?.avatarUrl,
-          lastUpdated: neg.updatedAt || neg._creationTime,
-          contract: null,
-          order: fixture.order,
-          negotiation: neg,
-          vessel: neg.vessel,
-          loadPort: null,
-          dischargePort: null,
-          cargoType: null,
-          approvals: [],
-          approvalSummary: { total: 0, approved: 0, pending: 0, rejected: 0 },
-          signatures: [],
-          signatureSummary: { total: 0, signed: 0, pending: 0, rejected: 0 },
-          laycanStart: neg.laycanStart,
-          laycanEnd: neg.laycanEnd,
-          loadPortName: undefined,
-          loadPortCountry: undefined,
-          loadDeliveryType: neg.loadDeliveryType,
-          dischargePortName: undefined,
-          dischargePortCountry: undefined,
-          dischargeRedeliveryType: neg.dischargeRedeliveryType,
-          vesselImo: neg.vessel?.imoNumber,
-          cargoTypeName: undefined,
-          cargoQuantity: neg.quantity,
-          finalFreightRate: neg.freightRate,
-          finalDemurrageRate: neg.demurrageRate,
-          highestFreightRateIndication: neg.highestFreightRateIndication,
-          lowestFreightRateIndication: neg.lowestFreightRateIndication,
-          firstFreightRateIndication: neg.firstFreightRateIndication,
-          highestFreightRateLastDay: neg.highestFreightRateLastDay,
-          lowestFreightRateLastDay: neg.lowestFreightRateLastDay,
-          firstFreightRateLastDay: neg.firstFreightRateLastDay,
-          freightSavingsPercent: undefined,
-          marketIndex: neg.marketIndex,
-          marketIndexName: neg.marketIndexName,
-          freightVsMarketPercent: undefined,
-          grossFreight: neg.grossFreight,
-          highestDemurrageIndication: neg.highestDemurrageIndication,
-          lowestDemurrageIndication: neg.lowestDemurrageIndication,
-          demurrageSavingsPercent: undefined,
-          addressCommissionPercent: neg.addressCommissionPercent,
-          addressCommissionTotal: neg.addressCommissionTotal,
-          brokerCommissionPercent: neg.brokerCommissionPercent,
-          brokerCommissionTotal: neg.brokerCommissionTotal,
-          cpDate: undefined,
-          workingCopyDate: undefined,
-          finalDate: undefined,
-          fullySignedDate: undefined,
-          daysToWorkingCopy: undefined,
-          daysToFinal: undefined,
-          daysToSigned: undefined,
-          ownerApprovalStatus: undefined,
-          ownerApprovedBy: undefined,
-          ownerApprovalDate: undefined,
-          chartererApprovalStatus: undefined,
-          chartererApprovedBy: undefined,
-          chartererApprovalDate: undefined,
-          ownerSignatureStatus: undefined,
-          ownerSignedBy: undefined,
-          ownerSignatureDate: undefined,
-          chartererSignatureStatus: undefined,
-          chartererSignedBy: undefined,
-          chartererSignatureDate: undefined,
-          dealCaptureUser: undefined,
-          orderCreatedBy: fixture.order?.createdBy?.name,
-          negotiationCreatedBy: neg.createdBy?.name,
-          parentCpId: undefined,
-          contractType: undefined,
-        });
+        tableData.push(buildNegotiationRow(neg, fixture));
       });
     }
 
@@ -556,7 +464,7 @@ function deriveFilterDefinitions<TData>(
       };
 
       // Default icon if none provided
-      const defaultIcon = ({ className }: { className?: string }) => <Icon name="filter" className={className} />;
+      const defaultIcon = FilterIcon;
 
       const filterDef: FilterDefinition = {
         id,
@@ -590,6 +498,10 @@ function deriveFilterDefinitions<TData>(
     .filter((def): def is FilterDefinition => def !== null);
 }
 
+// Module-level constants — avoids re-creation per render
+const EMPTY_ARRAY: FixtureData[] = [];
+const EMPTY_OPTIONS: Array<{ value: string; label: string }> = [];
+
 // Minimum column width in pixels
 const MIN_COLUMN_WIDTH = 120;
 
@@ -605,6 +517,11 @@ function enforceMinColumnSizing(
   }
   return result;
 }
+
+// Static icon components — hoisted to avoid re-creation per render
+const LayersIcon = ({ className }: { className?: string }) => <Icon name="layers" className={className} aria-hidden="true" />;
+const CheckCircleIcon = ({ className }: { className?: string }) => <Icon name="check-circle" className={className} aria-hidden="true" />;
+const FilterIcon = ({ className }: { className?: string }) => <Icon name="filter" className={className} />;
 
 // Default column visibility — static, extracted to avoid re-creation per render
 const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
@@ -1126,36 +1043,6 @@ function Fixtures() {
   }, [fixtureColumns, columnVisibility]);
 
 
-  // Filter options from full unfiltered dataset (server-provided)
-  // These don't shrink when filters are applied, unlike the old fixtureData-derived useMemos
-  const emptyOptions: Array<{ value: string; label: string }> = [];
-  const uniqueVessels = filterOptions?.vessels ?? emptyOptions;
-  const uniqueOwners = filterOptions?.owner ?? emptyOptions;
-  const uniqueBrokers = filterOptions?.broker ?? emptyOptions;
-  const uniqueCharterers = filterOptions?.charterer ?? emptyOptions;
-  const uniqueStages = filterOptions?.stage ?? emptyOptions;
-  const uniqueContractTypes = filterOptions?.contractType ?? emptyOptions;
-  const uniqueApprovalStatuses = filterOptions?.approvalStatus ?? emptyOptions;
-  const uniqueLoadPorts = filterOptions?.loadPortName ?? emptyOptions;
-  const uniqueLoadCountries = filterOptions?.loadPortCountry ?? emptyOptions;
-  const uniqueLoadDeliveryTypes = filterOptions?.loadDeliveryType ?? emptyOptions;
-  const uniqueDischargePorts = filterOptions?.dischargePortName ?? emptyOptions;
-  const uniqueDischargeCountries = filterOptions?.dischargePortCountry ?? emptyOptions;
-  const uniqueDischargeRedeliveryTypes = filterOptions?.dischargeRedeliveryType ?? emptyOptions;
-  const uniqueCargoTypes = filterOptions?.cargoTypeName ?? emptyOptions;
-  const uniqueMarketIndexNames = filterOptions?.marketIndexName ?? emptyOptions;
-  const uniqueOwnerApprovalStatuses = filterOptions?.ownerApprovalStatus ?? emptyOptions;
-  const uniqueChartererApprovalStatuses = filterOptions?.chartererApprovalStatus ?? emptyOptions;
-  const uniqueOwnerSignatureStatuses = filterOptions?.ownerSignatureStatus ?? emptyOptions;
-  const uniqueChartererSignatureStatuses = filterOptions?.chartererSignatureStatus ?? emptyOptions;
-  const uniqueDealCaptureUsers = filterOptions?.dealCaptureUser ?? emptyOptions;
-  const uniqueOrderCreatedBy = filterOptions?.orderCreatedBy ?? emptyOptions;
-  const uniqueNegotiationCreatedBy = filterOptions?.negotiationCreatedBy ?? emptyOptions;
-  const uniqueOwnerApprovedBy = filterOptions?.ownerApprovedBy ?? emptyOptions;
-  const uniqueChartererApprovedBy = filterOptions?.chartererApprovedBy ?? emptyOptions;
-  const uniqueOwnerSignedBy = filterOptions?.ownerSignedBy ?? emptyOptions;
-  const uniqueChartererSignedBy = filterOptions?.chartererSignedBy ?? emptyOptions;
-
   // Statuses are static (derived from statusConfig, not data) — keep as-is
   const uniqueStatuses = useMemo(() => {
     const fixtureRelevantStatuses = (Object.keys(statusConfig) as Array<keyof typeof statusConfig>)
@@ -1180,65 +1067,67 @@ function Fixtures() {
     }));
   }, []);
 
+  // Build the filter options map directly — skip 25 intermediate variables
+  const filterOptionsMap = useMemo(() => {
+    const fo = filterOptions;
+    return {
+      vessels: fo?.vessels ?? EMPTY_OPTIONS,
+      status: uniqueStatuses,
+      owner: fo?.owner ?? EMPTY_OPTIONS,
+      broker: fo?.broker ?? EMPTY_OPTIONS,
+      charterer: fo?.charterer ?? EMPTY_OPTIONS,
+      loadPortName: fo?.loadPortName ?? EMPTY_OPTIONS,
+      loadPortCountry: fo?.loadPortCountry ?? EMPTY_OPTIONS,
+      loadDeliveryType: fo?.loadDeliveryType ?? EMPTY_OPTIONS,
+      dischargePortName: fo?.dischargePortName ?? EMPTY_OPTIONS,
+      dischargePortCountry: fo?.dischargePortCountry ?? EMPTY_OPTIONS,
+      dischargeRedeliveryType: fo?.dischargeRedeliveryType ?? EMPTY_OPTIONS,
+      cargoTypeName: fo?.cargoTypeName ?? EMPTY_OPTIONS,
+      marketIndexName: fo?.marketIndexName ?? EMPTY_OPTIONS,
+      ownerApprovalStatus: fo?.ownerApprovalStatus ?? EMPTY_OPTIONS,
+      chartererApprovalStatus: fo?.chartererApprovalStatus ?? EMPTY_OPTIONS,
+      ownerSignatureStatus: fo?.ownerSignatureStatus ?? EMPTY_OPTIONS,
+      chartererSignatureStatus: fo?.chartererSignatureStatus ?? EMPTY_OPTIONS,
+      dealCaptureUser: fo?.dealCaptureUser ?? EMPTY_OPTIONS,
+      orderCreatedBy: fo?.orderCreatedBy ?? EMPTY_OPTIONS,
+      negotiationCreatedBy: fo?.negotiationCreatedBy ?? EMPTY_OPTIONS,
+      contractType: fo?.contractType ?? EMPTY_OPTIONS,
+      ownerApprovedBy: fo?.ownerApprovedBy ?? EMPTY_OPTIONS,
+      chartererApprovedBy: fo?.chartererApprovedBy ?? EMPTY_OPTIONS,
+      ownerSignedBy: fo?.ownerSignedBy ?? EMPTY_OPTIONS,
+      chartererSignedBy: fo?.chartererSignedBy ?? EMPTY_OPTIONS,
+    };
+  }, [filterOptions, uniqueStatuses]);
+
   // Define filter definitions
   const filterDefinitions: FilterDefinition[] = useMemo(
     () => {
-      // Create options map for dynamic filter values
-      const optionsMap: Record<string, Array<{ value: string; label: string }>> = {
-        vessels: uniqueVessels,
-        status: uniqueStatuses,
-        owner: uniqueOwners,
-        broker: uniqueBrokers,
-        charterer: uniqueCharterers,
-        loadPortName: uniqueLoadPorts,
-        loadPortCountry: uniqueLoadCountries,
-        loadDeliveryType: uniqueLoadDeliveryTypes,
-        dischargePortName: uniqueDischargePorts,
-        dischargePortCountry: uniqueDischargeCountries,
-        dischargeRedeliveryType: uniqueDischargeRedeliveryTypes,
-        cargoTypeName: uniqueCargoTypes,
-        marketIndexName: uniqueMarketIndexNames,
-        ownerApprovalStatus: uniqueOwnerApprovalStatuses,
-        chartererApprovalStatus: uniqueChartererApprovalStatuses,
-        ownerSignatureStatus: uniqueOwnerSignatureStatuses,
-        chartererSignatureStatus: uniqueChartererSignatureStatuses,
-        dealCaptureUser: uniqueDealCaptureUsers,
-        orderCreatedBy: uniqueOrderCreatedBy,
-        negotiationCreatedBy: uniqueNegotiationCreatedBy,
-        contractType: uniqueContractTypes,
-        ownerApprovedBy: uniqueOwnerApprovedBy,
-        chartererApprovedBy: uniqueChartererApprovedBy,
-        ownerSignedBy: uniqueOwnerSignedBy,
-        chartererSignedBy: uniqueChartererSignedBy,
-      };
-
       // Derive filters from column definitions
-      const derivedFilters = deriveFilterDefinitions(fixtureColumns, optionsMap);
+      const derivedFilters = deriveFilterDefinitions(fixtureColumns, filterOptionsMap);
 
       // Add special filters that don't have corresponding visible columns
       const specialFilters: FilterDefinition[] = [
         {
           id: "stage",
           label: "Stage",
-          icon: ({ className }) => <Icon name="layers" className={className} aria-hidden="true" />,
+          icon: LayersIcon,
           type: "multiselect",
-          options: uniqueStages,
+          options: filterOptions?.stage ?? EMPTY_OPTIONS,
           group: "Status",
         },
         {
           id: "approvalStatus",
           label: "Approval Status",
-          icon: ({ className }) => <Icon name="check-circle" className={className} aria-hidden="true" />,
+          icon: CheckCircleIcon,
           type: "multiselect",
-          options: uniqueApprovalStatuses,
+          options: filterOptions?.approvalStatus ?? EMPTY_OPTIONS,
           group: "Status",
         },
       ];
 
       return [...derivedFilters, ...specialFilters];
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- all unique* vars derive from filterOptions
-    [fixtureColumns, filterOptions],
+    [fixtureColumns, filterOptionsMap, filterOptions],
   );
 
   // On mount: restore non-URL state (column layout, pinned filters) from active bookmark.
@@ -1269,40 +1158,38 @@ function Fixtures() {
     }
   }, [globalSearchTerms]);
 
-  // All filters are now server-side — no client-side filtering needed.
-  // Server handles: status, vessels, owner, charterer, cpDate, and all grouped filters.
-  const filteredData = useMemo(() => {
-    return fixtureData ?? [];
-  }, [fixtureData]);
+  // All filters are server-side — use data directly with stable empty fallback
+  const filteredData = fixtureData ?? EMPTY_ARRAY;
 
-  // Handle pinned filters change
-  const handlePinnedFiltersChange = (newPinnedFilters: string[]) => {
+  // Handle pinned filters change — stable ref via useCallback
+  const activeBookmarkType = bm.activeBookmark?.type;
+  const handlePinnedFiltersChange = useCallback((newPinnedFilters: string[]) => {
     setPinnedFilters(newPinnedFilters);
 
     // If on a system bookmark, update the global pinned filters
-    if (bm.activeBookmark?.type === "system") {
+    if (activeBookmarkType === "system") {
       setGlobalPinnedFilters(newPinnedFilters);
     }
-  };
+  }, [activeBookmarkType]);
 
-  // Filter handlers — serialize to URL
-  const handleFilterChange = (filterId: string, value: FilterValue) => {
+  // Filter handlers — serialize to URL, stable refs via useCallback
+  const handleFilterChange = useCallback((filterId: string, value: FilterValue) => {
     const newFilters = { ...activeFilters, [filterId]: value };
     urlActions.setFilters(serializeFiltersToUrl(newFilters));
-  };
+  }, [activeFilters, urlActions]);
 
-  const handleFilterClear = (filterId: string) => {
+  const handleFilterClear = useCallback((filterId: string) => {
     const newFilters = { ...activeFilters };
     delete newFilters[filterId];
     urlActions.setFilters(serializeFiltersToUrl(newFilters));
-  };
+  }, [activeFilters, urlActions]);
 
-  const handleFilterReset = () => {
+  const handleFilterReset = useCallback(() => {
     urlActions.resetFilters();
-  };
+  }, [urlActions]);
 
-  // Handle row clicks to open sidebar
-  const handleRowClick = (row: FixtureRow) => {
+  // Handle row clicks to open sidebar — stable ref via useCallback
+  const handleRowClick = useCallback((row: FixtureRow) => {
     // For single-item groups, get the data from the first (and only) subrow
     const fixtureData = row.getIsGrouped() && row.subRows?.length === 1
       ? row.subRows[0].original
@@ -1311,7 +1198,122 @@ function Fixtures() {
     sidebarTriggerRef.current = document.activeElement as HTMLElement;
     setSelectedFixture(fixtureData);
     setActiveRowId(row.id);
-  };
+  }, []);
+
+  // Memoized DataTable callbacks — prevents child re-renders from new function refs
+  const handleSortingChange = useCallback((updater: SortingState | ((old: SortingState) => SortingState)) => {
+    const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+    if (newSorting.length > 0) {
+      urlActions.setSort(newSorting[0].id, newSorting[0].desc);
+    } else {
+      urlActions.setSort(null, true);
+    }
+  }, [sorting, urlActions]);
+
+  const handleGroupingChange = useCallback((updater: GroupingState | ((old: GroupingState) => GroupingState)) => {
+    const newGrouping = typeof updater === 'function' ? updater(grouping) : updater;
+    urlActions.setGroupBy(newGrouping[0] ?? "");
+  }, [grouping, urlActions]);
+
+  const isRowClickable = useCallback((row: FixtureRow) => {
+    return !row.getIsGrouped() || row.subRows?.length === 1;
+  }, []);
+
+  const handleSidebarClose = useCallback(() => {
+    setSelectedFixture(null);
+    setActiveRowId(undefined);
+    requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
+  }, []);
+
+  const handleExportDialogClose = useCallback(() => {
+    setShowExportDialog(false);
+  }, []);
+
+  // Consolidated settings column data — single pass over fixtureColumns
+  const settingsColumnData = useMemo(() => {
+    const sortable: { id: string; label: string; dataType: ReturnType<typeof getColumnDataType> }[] = [];
+    const groupable: { id: string; label: string }[] = [];
+    const all: { id: string; label: string }[] = [];
+
+    for (const col of fixtureColumns) {
+      const isAccessor = "accessorKey" in col && typeof col.accessorKey === "string";
+      const hasId = "id" in col && typeof col.id === "string";
+      const id = isAccessor ? (col.accessorKey as string) : hasId ? (col.id as string) : null;
+      if (!id || id.startsWith("select") || id.startsWith("expand")) continue;
+
+      const meta = col.meta as ColumnMetaWithLabel | undefined;
+      const label = (meta?.label || col.header) as string;
+
+      all.push({ id, label });
+      if (isAccessor && col.enableSorting !== false) {
+        sortable.push({ id, label, dataType: getColumnDataType(meta) });
+      }
+      if (isAccessor && "enableGrouping" in col && col.enableGrouping === true) {
+        groupable.push({ id, label });
+      }
+    }
+    return { sortable, groupable, all };
+  }, [fixtureColumns]);
+
+  // Memoized visible columns for settings menu
+  const visibleColumnsForSettings = useMemo(() => {
+    return settingsColumnData.all
+      .filter(({ id }) => columnVisibility[id] !== false)
+      .map(({ id }) => id);
+  }, [settingsColumnData.all, columnVisibility]);
+
+  // Memoized settings callbacks
+  const handleSettingsSortChange = useCallback((columnId: string) => {
+    urlActions.setSort(columnId, sorting[0]?.desc || false);
+  }, [urlActions, sorting]);
+
+  const handleSettingsSortDirectionChange = useCallback((direction: "asc" | "desc") => {
+    if (sorting[0]) {
+      urlActions.setSort(sorting[0].id, direction === "desc");
+    }
+  }, [urlActions, sorting]);
+
+  const handleSettingsGroupChange = useCallback((columnId: string) => {
+    startLayoutTransition(() => {
+      if (!columnId || columnId === "none") {
+        urlActions.setGroupBy("");
+      } else {
+        urlActions.setGroupBy(columnId);
+      }
+    });
+  }, [urlActions]);
+
+  const handleSettingsColumnVisibilityChange = useCallback((columnId: string, visible: boolean) => {
+    startLayoutTransition(() => {
+      setColumnVisibility((prev) => {
+        const newVisibility = { ...prev };
+        if (visible) {
+          delete newVisibility[columnId];
+        } else {
+          newVisibility[columnId] = false;
+        }
+        return newVisibility;
+      });
+    });
+  }, []);
+
+  // Memoize footer label to avoid re-creating JSX on every render
+  const footerLabel = useMemo(() => {
+    const entityName =
+      paginationUnit === "negotiation" ? "negotiations"
+      : paginationUnit === "contract" ? "contracts"
+      : "fixtures";
+
+    return (
+      <span className="text-body-sm text-text-secondary">
+        {isFiltered ? (
+          <>Showing <strong className="text-text-primary">{serverTotalCount}</strong> from <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName} in total.</>
+        ) : (
+          <>Showing all <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName}</>
+        )}
+      </span>
+    );
+  }, [paginationUnit, isFiltered, serverTotalCount, serverUnfilteredTotalCount]);
 
   return (
     <>
@@ -1383,100 +1385,17 @@ function Fixtures() {
 
           <Bookmarks.Settings>
             <DataTableSettingsMenu
-              sortableColumns={fixtureColumns
-                .filter(
-                  (col): col is typeof col & { accessorKey: string } =>
-                    "accessorKey" in col &&
-                    typeof col.accessorKey === "string" &&
-                    col.enableSorting !== false,
-                )
-                .map((col) => {
-                  const meta = col.meta as ColumnMetaWithLabel | undefined;
-                  return {
-                    id: col.accessorKey,
-                    label: (meta?.label || col.header) as string,
-                    dataType: getColumnDataType(meta),
-                  };
-                })}
+              sortableColumns={settingsColumnData.sortable}
               selectedSortColumn={sorting[0]?.id}
               sortDirection={sorting[0]?.desc ? "desc" : "asc"}
-              onSortChange={(columnId) =>
-                urlActions.setSort(columnId, sorting[0]?.desc || false)
-              }
-              onSortDirectionChange={(direction) => {
-                if (sorting[0]) {
-                  urlActions.setSort(sorting[0].id, direction === "desc");
-                }
-              }}
-              groupableColumns={fixtureColumns
-                .filter(
-                  (
-                    col,
-                  ): col is typeof col & {
-                    accessorKey: string;
-                    enableGrouping: boolean;
-                  } =>
-                    "accessorKey" in col &&
-                    typeof col.accessorKey === "string" &&
-                    "enableGrouping" in col &&
-                    col.enableGrouping === true,
-                )
-                .map((col) => ({
-                  id: col.accessorKey,
-                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
-                }))}
+              onSortChange={handleSettingsSortChange}
+              onSortDirectionChange={handleSettingsSortDirectionChange}
+              groupableColumns={settingsColumnData.groupable}
               selectedGroupColumn={grouping[0] || ""}
-              onGroupChange={(columnId) => {
-                startLayoutTransition(() => {
-                  if (!columnId || columnId === "none") {
-                    urlActions.setGroupBy("");
-                  } else {
-                    urlActions.setGroupBy(columnId);
-                  }
-                });
-              }}
-              columns={fixtureColumns
-                .filter(
-                  (col): col is typeof col & ({ accessorKey: string } | { id: string }) =>
-                    ("accessorKey" in col && typeof col.accessorKey === "string") ||
-                    ("id" in col && typeof col.id === "string" && !col.id.startsWith("select") && !col.id.startsWith("expand")),
-                )
-                .map((col) => ({
-                  id: ("accessorKey" in col ? col.accessorKey : col.id) as string,
-                  label: ((col.meta as ColumnMetaWithLabel | undefined)?.label || col.header) as string,
-                }))}
-              visibleColumns={Object.entries(columnVisibility)
-                .filter(([_, visible]) => visible !== false)
-                .map(([id]) => id)
-                .concat(
-                  fixtureColumns
-                    .filter(
-                      (col): col is typeof col & ({ accessorKey: string } | { id: string }) => {
-                        const colId = ("accessorKey" in col ? col.accessorKey : "id" in col ? col.id : null) as string | null;
-                        return (
-                          colId !== null &&
-                          typeof colId === "string" &&
-                          !colId.startsWith("select") &&
-                          !colId.startsWith("expand") &&
-                          columnVisibility[colId] === undefined
-                        );
-                      },
-                    )
-                    .map((col) => ("accessorKey" in col ? col.accessorKey : col.id) as string),
-                )}
-              onColumnVisibilityChange={(columnId, visible) => {
-                startLayoutTransition(() => {
-                  setColumnVisibility((prev) => {
-                    const newVisibility = { ...prev };
-                    if (visible) {
-                      delete newVisibility[columnId];
-                    } else {
-                      newVisibility[columnId] = false;
-                    }
-                    return newVisibility;
-                  });
-                });
-              }}
+              onGroupChange={handleSettingsGroupChange}
+              columns={settingsColumnData.all}
+              visibleColumns={visibleColumnsForSettings}
+              onColumnVisibilityChange={handleSettingsColumnVisibilityChange}
               align="end"
               triggerClassName="h-[var(--size-md)]"
             />
@@ -1502,21 +1421,11 @@ function Fixtures() {
             enableGlobalSearch={false}
             // Controlled state for sorting
             sorting={sorting}
-            onSortingChange={(updater) => {
-              const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
-              if (newSorting.length > 0) {
-                urlActions.setSort(newSorting[0].id, newSorting[0].desc);
-              } else {
-                urlActions.setSort(null, true);
-              }
-            }}
+            onSortingChange={handleSortingChange}
             columnVisibility={columnVisibility}
             onColumnVisibilityChange={setColumnVisibility}
             grouping={grouping}
-            onGroupingChange={(updater) => {
-              const newGrouping = typeof updater === 'function' ? updater(grouping) : updater;
-              urlActions.setGroupBy(newGrouping[0] ?? "");
-            }}
+            onGroupingChange={handleGroupingChange}
             expanded={expanded}
             onExpandedChange={setExpanded}
             autoExpandChildren={globalSearchTerms.length > 0}
@@ -1539,53 +1448,38 @@ function Fixtures() {
             pagination={pagination}
             onPaginationChange={handlePaginationChange}
             onRowClick={handleRowClick}
-            isRowClickable={(row) => !row.getIsGrouped() || row.subRows?.length === 1}
+            isRowClickable={isRowClickable}
             activeRowId={activeRowId}
             getRowId={(row) => row.id}
-            footerLabel={
-              <span className="text-body-sm text-text-secondary">
-                {(() => {
-                  const entityName =
-                    paginationUnit === "negotiation" ? "negotiations"
-                    : paginationUnit === "contract" ? "contracts"
-                    : "fixtures";
-
-                  return isFiltered ? (
-                    <>Showing <strong className="text-text-primary">{serverTotalCount}</strong> from <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName} in total.</>
-                  ) : (
-                    <>Showing all <strong className="text-text-primary">{serverUnfilteredTotalCount}</strong> {entityName}</>
-                  );
-                })()}
-              </span>
-            }
+            footerLabel={footerLabel}
           />
         </div>
 
         {/* Sidebar */}
-        {selectedFixture && (
-          <FixtureSidebar
-            fixture={selectedFixture}
-            onClose={() => {
-              setSelectedFixture(null);
-              setActiveRowId(undefined);
-              requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
-            }}
-          />
-        )}
+        <Suspense fallback={null}>
+          {selectedFixture && (
+            <FixtureSidebarLazy
+              fixture={selectedFixture}
+              onClose={handleSidebarClose}
+            />
+          )}
+        </Suspense>
       </div>
 
       {/* Export Dialog */}
-      <ExportDialog
-        open={showExportDialog}
-        onClose={() => setShowExportDialog(false)}
-        data={fixtureData ?? []}
-        filteredData={filteredData}
-        bookmarkData={fixtureData ?? []}
-        availableColumns={availableColumnsForExport}
-        visibleColumns={visibleColumnsForExport}
-        isDirty={bm.isDirty}
-        bookmarkName={bm.activeBookmark?.name}
-      />
+      <Suspense fallback={null}>
+        <ExportDialogLazy
+          open={showExportDialog}
+          onClose={handleExportDialogClose}
+          data={fixtureData ?? []}
+          filteredData={filteredData}
+          bookmarkData={fixtureData ?? []}
+          availableColumns={availableColumnsForExport}
+          visibleColumns={visibleColumnsForExport}
+          isDirty={bm.isDirty}
+          bookmarkName={bm.activeBookmark?.name}
+        />
+      </Suspense>
     </>
   );
 }
