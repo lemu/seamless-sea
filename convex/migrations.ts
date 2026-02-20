@@ -129,7 +129,7 @@ async function createContractApprovalsAndSignatures(
       contractId,
       "approved",
       "Owner approved the contract",
-      { value: "contract-approved", label: "Contract approved" },
+      undefined,
       undefined,
       counterpartyUserId,
       baseTime - 2 * DAY
@@ -143,7 +143,7 @@ async function createContractApprovalsAndSignatures(
       contractId,
       "approved",
       "Charterer approved the contract",
-      { value: "contract-approved", label: "Contract approved" },
+      undefined,
       undefined,
       userId,
       baseTime - 2 * DAY + 4 * HOUR
@@ -157,7 +157,7 @@ async function createContractApprovalsAndSignatures(
       contractId,
       "signed",
       "Owner signed the contract via " + (ownerSignatureStatus === "signed" ? randomItem(["DocuSign", "Manual", "Wet Ink"]) : ""),
-      { value: "contract-signed", label: "Contract signed" },
+      { value: "contract-final", label: "Contract \u2022 Final" },
       undefined,
       counterpartyUserId,
       baseTime - 1 * DAY
@@ -171,7 +171,7 @@ async function createContractApprovalsAndSignatures(
       contractId,
       "signed",
       "Charterer signed the contract via " + randomItem(["DocuSign", "Manual", "Wet Ink"]),
-      { value: "contract-signed", label: "Contract signed" },
+      { value: "contract-final", label: "Contract \u2022 Final" },
       undefined,
       userId,
       baseTime - 1 * DAY + 3 * HOUR
@@ -2545,28 +2545,33 @@ export const backfillActivityLogs = mutation({
   },
 });
 
+// All trading data tables in reverse dependency order
+const TRADING_DATA_TABLES = [
+  "recap_addenda",
+  "contract_addenda",
+  "addenda_approvals",
+  "addenda_signatures",
+  "voyages",
+  "contract_approvals",
+  "contract_signatures",
+  "approvals",
+  "recap_managers",
+  "contracts",
+  "fixtures",
+  "negotiations",
+  "orders",
+  "field_changes",
+  "activity_logs",
+] as const;
+
 // Clear one batch of trading data - call repeatedly until empty
 export const clearTradingDataBatch = mutation({
   args: {},
   handler: async (ctx) => {
     const BATCH_SIZE = 50;
 
-    // Tables in reverse dependency order
-    const tables = [
-      "recap_addenda",
-      "contract_addenda",
-      "voyages",
-      "recap_managers",
-      "contracts",
-      "fixtures",
-      "negotiations",
-      "orders",
-      "field_changes",
-      "activity_logs",
-    ];
-
     // Try to delete a batch from the first non-empty table
-    for (const tableName of tables) {
+    for (const tableName of TRADING_DATA_TABLES) {
       const batch = await ctx.db.query(tableName as any).take(BATCH_SIZE);
       if (batch.length > 0) {
         for (const record of batch) {
@@ -2590,72 +2595,26 @@ export const clearTradingDataBatch = mutation({
     };
   },
 });
-// Clear all trading data including vessels (use with caution!)
+// Clear all trading data in batches (safe for large datasets).
+// Returns { moreToDelete: true } when more data remains — caller should loop until false.
 export const clearAllTradingData = mutation({
   args: {},
   handler: async (ctx) => {
-    // Clear in reverse dependency order
-    const recapAddenda = await ctx.db.query("recap_addenda").collect();
-    for (const addendum of recapAddenda) {
-      await ctx.db.delete(addendum._id);
-    }
+    const BATCH_SIZE = 50;
+    let totalDeleted = 0;
 
-    const contractAddenda = await ctx.db.query("contract_addenda").collect();
-    for (const addendum of contractAddenda) {
-      await ctx.db.delete(addendum._id);
-    }
-
-    const voyages = await ctx.db.query("voyages").collect();
-    for (const voyage of voyages) {
-      await ctx.db.delete(voyage._id);
-    }
-
-    const recaps = await ctx.db.query("recap_managers").collect();
-    for (const recap of recaps) {
-      await ctx.db.delete(recap._id);
-    }
-
-    const contracts = await ctx.db.query("contracts").collect();
-    for (const contract of contracts) {
-      await ctx.db.delete(contract._id);
-    }
-
-    // Clear fixtures (after contracts are deleted)
-    const fixtures = await ctx.db.query("fixtures").collect();
-    for (const fixture of fixtures) {
-      await ctx.db.delete(fixture._id);
-    }
-
-    const negotiations = await ctx.db.query("negotiations").collect();
-    for (const negotiation of negotiations) {
-      await ctx.db.delete(negotiation._id);
-    }
-
-    const orders = await ctx.db.query("orders").collect();
-    for (const order of orders) {
-      await ctx.db.delete(order._id);
-    }
-
-    // Clear vessels (after all dependencies are deleted)
-    const vessels = await ctx.db.query("vessels").collect();
-    for (const vessel of vessels) {
-      await ctx.db.delete(vessel._id);
-    }
-
-    // Clear audit logs
-    const fieldChanges = await ctx.db.query("field_changes").collect();
-    for (const change of fieldChanges) {
-      await ctx.db.delete(change._id);
-    }
-
-    const activityLogs = await ctx.db.query("activity_logs").collect();
-    for (const log of activityLogs) {
-      await ctx.db.delete(log._id);
+    for (const tableName of TRADING_DATA_TABLES) {
+      const batch = await ctx.db.query(tableName as any).take(BATCH_SIZE);
+      for (const record of batch) {
+        await ctx.db.delete(record._id);
+      }
+      totalDeleted += batch.length;
     }
 
     return {
       success: true,
-      message: "All trading data cleared including vessels",
+      deleted: totalDeleted,
+      moreToDelete: totalDeleted > 0,
     };
   },
 });
