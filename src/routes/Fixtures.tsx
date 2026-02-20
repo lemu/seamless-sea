@@ -16,36 +16,23 @@ import {
   DataTableSettingsMenu,
   Separator,
   Icon,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  FixtureStatus,
   statusConfig,
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-  Flag,
   type FilterDefinition,
   type FilterValue,
   type Bookmark,
-  type StatusValue,
   toast,
 } from "@rafal.lemieszewski/tide-ui";
-import { useHeaderActions, useUser } from "../hooks";
+import { useHeaderActions, useUser, useFixtureUrlState } from "../hooks";
+import { serializeFiltersToUrl, deserializeFiltersFromUrl } from "../hooks/useFixtureUrlState";
+import { createFixtureColumns } from "./fixtures/fixtureColumns";
 import { ExportDialog } from "../components/ExportDialog";
 import { FixtureSidebar } from "../components/FixtureSidebar";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import {
-  formatLaycanRange,
-  formatCurrency,
-  formatPercent,
-  formatQuantity,
-  formatTimestamp,
   getStatusLabel as getStatusLabelBase,
   getCompanyInitials,
-  pluralize,
 } from "../utils/dataUtils";
 import {
   calculateFreightSavings,
@@ -70,10 +57,9 @@ import type {
 // Re-export FixtureData for backward compat (FixtureSidebar imports from here)
 export type { FixtureData } from "../types/fixture";
 import type { FixtureData } from "../types/fixture";
-import type { CellContext, Row } from "@tanstack/react-table";
+import type { Row } from "@tanstack/react-table";
 
-// Type aliases for TanStack Table
-type FixtureCellContext<TValue = unknown> = CellContext<FixtureData, TValue>;
+// Type alias for TanStack Table
 type FixtureRow = Row<FixtureData>;
 
 // Extended column metadata to support auto-generation of filter definitions
@@ -496,9 +482,6 @@ const transformFixturesToTableData = (
 };
 
 
-// Type guard to filter out null/undefined from arrays
-const isDefined = <T,>(value: T | null | undefined): value is T => value != null;
-
 
 
 // Custom hook to enforce minimum skeleton display time
@@ -559,7 +542,7 @@ function deriveFilterDefinitions<TData>(
         : "";
 
       if (!id) {
-        console.warn("Column without valid id/accessorKey found:", col);
+        if (import.meta.env.DEV) console.warn("Column without valid id/accessorKey found:", col);
         return null;
       }
 
@@ -665,38 +648,6 @@ function enforceMinColumnSizing(
   return result;
 }
 
-// Static highlight style for search term highlighting
-const HIGHLIGHT_STYLE = {
-  backgroundColor: 'var(--yellow-200, #fef08a)',
-  color: 'var(--color-text-primary, inherit)',
-  borderRadius: '2px',
-  padding: '0 2px',
-} as const;
-
-// Pure function to highlight search terms in text — no closure deps
-function highlightSearchTerms(text: string, terms: string[]) {
-  if (!terms.length || !text) return text;
-
-  const pattern = terms
-    .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|');
-
-  const regex = new RegExp(`(${pattern})`, 'gi');
-  const parts = text.split(regex);
-
-  return parts.map((part, i) => {
-    const testRegex = new RegExp(`^(${pattern})$`, 'i');
-    if (testRegex.test(part)) {
-      return (
-        <mark key={i} style={HIGHLIGHT_STYLE}>
-          {part}
-        </mark>
-      );
-    }
-    return part;
-  });
-}
-
 // Default column visibility — static, extracted to avoid re-creation per render
 const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
   fixtureId: false,
@@ -779,6 +730,7 @@ function Fixtures() {
   );
   const [activeRowId, setActiveRowId] = useState<string | undefined>(undefined);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const sidebarTriggerRef = useRef<HTMLElement | null>(null);
 
   // Memoize header actions
   const headerActions = useMemo(
@@ -805,27 +757,21 @@ function Fixtures() {
   // Derive initial loading state — true until data arrives at least once
   const hasEverLoadedRef = useRef(false);
 
+  // ── URL state (source of truth for filters, search, sort, grouping, pagination, bookmark) ──
+  const [urlState, urlActions] = useFixtureUrlState();
+
+  // Derive component-level state from URL
+  const activeFilters = useMemo(() => deserializeFiltersFromUrl(urlState), [urlState]);
+  const globalSearchTerms = useMemo(() => urlState.search?.split(/\s+/).filter(Boolean) ?? [], [urlState.search]);
+  const sorting: SortingState = useMemo(() => urlState.sortBy ? [{ id: urlState.sortBy, desc: urlState.sortDesc }] : [], [urlState.sortBy, urlState.sortDesc]);
+  const grouping: GroupingState = useMemo(() => urlState.groupBy ? [urlState.groupBy] : [], [urlState.groupBy]);
+  const pagination: PaginationState = useMemo(() => ({ pageIndex: urlState.page, pageSize: urlState.pageSize }), [urlState.page, urlState.pageSize]);
+  const activeBookmarkId = urlState.bk;
+
   // Cursor-based pagination state (bridges TanStack offset pagination to Convex cursor pagination)
   const [currentCursor, setCurrentCursor] = useState<string | undefined>(undefined);
   const cursorHistoryRef = useRef<(string | undefined)[]>([undefined]);
   const serverNextCursorRef = useRef<string | null>(null);
-
-  // Pagination state (declared early so pageSize is available for the server query)
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 25, // Default page size
-  });
-
-  // Filters state (declared early so it's available for query params)
-  const [activeFilters, setActiveFilters] = useState<
-    Record<string, FilterValue>
-  >({});
-
-  // Global search terms (declared early so it's available for server query)
-  const [globalSearchTerms, setGlobalSearchTerms] = useState<string[]>([]);
-
-  // Grouping state (declared early so paginationUnit is available for server query)
-  const [grouping, setGrouping] = useState<GroupingState>([]);
 
   // Derive pagination unit from grouping column
   const paginationUnit = useMemo(() => {
@@ -952,10 +898,8 @@ function Fixtures() {
     };
   }, [activeFilters]);
 
-  // Sorting state (declared early so it can be used in the query and cursor-reset effect below)
-  const [sorting, setSorting] = useState<SortingState>([]);
-
-  // Reset pagination when any server filter, search, pagination unit, or sorting changes
+  // Reset cursor when any server filter, search, pagination unit, or sorting changes
+  // (Page reset is handled by URL actions — each setter includes page: 0)
   const prevFiltersRef = useRef<{ filters: typeof serverFilters; search: string[]; unit: string; sort: string; sortDir: string } | null>(null);
   useEffect(() => {
     const currentState = {
@@ -970,16 +914,23 @@ function Fixtures() {
     // Check if filters, search, pagination unit, or sorting changed
     const stateChanged = !deepEqual(currentState, prevState);
     if (stateChanged && prevState !== null) {
-      // Reset pagination when filters/search/paginationUnit/sorting change (but not on initial mount)
+      // Reset cursor when filters/search/paginationUnit/sorting change (but not on initial mount)
       setCurrentCursor(undefined);
       cursorHistoryRef.current = [undefined];
-      setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
     }
 
     prevFiltersRef.current = currentState;
   }, [serverFilters, globalSearchTerms, paginationUnit, sorting]);
 
   // Memoize query args so Convex sees stable references when values haven't changed
+  // When grouping by a custom field (not a standard pagination unit), tell the server
+  // so it can count unique group values for accurate bookmark tab counts.
+  const groupByField = useMemo(() => {
+    const col = grouping[0];
+    if (!col || col === "fixtureId" || col === "negotiationId" || col === "cpId") return undefined;
+    return col;
+  }, [grouping]);
+
   const queryArgs = useMemo(() => organizationId ? {
     organizationId,
     paginationUnit,
@@ -1001,9 +952,11 @@ function Fixtures() {
     // Sorting
     sortField: sorting[0]?.id,
     sortDirection: sorting[0]?.desc ? "desc" : "asc",
+    // Custom grouping (for group count)
+    groupByField,
   } as const : "skip" as const, [
     organizationId, paginationUnit, currentCursor, pagination.pageSize,
-    serverFilters, globalSearchTerms, sorting,
+    serverFilters, globalSearchTerms, sorting, groupByField,
   ]);
 
   // Query fixtures with enriched data using paginated query
@@ -1039,6 +992,7 @@ function Fixtures() {
 
   // Server pagination info
   const serverTotalCount = paginatedFixtures?.totalCount ?? 0;
+  const serverGroupCount = paginatedFixtures?.totalGroupCount;
   const serverUnfilteredTotalCount = paginatedFixtures?.unfilteredTotalCount ?? 0;
   const isFiltered = serverTotalCount !== serverUnfilteredTotalCount;
 
@@ -1135,9 +1089,6 @@ function Fixtures() {
 
   // Local state for optimistic updates
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);
-  const [activeBookmarkId, setActiveBookmarkId] =
-    useState<string>("system-all");
-
   // Sync from database when loaded
   useEffect(() => {
     if (userBookmarksFromDb) {
@@ -1145,7 +1096,6 @@ function Fixtures() {
     }
   }, [userBookmarksFromDb, userId]);
 
-  // Note: activeFilters state is declared earlier (near query params) for server-side filtering
   const [pinnedFilters, setPinnedFilters] = useState<string[]>([
     "status",
     "vessels",
@@ -1160,21 +1110,20 @@ function Fixtures() {
     "dischargePortName",
     "cpDate",
   ]);
-  // Note: globalSearchTerms state is declared earlier (near query params) for server-side filtering
-
   // Use transition for non-urgent search updates (improves INP)
   const [isSearchPending, startSearchTransition] = useTransition();
+  // Use transition for non-urgent table layout updates (column visibility, grouping)
+  const [, startLayoutTransition] = useTransition();
 
-  // Debounced search handler for better INP
+  // Search handler — updates URL, wrapped in transition for INP
   const handleGlobalSearchChange = useCallback((terms: string[]) => {
     startSearchTransition(() => {
-      setGlobalSearchTerms(terms);
+      urlActions.setSearch(terms.join(' ') || null);
     });
-  }, []);
+  }, [urlActions]);
 
   // Table state
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_HIDDEN_COLUMNS);
-  // Note: grouping state is declared earlier (near query params) so paginationUnit is available for server query
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<ExpandedState>({});
@@ -1212,7 +1161,7 @@ function Fixtures() {
       setCurrentCursor(undefined);
       cursorHistoryRef.current = [undefined];
       startPaginationTransition(() => {
-        setPagination({ pageIndex: 0, pageSize: newPagination.pageSize });
+        urlActions.setPageSize(newPagination.pageSize);
       });
       return;
     }
@@ -1231,9 +1180,9 @@ function Fixtures() {
         cursorHistoryRef.current = cursorHistoryRef.current.slice(0, -1);
         setCurrentCursor(cursorHistoryRef.current[cursorHistoryRef.current.length - 1]);
       }
-      setPagination(newPagination);
+      urlActions.setPage(newPagination.pageIndex);
     }
-  }, []);
+  }, [urlActions]);
 
   // Derive loading state from transition pending state
   const isPaginationLoading = isPaginationPending;
@@ -1256,2556 +1205,19 @@ function Fixtures() {
   // Enforce minimum skeleton display time (500ms) for better UX
   const showTableSkeleton = useMinimumLoadingTime(isTableLoading, 500);
 
-  // Memoize columns
+  // Create column handler callback
+  const handleFixtureSelect = useCallback((fixture: FixtureData, rowId: string) => {
+    setSelectedFixture(fixture);
+    setActiveRowId(rowId);
+  }, []);
+
+  // Column definitions (extracted to fixtures/fixtureColumns.tsx)
   const fixtureColumns: ColumnDef<FixtureData>[] = useMemo(
-    () => [
-      {
-        accessorKey: "fixtureId",
-        header: "Fixture ID",
-        meta: {
-          label: "Fixture ID",
-          align: "left",
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext<string>) => {
-          const value = row.getValue("fixtureId") as string;
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className="text-body-sm font-mono text-[var(--blue-600)] hover:underline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedFixture(row.original);
-                    setActiveRowId(row.id);
-                  }}
-                >
-                  {highlightSearchTerms(value, globalSearchTerms)}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>View fixture details</TooltipContent>
-            </Tooltip>
-          );
-        },
-        aggregatedCell: ({ row, table }: FixtureCellContext<string>) => {
-          const count = row.subRows?.length || 0;
-          const isGroupedByFixtureId = row.groupingColumnId === "fixtureId";
-          const isFixtureIdHidden = table.getState().columnVisibility.fixtureId === false;
-
-          // Only display Order ID when grouped by fixtureId AND fixtureId column is hidden
-          if (isGroupedByFixtureId && isFixtureIdHidden) {
-            const orderIds = row.subRows?.map((r) => r.original?.orderId).filter(Boolean) || [];
-            const uniqueOrderIds = new Set(orderIds);
-
-            if (uniqueOrderIds.size === 1 && orderIds.length > 0) {
-              const commonOrderId = Array.from(uniqueOrderIds)[0];
-              return (
-                <div className="text-body-sm font-mono font-semibold text-[var(--color-text-primary)]">
-                  {commonOrderId} ({count} {count === 1 ? "contract" : "contracts"})
-                </div>
-              );
-            }
-          }
-
-          // Default: Show fixture ID
-          return (
-            <div className="text-body-sm font-medium text-[var(--color-text-primary)]">
-              {row.getValue("fixtureId")} ({count} {count === 1 ? "contract" : "contracts"})
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "orderId",
-        header: "Order ID",
-        meta: {
-          label: "Order ID",
-          align: "left",
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row, table }: FixtureCellContext) => {
-          // Grouped row (has subRows): Only show special display when grouped by fixtureId with it hidden
-          if (row.subRows?.length > 0) {
-            const isGroupedByFixtureId = row.groupingColumnId === "fixtureId";
-            const isFixtureIdHidden = table.getState().columnVisibility.fixtureId === false;
-
-            // Special case: Show order ID when grouped by fixtureId with fixtureId hidden
-            if (isGroupedByFixtureId && isFixtureIdHidden) {
-              const orderId = row.subRows[0]?.original?.orderId;
-              const count = row.subRows?.length || 0;
-
-              if (!orderId) {
-                return (
-                  <div className="text-body-sm text-[var(--color-text-secondary)]">
-                    –
-                  </div>
-                );
-              }
-
-              return (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-body-sm font-mono font-semibold text-[var(--color-text-primary)]">
-                    {orderId}
-                  </span>
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[var(--color-bg-secondary)] text-caption-sm font-medium text-[var(--color-text-secondary)]">
-                    {count}
-                  </span>
-                </div>
-              );
-            }
-
-            // For other groupings, don't render anything (let the grouped column show)
-            return null;
-          }
-
-          // Leaf row: Use row.original to get actual order ID
-          const value = row.original?.orderId || "";
-          if (!value) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                -
-              </div>
-            );
-          }
-          return (
-            <button
-              className="text-body-sm font-mono text-[var(--blue-600)] hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Handle Order ID click if needed
-              }}
-            >
-              {highlightSearchTerms(value, globalSearchTerms)}
-            </button>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const orderId = row.subRows[0]?.original?.orderId;
-          // Show bold when: (1) grouped by orderId OR (2) grouped by fixtureId (All Fixtures with orderId as display column)
-          const isGroupedByOrderId = row.groupingColumnId === "orderId" || row.groupingColumnId === "fixtureId";
-
-          if (!orderId) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
-
-          return (
-            <div className={`text-body-sm font-mono ${isGroupedByOrderId ? 'font-semibold' : ''} text-[var(--color-text-primary)]`}>
-              {orderId}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "negotiationId",
-        header: "Negotiation ID",
-        meta: {
-          label: "Negotiation ID",
-          align: "left",
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const negotiationId = row.getValue("negotiationId") as string;
-          if (negotiationId === "-") {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                -
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-              {negotiationId}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const negotiationIds = row.subRows.map((r) => r.original?.negotiationId).filter((id: string) => id && id !== "-");
-          const uniqueNegotiationIds = Array.from(new Set(negotiationIds)) as string[];
-
-          // No negotiation IDs - show em dash
-          if (uniqueNegotiationIds.length === 0) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
-
-          // Single Negotiation ID - show the actual value
-          if (uniqueNegotiationIds.length === 1) {
-            return (
-              <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-                {String(uniqueNegotiationIds[0])}
-              </div>
-            );
-          }
-
-          // Multiple Negotiation IDs - show count
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueNegotiationIds.length} {uniqueNegotiationIds.length === 1 ? "negotiation" : "negotiations"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "cpId",
-        header: "CP ID",
-        meta: {
-          label: "CP ID",
-          align: "left",
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const cpId = row.getValue("cpId") as string | undefined;
-
-          // Parent rows without cpId show em dash
-          if (!cpId) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
-
-          return (
-            <button
-              className="text-body-sm font-mono text-[var(--blue-600)] hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Handle CP ID click if needed
-              }}
-            >
-              {highlightSearchTerms(cpId, globalSearchTerms)}
-            </button>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const cpIds = row.subRows.map((r) => r.original?.cpId).filter(Boolean);
-          const uniqueCpIds = Array.from(new Set(cpIds)) as string[];
-
-          // No CP IDs - show em dash
-          if (uniqueCpIds.length === 0) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
-
-          // Single CP ID - show the actual value
-          if (uniqueCpIds.length === 1) {
-            return (
-              <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-                {String(uniqueCpIds[0])}
-              </div>
-            );
-          }
-
-          // Multiple CP IDs - show count
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueCpIds.length} {uniqueCpIds.length === 1 ? "contract" : "contracts"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        minSize: 200,
-        meta: {
-          label: "Status",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Status",
-          icon: ({ className }) => <Icon name="circle-check-big" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const status = row.getValue("status") as string;
-          return (
-            <div className="flex items-center overflow-visible">
-              <FixtureStatus value={status as StatusValue} className="overflow-visible" asBadge showObject />
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const allStatuses = (row.subRows?.map((r) => r.original.status) || []) as string[];
-
-          // Single item group - show full status label with object prefix
-          if (row.subRows?.length === 1) {
-            return (
-              <div className="flex items-center justify-start overflow-visible">
-                <FixtureStatus value={allStatuses[0] as StatusValue} className="overflow-visible" asBadge showObject />
-              </div>
-            );
-          }
-
-          // More than 8 items - show text summary
-          if (allStatuses.length > 8) {
-            const statusCounts = allStatuses.reduce((acc, status) => {
-              acc[status] = (acc[status] || 0) + 1;
-              return acc;
-            }, {} as Record<string, number>);
-
-            const summary = Object.entries(statusCounts)
-              .map(([status, count]) => {
-                const label = getStatusLabel(status);
-                return `${count} ${label}`;
-              })
-              .join(', ');
-
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {summary}
-              </div>
-            );
-          }
-
-          // 8 or fewer - show icons with tooltips
-          return (
-            <div className="flex items-center justify-start gap-1 overflow-visible">
-              {allStatuses.map((status, index) => (
-                <FixtureStatus key={index} value={status as StatusValue} iconOnly showObject className="overflow-visible" />
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "vesselImo",
-        header: "Vessel IMO",
-        size: 120,
-        meta: {
-          label: "Vessel IMO",
-          align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Vessel",
-          icon: ({ className }) => <Icon name="ship" className={className} />,
-        },
-        enableGrouping: false,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "vessels",
-        header: "Vessel Name",
-        meta: {
-          label: "Vessel Name",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Vessel",
-          icon: ({ className }) => <Icon name="ship" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const vessels = row.getValue("vessels") as string;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {highlightSearchTerms(vessels, globalSearchTerms)}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const uniqueVessels = new Set(row.subRows?.map((r) => r.original.vessels) || []);
-
-          // If only one unique vessel, show the name with highlighting
-          if (uniqueVessels.size === 1) {
-            const vessel = Array.from(uniqueVessels)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(vessel, globalSearchTerms)}
-              </div>
-            );
-          }
-
-          // Multiple vessels - show count
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {uniqueVessels.size} vessels
-            </div>
-          );
-        },
-      },
-
-      // Location - Load
-      {
-        accessorKey: "loadPortName",
-        header: "Load Port",
-        size: 150,
-        meta: {
-          label: "Load Port",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="ship-load" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.loadPortName) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} ports
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "loadPortCountry",
-        header: "Load Country",
-        size: 130,
-        meta: {
-          label: "Load Country",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="map-pin" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue, row }) => {
-          const value = getValue<string>();
-          const countryCode = row.original.loadPort?.countryCode;
-          return (
-            <div className="flex items-center gap-2">
-              {countryCode && <Flag country={countryCode} />}
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.loadPortCountry) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            const countryCode = row.subRows?.[0]?.original.loadPort?.countryCode;
-            return (
-              <div className="flex items-center gap-2">
-                {countryCode && <Flag country={countryCode} />}
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {value || "–"}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} countries
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "loadDeliveryType",
-        header: "Load Delivery Type",
-        size: 150,
-        meta: {
-          label: "Load Delivery Type",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="truck" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.loadDeliveryType) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} types
-            </div>
-          );
-        },
-      },
-
-      // Location - Discharge
-      {
-        accessorKey: "dischargePortName",
-        header: "Discharge Port",
-        size: 150,
-        meta: {
-          label: "Discharge Port",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="ship-unload" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.dischargePortName) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} ports
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "dischargePortCountry",
-        header: "Discharge Country",
-        size: 150,
-        meta: {
-          label: "Discharge Country",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="map-pin" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue, row }) => {
-          const value = getValue<string>();
-          const countryCode = row.original.dischargePort?.countryCode;
-          return (
-            <div className="flex items-center gap-2">
-              {countryCode && <Flag country={countryCode} />}
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.dischargePortCountry) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            const countryCode = row.subRows?.[0]?.original.dischargePort?.countryCode;
-            return (
-              <div className="flex items-center gap-2">
-                {countryCode && <Flag country={countryCode} />}
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {value || "–"}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} countries
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "dischargeRedeliveryType",
-        header: "Discharge Redelivery Type",
-        size: 180,
-        meta: {
-          label: "Discharge Redelivery Type",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Location",
-          icon: ({ className }) => <Icon name="truck" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.dischargeRedeliveryType) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} types
-            </div>
-          );
-        },
-      },
-
-      // Cargo
-      {
-        accessorKey: "cargoTypeName",
-        header: "Cargo Type",
-        size: 140,
-        meta: {
-          label: "Cargo Type",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Cargo",
-          icon: ({ className }) => <Icon name="package" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.cargoTypeName) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} types
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "cargoQuantity",
-        header: "Cargo Quantity (mt)",
-        size: 150,
-        meta: {
-          label: "Cargo Quantity (mt)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Cargo",
-          icon: ({ className }) => <Icon name="weight" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatQuantity(value) : "–"}
-            </div>
-          );
-        },
-      },
-
-      // Parties
-      {
-        accessorKey: "owner",
-        header: "Owner",
-        meta: {
-          label: "Owner",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-owner" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const owner = row.getValue("owner") as string;
-          const ownerAvatarUrl = row.original.ownerAvatarUrl;
-          const isPlaceholder = owner === "-" || owner === "Unknown";
-          return (
-            <div className="flex items-center gap-2">
-              {!isPlaceholder && (
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={ownerAvatarUrl || undefined} alt={owner} />
-                  <AvatarFallback>{getCompanyInitials(owner)}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(owner, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique owners with avatar data
-          const uniqueOwners = Array.from(
-            new Map(
-              row.subRows
-                ?.filter((r) => r.original.owner !== "-" && r.original.owner !== "Unknown")
-                .map((r) => [
-                  r.original.owner,
-                  { name: r.original.owner as string, avatarUrl: r.original.ownerAvatarUrl as string | undefined }
-                ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single owner: avatar + name
-          if (uniqueOwners.length === 1) {
-            const owner = uniqueOwners[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
-                  <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(owner.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueOwners.length} owners
-              </div>
-            );
-          }
-
-          // Multiple owners: list avatars in a row
-          const displayOwners = uniqueOwners.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayOwners.map((owner, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={owner.avatarUrl || undefined} alt={owner.name} />
-                        <AvatarFallback>{getCompanyInitials(owner.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{owner.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "broker",
-        header: "Broker",
-        meta: {
-          label: "Broker",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-broker" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const broker = row.getValue("broker") as string;
-          const brokerAvatarUrl = row.original.brokerAvatarUrl;
-          const isPlaceholder = broker === "-" || broker === "Unknown";
-          return (
-            <div className="flex items-center gap-2">
-              {!isPlaceholder && (
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={brokerAvatarUrl || undefined} alt={broker} />
-                  <AvatarFallback>{getCompanyInitials(broker)}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(broker, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique brokers with avatar data
-          const uniqueBrokers = Array.from(
-            new Map(
-              row.subRows
-                ?.filter((r) => r.original.broker !== "-" && r.original.broker !== "Unknown")
-                .map((r) => [
-                  r.original.broker,
-                  { name: r.original.broker as string, avatarUrl: r.original.brokerAvatarUrl as string | undefined }
-                ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single broker: avatar + name
-          if (uniqueBrokers.length === 1) {
-            const broker = uniqueBrokers[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
-                  <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(broker.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueBrokers.length} brokers
-              </div>
-            );
-          }
-
-          // Multiple brokers: list avatars in a row
-          const displayBrokers = uniqueBrokers.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayBrokers.map((broker, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={broker.avatarUrl || undefined} alt={broker.name} />
-                        <AvatarFallback>{getCompanyInitials(broker.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{broker.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "charterer",
-        header: "Charterer",
-        meta: {
-          label: "Charterer",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-charterer" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ row }: FixtureCellContext) => {
-          const charterer = row.getValue("charterer") as string;
-          const chartererAvatarUrl = row.original.chartererAvatarUrl;
-          const isPlaceholder = charterer === "-" || charterer === "Unknown";
-          return (
-            <div className="flex items-center gap-2">
-              {!isPlaceholder && (
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={chartererAvatarUrl || undefined} alt={charterer} />
-                  <AvatarFallback>{getCompanyInitials(charterer)}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {highlightSearchTerms(charterer, globalSearchTerms)}
-              </div>
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // Collect unique charterers with avatar data
-          const uniqueCharterers = Array.from(
-            new Map(
-              row.subRows
-                ?.filter((r) => r.original.charterer !== "-" && r.original.charterer !== "Unknown")
-                .map((r) => [
-                  r.original.charterer,
-                  { name: r.original.charterer as string, avatarUrl: r.original.chartererAvatarUrl as string | undefined }
-                ])
-            ).values()
-          ) as Array<{ name: string; avatarUrl?: string }>;
-
-          // Single charterer: avatar + name
-          if (uniqueCharterers.length === 1) {
-            const charterer = uniqueCharterers[0];
-            return (
-              <div className="flex items-center gap-2">
-                <Avatar type="organization" size="xxs">
-                  <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
-                  <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
-                </Avatar>
-                <div className="text-body-sm text-[var(--color-text-primary)]">
-                  {highlightSearchTerms(charterer.name, globalSearchTerms)}
-                </div>
-              </div>
-            );
-          }
-
-          // More than 8 total items - show count
-          if (row.subRows?.length > 8) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                {uniqueCharterers.length} charterers
-              </div>
-            );
-          }
-
-          // Multiple charterers: list avatars in a row
-          const displayCharterers = uniqueCharterers.slice(0, 5);
-          return (
-            <div className="flex items-center gap-1">
-              {displayCharterers.map((charterer, index) => (
-                <Tooltip key={index}>
-                  <TooltipTrigger asChild>
-                    <div>
-                      <Avatar type="organization" size="xxs">
-                        <AvatarImage src={charterer.avatarUrl || undefined} alt={charterer.name} />
-                        <AvatarFallback>{getCompanyInitials(charterer.name)}</AvatarFallback>
-                      </Avatar>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{charterer.name}</TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-          );
-        },
-      },
-
-      // Commercial - Laycan
-      {
-        id: "laycan",
-        header: "Laycan",
-        size: 150,
-        meta: { label: "Laycan", align: "left" },
-        enableGrouping: false,
-        cell: ({ row }) => {
-          const start = row.original.laycanStart;
-          const end = row.original.laycanEnd;
-          if (!start || !end) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">–</div>
-            );
-          }
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatLaycanRange(start, end)}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const laycans = row.subRows?.map((r) => ({
-            start: r.original.laycanStart,
-            end: r.original.laycanEnd
-          })).filter((l): l is { start: number; end: number } => l.start != null && l.end != null) || [];
-
-          if (laycans.length === 0) {
-            return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          }
-
-          // Check if all laycans are the same
-          const firstLaycan = formatLaycanRange(laycans[0].start, laycans[0].end);
-          const allSame = laycans.every((l) =>
-            formatLaycanRange(l.start, l.end) === firstLaycan
-          );
-
-          if (allSame) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {firstLaycan}
-              </div>
-            );
-          }
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {laycans.length} laycans
-            </div>
-          );
-        },
-      },
-
-      // Filter-only columns for laycan date filtering (hidden, filterable)
-      {
-        accessorKey: "laycanStart",
-        header: "Laycan Start",
-        size: 130,
-        meta: {
-          label: "Laycan Start",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "-"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "laycanEnd",
-        header: "Laycan End",
-        size: 130,
-        meta: {
-          label: "Laycan End",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "-"}
-            </div>
-          );
-        },
-      },
-
-      // Commercial - Freight
-      {
-        accessorKey: "finalFreightRate",
-        header: "Final Freight Rate",
-        size: 150,
-        meta: {
-          label: "Final Freight Rate",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string | number>();
-          const numValue = typeof value === 'string' ? parseFloat(value) : value;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue != null && !isNaN(numValue) ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => {
-            const v = r.original.finalFreightRate;
-            return typeof v === 'string' ? parseFloat(v) : v;
-          }).filter((v): v is number => v != null && !isNaN(v)) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-
-      // Freight Analytics
-      {
-        accessorKey: "highestFreightRateIndication",
-        header: "Highest Freight ($/mt)",
-        size: 170,
-        meta: {
-          label: "Highest Freight ($/mt)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.highestFreightRateIndication).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "lowestFreightRateIndication",
-        header: "Lowest Freight ($/mt)",
-        size: 170,
-        meta: {
-          label: "Lowest Freight ($/mt)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.lowestFreightRateIndication).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "firstFreightRateIndication",
-        header: "First Freight ($/mt)",
-        size: 160,
-        meta: {
-          label: "First Freight ($/mt)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.firstFreightRateIndication).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "highestFreightRateLastDay",
-        header: "Highest Freight (Last Day)",
-        size: 190,
-        meta: {
-          label: "Highest Freight (Last Day)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.highestFreightRateLastDay).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "lowestFreightRateLastDay",
-        header: "Lowest Freight (Last Day)",
-        size: 190,
-        meta: {
-          label: "Lowest Freight (Last Day)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.lowestFreightRateLastDay).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "firstFreightRateLastDay",
-        header: "First Freight (Last Day)",
-        size: 180,
-        meta: {
-          label: "First Freight (Last Day)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.firstFreightRateLastDay).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "freightSavingsPercent",
-        header: "Freight Savings %",
-        size: 150,
-        meta: {
-          label: "Freight Savings %",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="trending-down" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
-          return (
-            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {formatPercent(value, 2, true)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "marketIndex",
-        header: "Market Index ($/mt)",
-        size: 160,
-        meta: {
-          label: "Market Index ($/mt)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="activity" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.marketIndex).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "marketIndexName",
-        header: "Index Name",
-        size: 140,
-        meta: {
-          label: "Index Name",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="activity" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.marketIndexName) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} indices
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "freightVsMarketPercent",
-        header: "Freight vs Market %",
-        size: 160,
-        meta: {
-          label: "Freight vs Market %",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="activity" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          const color = value < 0 ? "text-[var(--green-600)]" : value > 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
-          return (
-            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {formatPercent(value, 2, true)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "grossFreight",
-        header: "Gross Freight",
-        size: 140,
-        meta: {
-          label: "Gross Freight",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatCurrency(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.grossFreight).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">{formatCurrency(min)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">{formatCurrency(min)} – {formatCurrency(max)}</div>;
-        },
-      },
-
-      // Commercial - Demurrage
-      {
-        accessorKey: "finalDemurrageRate",
-        header: "Final Demurrage Rate",
-        size: 170,
-        meta: {
-          label: "Final Demurrage Rate",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string | number>();
-          const numValue = typeof value === 'string' ? parseFloat(value) : value;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {numValue != null && !isNaN(numValue) ? `$${numValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => {
-            const v = r.original.finalDemurrageRate;
-            return typeof v === 'string' ? parseFloat(v) : v;
-          }).filter((v): v is number => v != null && !isNaN(v)) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "highestDemurrageIndication",
-        header: "Highest Demurrage ($/pd)",
-        size: 190,
-        meta: {
-          label: "Highest Demurrage ($/pd)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="clock" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.highestDemurrageIndication).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "lowestDemurrageIndication",
-        header: "Lowest Demurrage ($/pd)",
-        size: 190,
-        meta: {
-          label: "Lowest Demurrage ($/pd)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="clock" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = row.subRows?.map((r) => r.original.lowestDemurrageIndication).filter((v): v is number => v != null) || [];
-          if (values.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-          const min = Math.min(...values);
-          const max = Math.max(...values);
-          if (min === max) {
-            return <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)] text-right font-variant-numeric-tabular">${min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – ${max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>;
-        },
-      },
-      {
-        accessorKey: "demurrageSavingsPercent",
-        header: "Demurrage Savings %",
-        size: 170,
-        meta: {
-          label: "Demurrage Savings %",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Freight & Demurrage",
-          icon: ({ className }) => <Icon name="trending-down" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          const color = value > 0 ? "text-[var(--green-600)]" : value < 0 ? "text-[var(--red-600)]" : "text-[var(--color-text-primary)]";
-          return (
-            <div className={`text-body-sm ${color} text-right font-variant-numeric-tabular`}>
-              {formatPercent(value, 2, true)}
-            </div>
-          );
-        },
-      },
-
-      // Commissions
-      {
-        accessorKey: "addressCommissionPercent",
-        header: "Address Commission %",
-        size: 170,
-        meta: {
-          label: "Address Commission %",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Commissions",
-          icon: ({ className }) => <Icon name="percent" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatPercent(value, 2) : "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "addressCommissionTotal",
-        header: "Address Commission ($)",
-        size: 170,
-        meta: {
-          label: "Address Commission ($)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Commissions",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatCurrency(value) : "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "brokerCommissionPercent",
-        header: "Broker Commission %",
-        size: 170,
-        meta: {
-          label: "Broker Commission %",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Commissions",
-          icon: ({ className }) => <Icon name="percent" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatPercent(value, 2) : "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "brokerCommissionTotal",
-        header: "Broker Commission ($)",
-        size: 170,
-        meta: {
-          label: "Broker Commission ($)",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Commissions",
-          icon: ({ className }) => <Icon name="dollar-sign" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value != null ? formatCurrency(value) : "–"}
-            </div>
-          );
-        },
-      },
-
-      // CP Workflow Dates
-      {
-        accessorKey: "cpDate",
-        header: "CP Date",
-        size: 140,
-        meta: {
-          label: "CP Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.cpDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "workingCopyDate",
-        header: "Working Copy Date",
-        size: 160,
-        meta: {
-          label: "Working Copy Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.workingCopyDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "finalDate",
-        header: "Final Date",
-        size: 150,
-        meta: {
-          label: "Final Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.finalDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "fullySignedDate",
-        header: "Fully Signed Date",
-        size: 160,
-        meta: {
-          label: "Fully Signed Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.fullySignedDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "daysToWorkingCopy",
-        header: "Days: CP → Working Copy",
-        size: 180,
-        meta: {
-          label: "Days: CP → Working Copy",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="clock" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : pluralize(value, "day")}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "daysToFinal",
-        header: "Days: Working Copy → Final",
-        size: 200,
-        meta: {
-          label: "Days: Working Copy → Final",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="clock" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : pluralize(value, "day")}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "daysToSigned",
-        header: "Days: Final → Signed",
-        size: 170,
-        meta: {
-          label: "Days: Final → Signed",
-          align: "right",
-          filterable: true,
-          filterVariant: "number",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="clock" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          if (value === undefined) return <div className="text-body-sm text-[var(--color-text-secondary)] text-right">–</div>;
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)] text-right font-variant-numeric-tabular">
-              {value === 0 ? "Same day" : pluralize(value, "day")}
-            </div>
-          );
-        },
-      },
-
-      // Approvals
-      {
-        accessorKey: "ownerApprovalStatus",
-        header: "Owner Approval",
-        size: 140,
-        enableSorting: false,
-        meta: {
-          label: "Owner Approval",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Status",
-          icon: ({ className }) => <Icon name="check-circle" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.ownerApprovalStatus) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} statuses
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "ownerApprovedBy",
-        header: "Owner Approved By",
-        size: 160,
-        enableSorting: false,
-        meta: {
-          label: "Owner Approved By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-owner" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "ownerApprovalDate",
-        header: "Owner Approval Date",
-        size: 170,
-        enableSorting: false,
-        meta: {
-          label: "Owner Approval Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.ownerApprovalDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "chartererApprovalStatus",
-        header: "Charterer Approval",
-        size: 160,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Approval",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Status",
-          icon: ({ className }) => <Icon name="check-circle" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.chartererApprovalStatus) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} statuses
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "chartererApprovedBy",
-        header: "Charterer Approved By",
-        size: 180,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Approved By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-charterer" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "chartererApprovalDate",
-        header: "Charterer Approval Date",
-        size: 190,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Approval Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.chartererApprovalDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-
-      // Signatures
-      {
-        accessorKey: "ownerSignatureStatus",
-        header: "Owner Signature",
-        size: 150,
-        enableSorting: false,
-        meta: {
-          label: "Owner Signature",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Status",
-          icon: ({ className }) => <Icon name="pen-tool" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.ownerSignatureStatus) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} statuses
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "ownerSignedBy",
-        header: "Owner Signed By",
-        size: 150,
-        enableSorting: false,
-        meta: {
-          label: "Owner Signed By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-owner" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "ownerSignatureDate",
-        header: "Owner Signature Date",
-        size: 170,
-        enableSorting: false,
-        meta: {
-          label: "Owner Signature Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.ownerSignatureDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-      {
-        accessorKey: "chartererSignatureStatus",
-        header: "Charterer Signature",
-        size: 170,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Signature",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Status",
-          icon: ({ className }) => <Icon name="pen-tool" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.chartererSignatureStatus) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} statuses
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "chartererSignedBy",
-        header: "Charterer Signed By",
-        size: 170,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Signed By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-charterer" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "chartererSignatureDate",
-        header: "Charterer Signature Date",
-        size: 190,
-        enableSorting: false,
-        meta: {
-          label: "Charterer Signature Date",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          dateGranularity: "day",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        cell: ({ getValue }) => {
-          const value = getValue<number>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value ? formatTimestamp(value) : "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const timestamps = row.subRows?.map((r) => r.original.chartererSignatureDate).filter(isDefined) || [];
-          if (timestamps.length === 0) return <div className="text-body-sm text-[var(--color-text-secondary)]">–</div>;
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-          if (earliest === latest) {
-            return <div className="text-body-sm text-[var(--color-text-primary)]">{formatTimestamp(latest)}</div>;
-          }
-          return <div className="text-body-sm text-[var(--color-text-secondary)]">{formatTimestamp(earliest)} – {formatTimestamp(latest)}</div>;
-        },
-      },
-
-      // User Tracking
-      {
-        accessorKey: "dealCaptureUser",
-        header: "Deal Capture",
-        size: 140,
-        enableSorting: false,
-        meta: {
-          label: "Deal Capture",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-created-by" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.dealCaptureUser) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} users
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "orderCreatedBy",
-        header: "Order Created By",
-        size: 160,
-        enableSorting: false,
-        meta: {
-          label: "Order Created By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-created-by" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.orderCreatedBy) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} users
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "negotiationCreatedBy",
-        header: "Neg. Created By",
-        size: 160,
-        enableSorting: false,
-        meta: {
-          label: "Neg. Created By",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Parties",
-          icon: ({ className }) => <Icon name="user-created-by" className={className} />,
-        },
-        enableGrouping: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.negotiationCreatedBy) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} users
-            </div>
-          );
-        },
-      },
-
-      // Meta & Relationships
-      {
-        accessorKey: "parentCpId",
-        header: "Parent CP",
-        size: 130,
-        enableSorting: false,
-        meta: {
-          label: "Parent CP",
-          align: "left",
-          filterable: true,
-          filterVariant: "text",
-          filterGroup: "Contract",
-          icon: ({ className }) => <Icon name="git-branch" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          return (
-            <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-              {value || "–"}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.parentCpId) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            return (
-              <div className="text-body-sm font-mono text-[var(--color-text-primary)]">
-                {value || "–"}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} parents
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: "contractType",
-        header: "Contract Type",
-        size: 140,
-        meta: {
-          label: "Contract Type",
-          align: "left",
-          filterable: true,
-          filterVariant: "multiselect",
-          filterGroup: "Contract",
-          icon: ({ className }) => <Icon name="file-check" className={className} />,
-        },
-        enableGrouping: true,
-        enableGlobalFilter: true,
-        cell: ({ getValue }) => {
-          const value = getValue<string>();
-          const displayValue = value === "voyage-charter" ? "Voyage charter"
-            : value === "time-charter" ? "TC"
-            : value === "coa" ? "COA"
-            : value || "–";
-
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {displayValue}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          const values = new Set(row.subRows?.map((r) => r.original.contractType) || []);
-          if (values.size === 1) {
-            const value = Array.from(values)[0] as string;
-            const displayValue = value === "voyage-charter" ? "Voyage charter"
-              : value === "time-charter" ? "TC"
-              : value === "coa" ? "COA"
-              : value || "–";
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {displayValue}
-              </div>
-            );
-          }
-          return (
-            <div className="text-body-sm text-[var(--color-text-secondary)]">
-              {values.size} types
-            </div>
-          );
-        },
-      },
-
-      // Timestamp (always last)
-      {
-        accessorKey: "lastUpdated",
-        header: "Last Updated",
-        size: 150,
-        meta: {
-          label: "Last Updated",
-          align: "left",
-          filterable: true,
-          filterVariant: "date",
-          filterGroup: "Date & Time",
-          icon: ({ className }) => <Icon name="calendar" className={className} />,
-        },
-        enableGrouping: false,
-        aggregationFn: (columnId: string, leafRows: FixtureRow[]) => {
-          // For sorting: return the most recent (maximum) timestamp
-          const timestamps = leafRows
-            .map((row) => row.getValue(columnId) as number | undefined)
-            .filter(isDefined);
-          return timestamps.length > 0 ? Math.max(...timestamps) : 0;
-        },
-        cell: ({ row }: FixtureCellContext) => {
-          const timestamp = row.getValue("lastUpdated") as number;
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatTimestamp(timestamp)}
-            </div>
-          );
-        },
-        aggregatedCell: ({ row }: FixtureCellContext) => {
-          // For grouped rows, show date range
-          const timestamps = row.subRows?.map((r) => r.original?.lastUpdated).filter(isDefined) || [];
-          if (timestamps.length === 0) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-secondary)]">
-                –
-              </div>
-            );
-          }
-
-          const earliest = Math.min(...timestamps);
-          const latest = Math.max(...timestamps);
-
-          // If all timestamps are the same, show single date
-          if (earliest === latest) {
-            return (
-              <div className="text-body-sm text-[var(--color-text-primary)]">
-                {formatTimestamp(latest)}
-              </div>
-            );
-          }
-
-          // Show date range
-          return (
-            <div className="text-body-sm text-[var(--color-text-primary)]">
-              {formatTimestamp(earliest)} – {formatTimestamp(latest)}
-            </div>
-          );
-        },
-      },
-    ],
-    [setSelectedFixture, globalSearchTerms],
+    () => createFixtureColumns({
+      globalSearchTerms,
+      onFixtureSelect: handleFixtureSelect,
+    }),
+    [globalSearchTerms, handleFixtureSelect],
   );
 
   // Prepare available columns for export
@@ -3926,7 +1338,7 @@ function Fixtures() {
         {
           id: "stage",
           label: "Stage",
-          icon: ({ className }) => <Icon name="layers" className={className} />,
+          icon: ({ className }) => <Icon name="layers" className={className} aria-hidden="true" />,
           type: "multiselect",
           options: uniqueStages,
           group: "Status",
@@ -3934,7 +1346,7 @@ function Fixtures() {
         {
           id: "approvalStatus",
           label: "Approval Status",
-          icon: ({ className }) => <Icon name="check-circle" className={className} />,
+          icon: ({ className }) => <Icon name="check-circle" className={className} aria-hidden="true" />,
           type: "multiselect",
           options: uniqueApprovalStatuses,
           group: "Status",
@@ -3955,13 +1367,21 @@ function Fixtures() {
     }));
   }, [systemBookmarks, bookmarkCounts]);
 
-  // User bookmarks: always use stored DB count so counts don't jump on click
+  // User bookmarks: active bookmark uses live server count (group count when grouped),
+  // non-active bookmarks keep their stored DB count (updated when viewed).
+  // While query is loading (paginatedFixtures === undefined), keep stored count and show loading.
+  const serverDisplayCount = serverGroupCount ?? serverTotalCount;
+  const isQueryLoading = paginatedFixtures === undefined;
   const bookmarksWithCounts = useMemo(() => {
-    return bookmarks.map((bookmark) => ({
-      ...bookmark,
-      isLoadingCount: false,
-    }));
-  }, [bookmarks]);
+    return bookmarks.map((bookmark) => {
+      const isActive = bookmark.id === activeBookmarkId;
+      return {
+        ...bookmark,
+        count: isActive && !isQueryLoading ? serverDisplayCount : bookmark.count,
+        isLoadingCount: isActive && isQueryLoading,
+      };
+    });
+  }, [bookmarks, activeBookmarkId, serverDisplayCount, isQueryLoading]);
 
   // Get active bookmark
   const activeBookmark = useMemo(() => {
@@ -4035,7 +1455,7 @@ function Fixtures() {
     return fixtureData ?? [];
   }, [fixtureData]);
 
-  // Load bookmark state
+  // Load bookmark state — atomically sets URL params + non-URL state
   const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
     // Show loading skeleton during bookmark transition (skip on initial mount)
     if (showLoading) {
@@ -4046,58 +1466,70 @@ function Fixtures() {
       }, 300);
     }
 
-    setActiveBookmarkId(bookmark.id);
-
-    // Reset server pagination when switching bookmarks
-    // (filters will change which affects server-side data)
+    // Reset cursor state
     setCurrentCursor(undefined);
     cursorHistoryRef.current = [undefined];
-    setPagination(prev => prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 });
 
+    // Atomically set all URL state from bookmark
+    const bookmarkFilters = bookmark.filtersState?.activeFilters ?? {};
+    const bookmarkSearch = bookmark.filtersState?.globalSearchTerms ?? [];
+    const bookmarkSorting = bookmark.tableState?.sorting ?? [];
+    const bookmarkGrouping = bookmark.tableState?.grouping ?? [];
+    const filterParams = serializeFiltersToUrl(bookmarkFilters);
+
+    urlActions.setAllUrlState({
+      ...filterParams,
+      search: bookmarkSearch.join(' ') || null,
+      sortBy: bookmarkSorting[0]?.id ?? null,
+      sortDesc: bookmarkSorting[0]?.desc ?? true,
+      groupBy: bookmarkGrouping[0] ?? 'fixtureId',
+      bk: bookmark.id,
+      page: 0,
+    });
+
+    // Non-URL state: pinned filters
     if (bookmark.filtersState) {
-      setActiveFilters(bookmark.filtersState.activeFilters);
-      setGlobalSearchTerms(bookmark.filtersState.globalSearchTerms);
-
-      // Handle pinned filters based on bookmark type
       if (bookmark.type === "user") {
-        // User bookmarks: restore saved pinned filters
         setPinnedFilters(bookmark.filtersState.pinnedFilters);
       } else {
-        // System bookmarks: restore global pinned filters
         setPinnedFilters(globalPinnedFilters);
       }
     } else {
-      setActiveFilters({});
-      setGlobalSearchTerms([]);
-
-      // If no filtersState, use global pinned filters (for system bookmarks)
       if (bookmark.type === "system") {
         setPinnedFilters(globalPinnedFilters);
       }
     }
 
+    // Non-URL state: column layout
     if (bookmark.tableState) {
-      setSorting(bookmark.tableState.sorting);
       setColumnVisibility(bookmark.tableState.columnVisibility);
-      setGrouping(bookmark.tableState.grouping);
       setColumnOrder(bookmark.tableState.columnOrder || []);
       setColumnSizing(enforceMinColumnSizing(bookmark.tableState.columnSizing));
     } else {
-      setSorting([]);
       setColumnVisibility({});
-      setGrouping([]);
       setColumnOrder([]);
       setColumnSizing({});
     }
   };
 
-  // Load initial bookmark state on mount
+  // On mount: restore non-URL state (column layout, pinned filters) from active bookmark.
+  // URL defaults already match system-all, so filter/sort/group state is restored from URL.
   useEffect(() => {
     const initialBookmark = [...systemBookmarks, ...bookmarks].find(
       (b) => b.id === activeBookmarkId
     );
     if (initialBookmark) {
-      loadBookmark(initialBookmark, false); // Don't show loading on initial mount
+      // Restore non-URL state only (column layout, pinned filters)
+      if (initialBookmark.filtersState) {
+        if (initialBookmark.type === "user") {
+          setPinnedFilters(initialBookmark.filtersState.pinnedFilters);
+        }
+      }
+      if (initialBookmark.tableState) {
+        setColumnVisibility(initialBookmark.tableState.columnVisibility);
+        setColumnOrder(initialBookmark.tableState.columnOrder || []);
+        setColumnSizing(enforceMinColumnSizing(initialBookmark.tableState.columnSizing));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
@@ -4128,39 +1560,43 @@ function Fixtures() {
 
   const handleRevert = () => {
     if (activeBookmark) {
-      // Revert filters, table state, and pinnedFilters (for user bookmarks)
-      if (activeBookmark.filtersState) {
-        setActiveFilters(activeBookmark.filtersState.activeFilters);
-        setGlobalSearchTerms(activeBookmark.filtersState.globalSearchTerms);
+      // Revert URL state (filters, sort, group, search) atomically
+      const bookmarkFilters = activeBookmark.filtersState?.activeFilters ?? {};
+      const bookmarkSearch = activeBookmark.filtersState?.globalSearchTerms ?? [];
+      const bookmarkSorting = activeBookmark.tableState?.sorting ?? [];
+      const bookmarkGrouping = activeBookmark.tableState?.grouping ?? [];
+      const filterParams = serializeFiltersToUrl(bookmarkFilters);
 
-        // Restore pinned filters for user bookmarks
+      urlActions.setAllUrlState({
+        ...filterParams,
+        search: bookmarkSearch.join(' ') || null,
+        sortBy: bookmarkSorting[0]?.id ?? null,
+        sortDesc: bookmarkSorting[0]?.desc ?? true,
+        groupBy: bookmarkGrouping[0] ?? 'fixtureId',
+        page: 0,
+      });
+
+      // Revert non-URL state (pinned filters, column layout)
+      if (activeBookmark.filtersState) {
         if (activeBookmark.type === "user") {
           setPinnedFilters(activeBookmark.filtersState.pinnedFilters);
         }
-      } else {
-        setActiveFilters({});
-        setGlobalSearchTerms([]);
       }
 
       if (activeBookmark.tableState) {
-        setSorting(activeBookmark.tableState.sorting);
         setColumnVisibility(activeBookmark.tableState.columnVisibility);
-        setGrouping(activeBookmark.tableState.grouping);
         setColumnOrder(activeBookmark.tableState.columnOrder || []);
         setColumnSizing(activeBookmark.tableState.columnSizing);
       } else {
-        setSorting([]);
         setColumnVisibility({});
-        setGrouping([]);
         setColumnOrder([]);
         setColumnSizing({});
-        }
+      }
     }
   };
 
   const handleSave = async (action: "update" | "create", name?: string) => {
     if (!userId) {
-      console.warn("Cannot save bookmark: user not yet loaded");
       return;
     }
 
@@ -4177,7 +1613,7 @@ function Fixtures() {
         columnOrder,
         columnSizing,
       },
-      count: serverTotalCount,
+      count: serverGroupCount ?? serverTotalCount,
     };
 
     try {
@@ -4191,13 +1627,13 @@ function Fixtures() {
           type: "user",
           createdAt: now,
           updatedAt: now,
-          count: serverTotalCount,
+          count: serverGroupCount ?? serverTotalCount,
           filtersState: bookmarkData.filtersState,
           tableState: bookmarkData.tableState,
         };
 
         setBookmarks([...bookmarks, optimisticBookmark]);
-        setActiveBookmarkId(tempId);
+        urlActions.setBookmark(tempId);
 
         // Create in database
         const newBookmark = await createBookmarkMutation({
@@ -4209,7 +1645,7 @@ function Fixtures() {
         setBookmarks((prev) =>
           prev.map((b) => (b.id === tempId ? convertDbBookmark(newBookmark) : b))
         );
-        setActiveBookmarkId(newBookmark.id);
+        urlActions.setBookmark(newBookmark.id);
       } else {
         // Update existing
         const bookmarkId = activeBookmarkId as Id<"user_bookmarks">;
@@ -4230,7 +1666,7 @@ function Fixtures() {
         });
       }
     } catch (error) {
-      console.error("Failed to save bookmark:", error);
+      if (import.meta.env.DEV) console.error("Failed to save bookmark:", error);
       toast.error("Failed to save bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
@@ -4251,7 +1687,7 @@ function Fixtures() {
         newName,
       });
     } catch (error) {
-      console.error("Failed to rename bookmark:", error);
+      if (import.meta.env.DEV) console.error("Failed to rename bookmark:", error);
       toast.error("Failed to rename bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
@@ -4280,7 +1716,7 @@ function Fixtures() {
         bookmarkId: id as Id<"user_bookmarks">,
       });
     } catch (error) {
-      console.error("Failed to delete bookmark:", error);
+      if (import.meta.env.DEV) console.error("Failed to delete bookmark:", error);
       toast.error("Failed to delete bookmark");
       // Revert optimistic update
       setBookmarks(previousBookmarks);
@@ -4304,7 +1740,7 @@ function Fixtures() {
         bookmarkId: id as Id<"user_bookmarks">,
       });
     } catch (error) {
-      console.error("Failed to set default bookmark:", error);
+      if (import.meta.env.DEV) console.error("Failed to set default bookmark:", error);
       toast.error("Failed to set default bookmark");
       // Revert optimistic update
       if (userBookmarksFromDb) {
@@ -4323,25 +1759,20 @@ function Fixtures() {
     }
   };
 
-  // Filter handlers
+  // Filter handlers — serialize to URL
   const handleFilterChange = (filterId: string, value: FilterValue) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      [filterId]: value,
-    }));
+    const newFilters = { ...activeFilters, [filterId]: value };
+    urlActions.setFilters(serializeFiltersToUrl(newFilters));
   };
 
   const handleFilterClear = (filterId: string) => {
-    setActiveFilters((prev) => {
-      const newFilters = { ...prev };
-      delete newFilters[filterId];
-      return newFilters;
-    });
+    const newFilters = { ...activeFilters };
+    delete newFilters[filterId];
+    urlActions.setFilters(serializeFiltersToUrl(newFilters));
   };
 
   const handleFilterReset = () => {
-    setActiveFilters({});
-    setGlobalSearchTerms([]);
+    urlActions.resetFilters();
   };
 
   // Handle row clicks to open sidebar
@@ -4351,6 +1782,7 @@ function Fixtures() {
       ? row.subRows[0].original
       : row.original;
 
+    sidebarTriggerRef.current = document.activeElement as HTMLElement;
     setSelectedFixture(fixtureData);
     setActiveRowId(row.id);
   };
@@ -4443,13 +1875,11 @@ function Fixtures() {
               selectedSortColumn={sorting[0]?.id}
               sortDirection={sorting[0]?.desc ? "desc" : "asc"}
               onSortChange={(columnId) =>
-                setSorting([{ id: columnId, desc: sorting[0]?.desc || false }])
+                urlActions.setSort(columnId, sorting[0]?.desc || false)
               }
               onSortDirectionChange={(direction) => {
                 if (sorting[0]) {
-                  setSorting([
-                    { id: sorting[0].id, desc: direction === "desc" },
-                  ]);
+                  urlActions.setSort(sorting[0].id, direction === "desc");
                 }
               }}
               groupableColumns={fixtureColumns
@@ -4471,11 +1901,13 @@ function Fixtures() {
                 }))}
               selectedGroupColumn={grouping[0] || ""}
               onGroupChange={(columnId) => {
-                if (!columnId || columnId === "none") {
-                  setGrouping([]);
-                } else {
-                  setGrouping([columnId]);
-                }
+                startLayoutTransition(() => {
+                  if (!columnId || columnId === "none") {
+                    urlActions.setGroupBy("");
+                  } else {
+                    urlActions.setGroupBy(columnId);
+                  }
+                });
               }}
               columns={fixtureColumns
                 .filter(
@@ -4507,14 +1939,16 @@ function Fixtures() {
                     .map((col) => ("accessorKey" in col ? col.accessorKey : col.id) as string),
                 )}
               onColumnVisibilityChange={(columnId, visible) => {
-                setColumnVisibility((prev) => {
-                  const newVisibility = { ...prev };
-                  if (visible) {
-                    delete newVisibility[columnId];
-                  } else {
-                    newVisibility[columnId] = false;
-                  }
-                  return newVisibility;
+                startLayoutTransition(() => {
+                  setColumnVisibility((prev) => {
+                    const newVisibility = { ...prev };
+                    if (visible) {
+                      delete newVisibility[columnId];
+                    } else {
+                      newVisibility[columnId] = false;
+                    }
+                    return newVisibility;
+                  });
                 });
               }}
               align="end"
@@ -4542,11 +1976,21 @@ function Fixtures() {
             enableGlobalSearch={false}
             // Controlled state for sorting
             sorting={sorting}
-            onSortingChange={setSorting}
+            onSortingChange={(updater) => {
+              const newSorting = typeof updater === 'function' ? updater(sorting) : updater;
+              if (newSorting.length > 0) {
+                urlActions.setSort(newSorting[0].id, newSorting[0].desc);
+              } else {
+                urlActions.setSort(null, true);
+              }
+            }}
             columnVisibility={columnVisibility}
             onColumnVisibilityChange={setColumnVisibility}
             grouping={grouping}
-            onGroupingChange={setGrouping}
+            onGroupingChange={(updater) => {
+              const newGrouping = typeof updater === 'function' ? updater(grouping) : updater;
+              urlActions.setGroupBy(newGrouping[0] ?? "");
+            }}
             expanded={expanded}
             onExpandedChange={setExpanded}
             autoExpandChildren={globalSearchTerms.length > 0}
@@ -4598,6 +2042,7 @@ function Fixtures() {
             onClose={() => {
               setSelectedFixture(null);
               setActiveRowId(undefined);
+              requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
             }}
           />
         )}
