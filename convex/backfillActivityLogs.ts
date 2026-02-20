@@ -4,13 +4,19 @@ import type { Id } from "./_generated/dataModel";
 
 // Backfill activity logs: clears all existing logs and regenerates them
 // in batches (action orchestrator to avoid mutation timeout).
-// Run: npx convex run backfillActivityLogs:backfillActivityLogs
+// Run: npx convex run backfillActivityLogs:backfillActivityLogs --prod
 export const backfillActivityLogs = action({
   handler: async (ctx): Promise<{ message: string }> => {
-    // Step 1: Clear existing logs
-    // @ts-ignore - Type inference issue with deeply nested internal API
-    const clearResult = await ctx.runMutation(internal.migrations.clearActivityLogs);
-    console.log(`Cleared ${clearResult.cleared} existing activity logs`);
+    // Step 1: Clear existing logs (in batches of 1000 to stay under read limits)
+    let totalCleared = 0;
+    let done = false;
+    while (!done) {
+      // @ts-ignore - Type inference issue with deeply nested internal API
+      const clearResult = await ctx.runMutation(internal.migrations.clearActivityLogs);
+      totalCleared += clearResult.cleared;
+      done = clearResult.done;
+    }
+    console.log(`Cleared ${totalCleared} existing activity logs`);
 
     // Step 2: Get fixture IDs and users
     // @ts-ignore - Type inference issue with deeply nested internal API
@@ -40,7 +46,7 @@ export const backfillActivityLogs = action({
     }
 
     return {
-      message: `Cleared ${clearResult.cleared} old logs, regenerated logs for ${totalProcessed} fixtures`,
+      message: `Cleared ${totalCleared} old logs, regenerated logs for ${totalProcessed} fixtures`,
     };
   },
 });

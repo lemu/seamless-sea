@@ -2369,11 +2369,11 @@ export const verifyUniqueCPIDs = mutation({
 // Internal: clear all activity logs
 export const clearActivityLogs = internalMutation({
   handler: async (ctx) => {
-    const existing = await ctx.db.query("activity_logs").collect();
-    for (const log of existing) {
+    const batch = await ctx.db.query("activity_logs").take(1000);
+    for (const log of batch) {
       await ctx.db.delete(log._id);
     }
-    return { cleared: existing.length };
+    return { cleared: batch.length, done: batch.length < 1000 };
   },
 });
 
