@@ -5,6 +5,7 @@ import { seedVesselsInternal } from "./vessels";
 import { seedCargoTypesInternal } from "./cargo_types";
 import { seedRoutesInternal } from "./routes";
 import { migrateTradeDeskDataInternal, migrateFixturesDataInternal, attachActivityLogsToFixtures } from "./migrations";
+import { calculateFixtureLastUpdated, buildFixtureSearchText } from "./fixtures";
 
 // Master seed function to populate all reference data
 export const seedAll = mutation({
@@ -62,6 +63,17 @@ export const seedAll = mutation({
       await attachActivityLogsToFixtures(ctx, user._id, baseNow);
       results.push({
         message: "Activity logs attached to all fixtures"
+      });
+
+      // 9. Backfill denormalized fields (lastUpdated + searchText)
+      const allFixtures = await ctx.db.query("fixtures").collect();
+      for (const fixture of allFixtures) {
+        const lastUpdated = await calculateFixtureLastUpdated(ctx, fixture._id);
+        const searchText = await buildFixtureSearchText(ctx, fixture._id);
+        await ctx.db.patch(fixture._id, { lastUpdated, searchText });
+      }
+      results.push({
+        message: `Backfilled lastUpdated + searchText for ${allFixtures.length} fixtures`
       });
 
       return {

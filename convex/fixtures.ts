@@ -9,9 +9,10 @@ function generateFixtureNumber(): string {
   return `FIX${randomNum}`;
 }
 
-// Internal helper function to recalculate and update fixture's lastUpdated
+// Helper function to recalculate and update fixture's lastUpdated
 // This should be called whenever contracts, recap managers, or negotiations are modified
-async function calculateFixtureLastUpdated(
+// Exported so seed.ts can call it directly after seeding
+export async function calculateFixtureLastUpdated(
   ctx: MutationCtx,
   fixtureId: Id<"fixtures">
 ): Promise<number> {
@@ -86,7 +87,8 @@ async function calculateFixtureLastUpdated(
 
 // Build a denormalized search text string for a fixture
 // Collects all searchable values from fixture + contracts + recap_managers + negotiations + lookups
-async function buildFixtureSearchText(
+// Exported so seed.ts can call it directly after seeding
+export async function buildFixtureSearchText(
   ctx: MutationCtx,
   fixtureId: Id<"fixtures">
 ): Promise<string> {
