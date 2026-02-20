@@ -251,11 +251,38 @@ export function useFixtureBookmarks(
         return {
           ...bookmark,
           count: isActive && !isQueryLoading ? serverDisplayCount : bookmark.count,
-          isLoadingCount: isActive && isQueryLoading,
+          isLoadingCount: isActive && isQueryLoading && bookmark.count == null,
         };
       }),
     [bookmarks, activeBookmarkId, serverDisplayCount, isQueryLoading]
   );
+
+  // Sync live count to local state + DB when viewing a user bookmark
+  // so that switching away shows the correct count, not stale data
+  useEffect(() => {
+    if (isQueryLoading || !activeBookmarkId) return;
+
+    const displayCount = serverGroupCount ?? serverTotalCount;
+    const bookmark = bookmarks.find((b) => b.id === activeBookmarkId);
+
+    // Only for user bookmarks, only if count actually changed
+    if (!bookmark || bookmark.count === displayCount) return;
+
+    // Update local state immediately
+    setBookmarks((prev) =>
+      prev.map((b) =>
+        b.id === activeBookmarkId ? { ...b, count: displayCount } : b
+      )
+    );
+
+    // Persist to DB (fire-and-forget)
+    updateBookmarkMutation({
+      bookmarkId: activeBookmarkId as Id<"user_bookmarks">,
+      count: displayCount,
+    }).catch(() => {
+      // Silently ignore — local state is already correct for this session
+    });
+  }, [activeBookmarkId, serverGroupCount, serverTotalCount, isQueryLoading, bookmarks, updateBookmarkMutation]);
 
   // Active bookmark
   const activeBookmark = useMemo(
