@@ -36,3 +36,5 @@ docs/
 *.njsproj
 *.sln
 *.sw?
+.cursor/
+.windsurf/
