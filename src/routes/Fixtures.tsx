@@ -19,17 +19,14 @@ import {
   statusConfig,
   type FilterDefinition,
   type FilterValue,
-  type Bookmark,
-  toast,
 } from "@rafal.lemieszewski/tide-ui";
-import { useHeaderActions, useUser, useFixtureUrlState } from "../hooks";
+import { useHeaderActions, useFixtureUrlState, useFixtureBookmarks } from "../hooks";
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from "../hooks/useFixtureUrlState";
 import { createFixtureColumns } from "./fixtures/fixtureColumns";
 import { ExportDialog } from "../components/ExportDialog";
 import { FixtureSidebar } from "../components/FixtureSidebar";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
 import {
   getStatusLabel as getStatusLabelBase,
   getCompanyInitials,
@@ -593,45 +590,6 @@ function deriveFilterDefinitions<TData>(
     .filter((def): def is FilterDefinition => def !== null);
 }
 
-/**
- * Deep equality comparison for bookmark state
- * Handles objects, arrays, and primitives with proper order-insensitive object comparison
- */
-function deepEqual(a: unknown, b: unknown): boolean {
-  // Same reference or both primitive and equal
-  if (a === b) return true;
-
-  // Null/undefined checks
-  if (a == null || b == null) return false;
-  if (typeof a !== typeof b) return false;
-
-  // Array comparison (order matters for arrays)
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((val, idx) => deepEqual(val, b[idx]));
-  }
-
-  // Object comparison (order-insensitive)
-  if (typeof a === 'object' && typeof b === 'object') {
-    const objA = a as Record<string, unknown>;
-    const objB = b as Record<string, unknown>;
-    const keysA = Object.keys(objA).sort();
-    const keysB = Object.keys(objB).sort();
-
-    // Different number of keys
-    if (keysA.length !== keysB.length) return false;
-
-    // Different key names
-    if (!keysA.every((key, idx) => key === keysB[idx])) return false;
-
-    // Recursively compare values
-    return keysA.every(key => deepEqual(objA[key], objB[key]));
-  }
-
-  // Primitive types that aren't equal
-  return false;
-}
-
 // Minimum column width in pixels
 const MIN_COLUMN_WIDTH = 120;
 
@@ -714,15 +672,6 @@ const DEFAULT_HIDDEN_COLUMNS: VisibilityState = {
   parentCpId: false,
   contractType: false,
 };
-
-// Helper to convert DB bookmark (with number timestamps) to Bookmark type (with Date timestamps)
-// Pure function — no component dependencies
-const convertDbBookmark = (dbBookmark: Omit<Bookmark, 'createdAt' | 'updatedAt'> & { createdAt: number; updatedAt: number; id: string }): Bookmark => ({
-  ...dbBookmark,
-  id: dbBookmark.id as string,
-  createdAt: new Date(dbBookmark.createdAt),
-  updatedAt: new Date(dbBookmark.updatedAt),
-});
 
 function Fixtures() {
   const [selectedFixture, setSelectedFixture] = useState<FixtureData | null>(
@@ -912,7 +861,8 @@ function Fixtures() {
     const prevState = prevFiltersRef.current;
 
     // Check if filters, search, pagination unit, or sorting changed
-    const stateChanged = !deepEqual(currentState, prevState);
+    // (JSON.stringify is safe here — objects are built deterministically in useMemo with consistent key order)
+    const stateChanged = JSON.stringify(currentState) !== JSON.stringify(prevState);
     if (stateChanged && prevState !== null) {
       // Reset cursor when filters/search/paginationUnit/sorting change (but not on initial mount)
       setCurrentCursor(undefined);
@@ -962,12 +912,6 @@ function Fixtures() {
   // Query fixtures with enriched data using paginated query
   const paginatedFixtures = useQuery(api.fixtures.listEnrichedPaginated, queryArgs);
 
-  // Query bookmark counts (unfiltered totals for system bookmarks)
-  const bookmarkCounts = useQuery(
-    api.fixtures.getBookmarkCounts,
-    organizationId ? { organizationId } : "skip"
-  );
-
   // Query all unique filter options from the full unfiltered dataset
   // so dropdown options don't shrink when a filter is applied
   const filterOptions = useQuery(
@@ -998,103 +942,6 @@ function Fixtures() {
 
   // Keep ref in sync so handlePaginationChange always sees latest cursor
   serverNextCursorRef.current = paginatedFixtures?.nextCursor ?? null;
-
-  // System bookmarks (read-only, configured via props)
-  // Note: count shows serverTotalCount for accurate representation of total fixtures
-  const systemBookmarks: Bookmark[] = useMemo(() => [
-    {
-      id: "system-all",
-      name: "All Fixtures",
-      type: "system",
-      isDefault: true,
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-01"),
-      count: bookmarkCounts?.totalFixtures ?? 0,
-      filtersState: {
-        activeFilters: {},
-        pinnedFilters: [],
-        globalSearchTerms: [],
-      },
-      tableState: {
-        sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
-        grouping: ["fixtureId"],
-        columnOrder: [],
-        columnSizing: {},
-      },
-    },
-    {
-      id: "system-negotiations",
-      name: "Negotiations",
-      type: "system",
-      isDefault: false,
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-01"),
-      count: bookmarkCounts?.totalNegotiations ?? 0,
-      filtersState: {
-        activeFilters: {},
-        pinnedFilters: [],
-        globalSearchTerms: [],
-      },
-      tableState: {
-        sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
-        grouping: ["negotiationId"],
-        columnOrder: [],
-        columnSizing: {},
-      },
-    },
-    {
-      id: "system-contracts",
-      name: "Contracts",
-      type: "system",
-      isDefault: false,
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-01"),
-      count: bookmarkCounts?.totalContracts ?? 0,
-      filtersState: {
-        activeFilters: {},
-        pinnedFilters: [],
-        globalSearchTerms: [],
-      },
-      tableState: {
-        sorting: [{ id: "lastUpdated", desc: true }],
-        columnVisibility: DEFAULT_HIDDEN_COLUMNS,
-        grouping: ["cpId"],
-        columnOrder: [],
-        columnSizing: {},
-      },
-    },
-  ], [bookmarkCounts]);
-
-  // Initial user bookmarks
-  const initialUserBookmarks: Bookmark[] = [];
-
-  // Get current user
-  const { user } = useUser();
-  const userId = user?.appUserId;
-
-  // Query bookmarks from Convex
-  const userBookmarksFromDb = useQuery(
-    api.user_bookmarks.getUserBookmarks,
-    userId ? { userId } : "skip"
-  );
-
-  // Mutation hooks
-  const createBookmarkMutation = useMutation(api.user_bookmarks.createBookmark);
-  const updateBookmarkMutation = useMutation(api.user_bookmarks.updateBookmark);
-  const renameBookmarkMutation = useMutation(api.user_bookmarks.renameBookmark);
-  const deleteBookmarkMutation = useMutation(api.user_bookmarks.deleteBookmark);
-  const setDefaultBookmarkMutation = useMutation(api.user_bookmarks.setDefaultBookmark);
-
-  // Local state for optimistic updates
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialUserBookmarks);
-  // Sync from database when loaded
-  useEffect(() => {
-    if (userBookmarksFromDb) {
-      setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
-    }
-  }, [userBookmarksFromDb, userId]);
 
   const [pinnedFilters, setPinnedFilters] = useState<string[]>([
     "status",
@@ -1133,6 +980,41 @@ function Fixtures() {
 
   // Clean up bookmark loading timer on unmount
   useEffect(() => () => clearTimeout(bookmarkLoadingTimerRef.current), []);
+
+  // Bookmark hook — manages queries, mutations, state, and handlers for bookmarks
+  const bm = useFixtureBookmarks({
+    organizationId,
+    urlActions,
+    activeBookmarkId,
+    defaultHiddenColumns: DEFAULT_HIDDEN_COLUMNS,
+    currentState: {
+      activeFilters,
+      globalSearchTerms,
+      pinnedFilters,
+      sorting,
+      columnVisibility,
+      grouping,
+      columnOrder,
+      columnSizing,
+    },
+    globalPinnedFilters,
+    serverGroupCount,
+    serverTotalCount,
+    isQueryLoading: paginatedFixtures === undefined,
+    callbacks: {
+      setPinnedFilters,
+      setColumnVisibility,
+      setColumnOrder,
+      setColumnSizing,
+      setIsBookmarkLoading,
+      resetCursor: () => {
+        setCurrentCursor(undefined);
+        cursorHistoryRef.current = [undefined];
+      },
+      enforceMinColumnSizing,
+    },
+    bookmarkLoadingTimerRef,
+  });
 
   // Use transition for non-urgent pagination updates (improves INP)
   const [isPaginationPending, startPaginationTransition] = useTransition();
@@ -1359,171 +1241,15 @@ function Fixtures() {
     [fixtureColumns, filterOptions],
   );
 
-  // System bookmarks already have correct server-provided counts
-  const systemBookmarksWithCounts = useMemo(() => {
-    return systemBookmarks.map((bookmark) => ({
-      ...bookmark,
-      isLoadingCount: bookmarkCounts === undefined,
-    }));
-  }, [systemBookmarks, bookmarkCounts]);
-
-  // User bookmarks: active bookmark uses live server count (group count when grouped),
-  // non-active bookmarks keep their stored DB count (updated when viewed).
-  // While query is loading (paginatedFixtures === undefined), keep stored count and show loading.
-  const serverDisplayCount = serverGroupCount ?? serverTotalCount;
-  const isQueryLoading = paginatedFixtures === undefined;
-  const bookmarksWithCounts = useMemo(() => {
-    return bookmarks.map((bookmark) => {
-      const isActive = bookmark.id === activeBookmarkId;
-      return {
-        ...bookmark,
-        count: isActive && !isQueryLoading ? serverDisplayCount : bookmark.count,
-        isLoadingCount: isActive && isQueryLoading,
-      };
-    });
-  }, [bookmarks, activeBookmarkId, serverDisplayCount, isQueryLoading]);
-
-  // Get active bookmark
-  const activeBookmark = useMemo(() => {
-    return [...systemBookmarksWithCounts, ...bookmarksWithCounts].find(
-      (b) => b.id === activeBookmarkId,
-    );
-  }, [systemBookmarksWithCounts, bookmarksWithCounts, activeBookmarkId]);
-
-  // Check if current state is dirty (differs from saved bookmark)
-  const isDirty = useMemo(() => {
-    if (!activeBookmark) return false;
-
-    const savedFiltersState = activeBookmark.filtersState || {
-      activeFilters: {},
-      globalSearchTerms: [],
-      pinnedFilters: [],
-    };
-
-    const savedTableState = activeBookmark.tableState || {
-      sorting: [],
-      columnVisibility: {},
-      grouping: [],
-      columnOrder: [],
-      columnSizing: {},
-    };
-
-    // Build current filters state for comparison
-    const currentFiltersState = {
-      activeFilters,
-      globalSearchTerms,
-      ...(activeBookmark.type === "user" && { pinnedFilters }),
-    };
-
-    const savedFiltersToCompare = {
-      activeFilters: savedFiltersState.activeFilters,
-      globalSearchTerms: savedFiltersState.globalSearchTerms,
-      ...(activeBookmark.type === "user" && { pinnedFilters: savedFiltersState.pinnedFilters }),
-    };
-
-    // Compare filters using deep equality
-    const filtersMatch = deepEqual(currentFiltersState, savedFiltersToCompare);
-
-    // Build current table state for comparison (include ALL properties)
-    const currentTableState = {
-      sorting,
-      columnVisibility,
-      grouping,
-      columnOrder,
-      columnSizing,
-    };
-
-    // Compare table state using deep equality
-    const tableMatch = deepEqual(currentTableState, savedTableState);
-
-    return !filtersMatch || !tableMatch;
-  }, [
-    activeBookmark,
-    activeFilters,
-    globalSearchTerms,
-    pinnedFilters,
-    sorting,
-    columnVisibility,
-    grouping,
-    columnOrder,
-    columnSizing,
-  ]);
-
-  // Calculate bookmark data — all filters are now server-side,
-  // so bookmark data is simply the server-returned data
-  const bookmarkData = useMemo(() => {
-    return fixtureData ?? [];
-  }, [fixtureData]);
-
-  // Load bookmark state — atomically sets URL params + non-URL state
-  const loadBookmark = (bookmark: Bookmark, showLoading = true) => {
-    // Show loading skeleton during bookmark transition (skip on initial mount)
-    if (showLoading) {
-      clearTimeout(bookmarkLoadingTimerRef.current);
-      setIsBookmarkLoading(true);
-      bookmarkLoadingTimerRef.current = setTimeout(() => {
-        setIsBookmarkLoading(false);
-      }, 300);
-    }
-
-    // Reset cursor state
-    setCurrentCursor(undefined);
-    cursorHistoryRef.current = [undefined];
-
-    // Atomically set all URL state from bookmark
-    const bookmarkFilters = bookmark.filtersState?.activeFilters ?? {};
-    const bookmarkSearch = bookmark.filtersState?.globalSearchTerms ?? [];
-    const bookmarkSorting = bookmark.tableState?.sorting ?? [];
-    const bookmarkGrouping = bookmark.tableState?.grouping ?? [];
-    const filterParams = serializeFiltersToUrl(bookmarkFilters);
-
-    urlActions.setAllUrlState({
-      ...filterParams,
-      search: bookmarkSearch.join(' ') || null,
-      sortBy: bookmarkSorting[0]?.id ?? null,
-      sortDesc: bookmarkSorting[0]?.desc ?? true,
-      groupBy: bookmarkGrouping[0] ?? 'fixtureId',
-      bk: bookmark.id,
-      page: 0,
-    });
-
-    // Non-URL state: pinned filters
-    if (bookmark.filtersState) {
-      if (bookmark.type === "user") {
-        setPinnedFilters(bookmark.filtersState.pinnedFilters);
-      } else {
-        setPinnedFilters(globalPinnedFilters);
-      }
-    } else {
-      if (bookmark.type === "system") {
-        setPinnedFilters(globalPinnedFilters);
-      }
-    }
-
-    // Non-URL state: column layout
-    if (bookmark.tableState) {
-      setColumnVisibility(bookmark.tableState.columnVisibility);
-      setColumnOrder(bookmark.tableState.columnOrder || []);
-      setColumnSizing(enforceMinColumnSizing(bookmark.tableState.columnSizing));
-    } else {
-      setColumnVisibility({});
-      setColumnOrder([]);
-      setColumnSizing({});
-    }
-  };
-
   // On mount: restore non-URL state (column layout, pinned filters) from active bookmark.
   // URL defaults already match system-all, so filter/sort/group state is restored from URL.
   useEffect(() => {
-    const initialBookmark = [...systemBookmarks, ...bookmarks].find(
+    const initialBookmark = [...bm.systemBookmarks, ...bm.bookmarks].find(
       (b) => b.id === activeBookmarkId
     );
     if (initialBookmark) {
-      // Restore non-URL state only (column layout, pinned filters)
-      if (initialBookmark.filtersState) {
-        if (initialBookmark.type === "user") {
-          setPinnedFilters(initialBookmark.filtersState.pinnedFilters);
-        }
+      if (initialBookmark.filtersState && initialBookmark.type === "user") {
+        setPinnedFilters(initialBookmark.filtersState.pinnedFilters);
       }
       if (initialBookmark.tableState) {
         setColumnVisibility(initialBookmark.tableState.columnVisibility);
@@ -1549,212 +1275,12 @@ function Fixtures() {
     return fixtureData ?? [];
   }, [fixtureData]);
 
-  // Bookmark handlers
-  const handleBookmarkSelect = (bookmark: Bookmark) => {
-    // Don't reload if clicking the same bookmark
-    if (bookmark.id === activeBookmarkId) {
-      return;
-    }
-    loadBookmark(bookmark);
-  };
-
-  const handleRevert = () => {
-    if (activeBookmark) {
-      // Revert URL state (filters, sort, group, search) atomically
-      const bookmarkFilters = activeBookmark.filtersState?.activeFilters ?? {};
-      const bookmarkSearch = activeBookmark.filtersState?.globalSearchTerms ?? [];
-      const bookmarkSorting = activeBookmark.tableState?.sorting ?? [];
-      const bookmarkGrouping = activeBookmark.tableState?.grouping ?? [];
-      const filterParams = serializeFiltersToUrl(bookmarkFilters);
-
-      urlActions.setAllUrlState({
-        ...filterParams,
-        search: bookmarkSearch.join(' ') || null,
-        sortBy: bookmarkSorting[0]?.id ?? null,
-        sortDesc: bookmarkSorting[0]?.desc ?? true,
-        groupBy: bookmarkGrouping[0] ?? 'fixtureId',
-        page: 0,
-      });
-
-      // Revert non-URL state (pinned filters, column layout)
-      if (activeBookmark.filtersState) {
-        if (activeBookmark.type === "user") {
-          setPinnedFilters(activeBookmark.filtersState.pinnedFilters);
-        }
-      }
-
-      if (activeBookmark.tableState) {
-        setColumnVisibility(activeBookmark.tableState.columnVisibility);
-        setColumnOrder(activeBookmark.tableState.columnOrder || []);
-        setColumnSizing(activeBookmark.tableState.columnSizing);
-      } else {
-        setColumnVisibility({});
-        setColumnOrder([]);
-        setColumnSizing({});
-      }
-    }
-  };
-
-  const handleSave = async (action: "update" | "create", name?: string) => {
-    if (!userId) {
-      return;
-    }
-
-    const bookmarkData = {
-      filtersState: {
-        activeFilters,
-        pinnedFilters,
-        globalSearchTerms,
-      },
-      tableState: {
-        sorting,
-        columnVisibility,
-        grouping,
-        columnOrder,
-        columnSizing,
-      },
-      count: serverGroupCount ?? serverTotalCount,
-    };
-
-    try {
-      if (action === "create") {
-        // Optimistic update
-        const tempId = `temp-${Date.now()}`;
-        const now = new Date();
-        const optimisticBookmark: Bookmark = {
-          id: tempId,
-          name: name || "New Bookmark",
-          type: "user",
-          createdAt: now,
-          updatedAt: now,
-          count: serverGroupCount ?? serverTotalCount,
-          filtersState: bookmarkData.filtersState,
-          tableState: bookmarkData.tableState,
-        };
-
-        setBookmarks([...bookmarks, optimisticBookmark]);
-        urlActions.setBookmark(tempId);
-
-        // Create in database
-        const newBookmark = await createBookmarkMutation({
-          userId,
-          name: name || "New Bookmark",
-          ...bookmarkData,
-        });
-        // Replace temp with real bookmark (convert from DB format)
-        setBookmarks((prev) =>
-          prev.map((b) => (b.id === tempId ? convertDbBookmark(newBookmark) : b))
-        );
-        urlActions.setBookmark(newBookmark.id);
-      } else {
-        // Update existing
-        const bookmarkId = activeBookmarkId as Id<"user_bookmarks">;
-
-        // Optimistic update
-        setBookmarks((prev) =>
-          prev.map((b) =>
-            b.id === bookmarkId
-              ? { ...b, ...bookmarkData, updatedAt: new Date() }
-              : b
-          )
-        );
-
-        // Update in database
-        await updateBookmarkMutation({
-          bookmarkId,
-          ...bookmarkData,
-        });
-      }
-    } catch (error) {
-      if (import.meta.env.DEV) console.error("Failed to save bookmark:", error);
-      toast.error("Failed to save bookmark");
-      // Revert optimistic update
-      if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
-      }
-    }
-  };
-
-  const handleRename = async (id: string, newName: string) => {
-    // Optimistic update
-    setBookmarks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, name: newName } : b))
-    );
-
-    try {
-      await renameBookmarkMutation({
-        bookmarkId: id as Id<"user_bookmarks">,
-        newName,
-      });
-    } catch (error) {
-      if (import.meta.env.DEV) console.error("Failed to rename bookmark:", error);
-      toast.error("Failed to rename bookmark");
-      // Revert optimistic update
-      if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
-      }
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    // Optimistic update
-    const previousBookmarks = bookmarks;
-    setBookmarks((prev) => prev.filter((b) => b.id !== id));
-
-    // Handle active bookmark change
-    if (activeBookmarkId === id) {
-      const firstAvailable =
-        systemBookmarksWithCounts[0] ||
-        bookmarksWithCounts.find((b) => b.id !== id);
-      if (firstAvailable) {
-        loadBookmark(firstAvailable);
-      }
-    }
-
-    try {
-      await deleteBookmarkMutation({
-        bookmarkId: id as Id<"user_bookmarks">,
-      });
-    } catch (error) {
-      if (import.meta.env.DEV) console.error("Failed to delete bookmark:", error);
-      toast.error("Failed to delete bookmark");
-      // Revert optimistic update
-      setBookmarks(previousBookmarks);
-    }
-  };
-
-  const handleSetDefault = async (id: string) => {
-    if (!userId) return;
-
-    // Optimistic update
-    setBookmarks((prev) =>
-      prev.map((b) => ({
-        ...b,
-        isDefault: b.id === id,
-      }))
-    );
-
-    try {
-      await setDefaultBookmarkMutation({
-        userId,
-        bookmarkId: id as Id<"user_bookmarks">,
-      });
-    } catch (error) {
-      if (import.meta.env.DEV) console.error("Failed to set default bookmark:", error);
-      toast.error("Failed to set default bookmark");
-      // Revert optimistic update
-      if (userBookmarksFromDb) {
-        setBookmarks(userBookmarksFromDb.map(convertDbBookmark));
-      }
-    }
-  };
-
   // Handle pinned filters change
   const handlePinnedFiltersChange = (newPinnedFilters: string[]) => {
     setPinnedFilters(newPinnedFilters);
 
     // If on a system bookmark, update the global pinned filters
-    if (activeBookmark?.type === "system") {
+    if (bm.activeBookmark?.type === "system") {
       setGlobalPinnedFilters(newPinnedFilters);
     }
   };
@@ -1793,16 +1319,16 @@ function Fixtures() {
         {/* Bookmarks Tabs Row + Filters Row */}
         <Bookmarks
           variant="tabs"
-          bookmarks={bookmarksWithCounts}
-          systemBookmarks={systemBookmarksWithCounts}
+          bookmarks={bm.bookmarksWithCounts}
+          systemBookmarks={bm.systemBookmarksWithCounts}
           activeBookmarkId={activeBookmarkId}
-          isDirty={isDirty}
-          onSelect={handleBookmarkSelect}
-          onRevert={handleRevert}
-          onSave={handleSave}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onSetDefault={handleSetDefault}
+          isDirty={bm.isDirty}
+          onSelect={bm.handleBookmarkSelect}
+          onRevert={bm.handleRevert}
+          onSave={bm.handleSave}
+          onRename={bm.handleRename}
+          onDelete={bm.handleDelete}
+          onSetDefault={bm.handleSetDefault}
         >
           <Bookmarks.Content>
             <Filters
@@ -1822,16 +1348,16 @@ function Fixtures() {
           </Bookmarks.Content>
 
           <Bookmarks.Actions>
-            {isDirty && (
+            {bm.isDirty && (
               <>
                 <Separator type="dot" layout="horizontal" />
 
-                {activeBookmark?.type === "system" ? (
+                {bm.activeBookmark?.type === "system" ? (
                   // System bookmark actions
                   <>
                     <Button
                       variant="ghost"
-                      onClick={handleRevert}
+                      onClick={bm.handleRevert}
                       className="h-[var(--size-md)] flex-shrink-0"
                     >
                       Reset
@@ -1843,7 +1369,7 @@ function Fixtures() {
                   <>
                     <Button
                       variant="ghost"
-                      onClick={handleRevert}
+                      onClick={bm.handleRevert}
                       className="h-[var(--size-md)] flex-shrink-0"
                     >
                       Revert Changes
@@ -2054,11 +1580,11 @@ function Fixtures() {
         onClose={() => setShowExportDialog(false)}
         data={fixtureData ?? []}
         filteredData={filteredData}
-        bookmarkData={bookmarkData}
+        bookmarkData={fixtureData ?? []}
         availableColumns={availableColumnsForExport}
         visibleColumns={visibleColumnsForExport}
-        isDirty={isDirty}
-        bookmarkName={activeBookmark?.name}
+        isDirty={bm.isDirty}
+        bookmarkName={bm.activeBookmark?.name}
       />
     </>
   );
