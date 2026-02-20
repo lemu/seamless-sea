@@ -84,6 +84,149 @@ async function calculateFixtureLastUpdated(
     : fixture.createdAt ?? fixture._creationTime;
 }
 
+// Build a denormalized search text string for a fixture
+// Collects all searchable values from fixture + contracts + recap_managers + negotiations + lookups
+async function buildFixtureSearchText(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<string> {
+  const fixture = await ctx.db.get(fixtureId);
+  if (!fixture) return "";
+
+  const values = new Set<string>();
+
+  // Fixture fields
+  values.add(fixture.fixtureNumber);
+
+  // Get contracts for this fixture
+  const contracts = await ctx.db
+    .query("contracts")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get recap managers for this fixture
+  const recapManagers = await ctx.db
+    .query("recap_managers")
+    .withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId))
+    .collect();
+
+  // Get negotiations via the order (if exists)
+  let negotiations: any[] = [];
+  let order: any = null;
+  if (fixture.orderId) {
+    order = await ctx.db.get(fixture.orderId);
+    negotiations = await ctx.db
+      .query("negotiations")
+      .withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!))
+      .collect();
+  }
+
+  // Collect IDs for batch lookups
+  const vesselIds = new Set<string>();
+  const companyIds = new Set<string>();
+  const portIds = new Set<string>();
+  const cargoTypeIds = new Set<string>();
+  const userIds = new Set<string>();
+
+  // Process contracts
+  for (const c of contracts) {
+    if (c.contractNumber) values.add(c.contractNumber);
+    if (c.contractType) values.add(c.contractType);
+    if (c.loadDeliveryType) values.add(c.loadDeliveryType);
+    if (c.dischargeRedeliveryType) values.add(c.dischargeRedeliveryType);
+    if (c.vesselId) vesselIds.add(c.vesselId);
+    if (c.ownerId) companyIds.add(c.ownerId);
+    if (c.chartererId) companyIds.add(c.chartererId);
+    if (c.brokerId) companyIds.add(c.brokerId);
+    if (c.loadPortId) portIds.add(c.loadPortId);
+    if (c.dischargePortId) portIds.add(c.dischargePortId);
+    if (c.cargoTypeId) cargoTypeIds.add(c.cargoTypeId);
+  }
+
+  // Process recap managers
+  for (const r of recapManagers) {
+    if (r.recapNumber) values.add(r.recapNumber);
+    if (r.contractType) values.add(r.contractType);
+    if (r.vesselId) vesselIds.add(r.vesselId);
+    if (r.ownerId) companyIds.add(r.ownerId);
+    if (r.chartererId) companyIds.add(r.chartererId);
+    if (r.brokerId) companyIds.add(r.brokerId);
+    if (r.loadPortId) portIds.add(r.loadPortId);
+    if (r.dischargePortId) portIds.add(r.dischargePortId);
+    if (r.cargoTypeId) cargoTypeIds.add(r.cargoTypeId);
+  }
+
+  // Process negotiations
+  for (const n of negotiations) {
+    if (n.negotiationNumber) values.add(n.negotiationNumber);
+    if (n.marketIndexName) values.add(n.marketIndexName);
+    if (n.loadDeliveryType) values.add(n.loadDeliveryType);
+    if (n.dischargeRedeliveryType) values.add(n.dischargeRedeliveryType);
+    if (n.vesselId) vesselIds.add(n.vesselId);
+    if (n.counterpartyId) companyIds.add(n.counterpartyId);
+    if (n.brokerId) companyIds.add(n.brokerId);
+    if (n.dealCaptureUserId) userIds.add(n.dealCaptureUserId);
+  }
+
+  // Process order
+  if (order) {
+    if (order.createdByUserId) userIds.add(order.createdByUserId);
+    if (order.loadPortId) portIds.add(order.loadPortId);
+    if (order.dischargePortId) portIds.add(order.dischargePortId);
+    if (order.cargoTypeId) cargoTypeIds.add(order.cargoTypeId);
+  }
+
+  // Batch lookups - vessels
+  for (const id of vesselIds) {
+    const vessel = await ctx.db.get(id as Id<"vessels">);
+    if (vessel) {
+      values.add(vessel.name);
+      if (vessel.imoNumber) values.add(vessel.imoNumber);
+    }
+  }
+
+  // Batch lookups - companies
+  for (const id of companyIds) {
+    const company = await ctx.db.get(id as Id<"companies">);
+    if (company) values.add(company.name);
+  }
+
+  // Batch lookups - ports
+  for (const id of portIds) {
+    const port = await ctx.db.get(id as Id<"ports">);
+    if (port) {
+      values.add(port.name);
+      if (port.country) values.add(port.country);
+    }
+  }
+
+  // Batch lookups - cargo types
+  for (const id of cargoTypeIds) {
+    const cargoType = await ctx.db.get(id as Id<"cargo_types">);
+    if (cargoType) values.add(cargoType.name);
+  }
+
+  // Batch lookups - users
+  for (const id of userIds) {
+    const user = await ctx.db.get(id as Id<"users">);
+    if (user) values.add(user.name);
+  }
+
+  // Join all values lowercase, space-separated
+  return Array.from(values)
+    .map((v) => v.toLowerCase())
+    .join(" ");
+}
+
+// Update fixture's searchText denormalized field
+async function updateFixtureSearchText(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<void> {
+  const searchText = await buildFixtureSearchText(ctx, fixtureId);
+  await ctx.db.patch(fixtureId, { searchText });
+}
+
 // Public mutation to manually recalculate lastUpdated (for backfill or debugging)
 export const recalculateLastUpdated = mutation({
   args: { fixtureId: v.id("fixtures") },
@@ -108,6 +251,23 @@ export const backfillLastUpdated = mutation({
     }
 
     return { updated, message: `Updated lastUpdated for ${updated} fixtures` };
+  },
+});
+
+// Backfill mutation to populate searchText for all existing fixtures
+export const backfillSearchText = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const fixtures = await ctx.db.query("fixtures").collect();
+    let updated = 0;
+
+    for (const fixture of fixtures) {
+      const searchText = await buildFixtureSearchText(ctx, fixture._id);
+      await ctx.db.patch(fixture._id, { searchText });
+      updated++;
+    }
+
+    return { updated, message: `Updated searchText for ${updated} fixtures` };
   },
 });
 
@@ -142,6 +302,9 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Build initial searchText (covers fixture number + any linked order data)
+    await updateFixtureSearchText(ctx, fixtureId);
 
     return fixtureId;
   },
@@ -182,6 +345,9 @@ export const update = mutation({
       lastUpdated: newLastUpdated,
       updatedAt: now,
     });
+
+    // Rebuild searchText after update
+    await updateFixtureSearchText(ctx, fixtureId);
 
     return fixtureId;
   },
@@ -579,6 +745,8 @@ const paginatedQueryArgs = {
     min: v.optional(v.number()),
     max: v.optional(v.number()),
   }))),
+  // Custom grouping field — when set, server counts unique group values
+  groupByField: v.optional(v.string()),
 };
 
 type PaginatedQueryArgs = {
@@ -598,6 +766,7 @@ type PaginatedQueryArgs = {
   multiselectFilters?: { field: string; values: string[] }[];
   dateRangeFilters?: { field: string; from?: number; to?: number }[];
   numberRangeFilters?: { field: string; min?: number; max?: number }[];
+  groupByField?: string;
 };
 
 // Unified lookup data loaded once per query execution
@@ -708,15 +877,15 @@ function determineLookupNeeds(args: PaginatedQueryArgs): {
     (args.vesselNames && args.vesselNames.length > 0) ||
     (args.ownerNames && args.ownerNames.length > 0) ||
     (args.chartererNames && args.chartererNames.length > 0);
-  const hasSearchTerms = (args.searchTerms && args.searchTerms.length > 0);
   const hasGroupedFilters = (args.multiselectFilters?.length ?? 0) > 0
     || (args.dateRangeFilters?.length ?? 0) > 0
     || (args.numberRangeFilters?.length ?? 0) > 0;
   const needsLookupsForSort = LOOKUP_SORT_FIELDS.has(sortField);
   const needsLookupsForFilters = hasGroupedFilters && filtersNeedLookups(args);
 
-  const needsVessels = !!hasNameFilters || needsLookupsForSort || needsLookupsForFilters || !!hasSearchTerms;
-  const needsCompanies = !!hasNameFilters || needsLookupsForSort || needsLookupsForFilters || !!hasSearchTerms;
+  // Note: search no longer needs lookups — it uses the denormalized searchText field
+  const needsVessels = !!hasNameFilters || needsLookupsForSort || needsLookupsForFilters;
+  const needsCompanies = !!hasNameFilters || needsLookupsForSort || needsLookupsForFilters;
   const needsPorts = needsLookupsForSort || needsLookupsForFilters;
   const needsCargoTypes = needsLookupsForSort || needsLookupsForFilters;
 
@@ -1119,7 +1288,22 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
   const needsLookupsForSort = LOOKUP_SORT_FIELDS.has(sortField);
   const needsEntityData = needsLookupsForSort || NEGOTIATION_SORT_FIELDS.has(sortField)
     || CONTRACT_SORT_FIELDS.has(sortField) || COMPUTED_SORT_FIELDS.has(sortField);
-  const needsEntityLoop = hasContractFilters || hasGroupedFilters || hasSearchTerms || needsEntityData;
+
+  // Map groupByField column names to the entity ID field used for grouping
+  const GROUP_FIELD_TO_ENTITY_KEY: Record<string, string> = {
+    broker: "brokerId",
+    owner: "ownerId",
+    charterer: "chartererId",
+    vessels: "vesselId",
+    loadPortName: "loadPortId",
+    dischargePortName: "dischargePortId",
+    cargoTypeName: "cargoTypeId",
+    contractType: "contractType",
+  };
+  const groupByEntityKey = args.groupByField ? GROUP_FIELD_TO_ENTITY_KEY[args.groupByField] : undefined;
+  const needsGroupCount = !!groupByEntityKey;
+
+  const needsEntityLoop = hasContractFilters || hasGroupedFilters || hasSearchTerms || needsEntityData || needsGroupCount;
 
   // Load all lookup data once (unified: replaces loadSortLookups + resolveNameFilters + loadSearchIndexes)
   const lookupNeeds = determineLookupNeeds(args);
@@ -1139,6 +1323,7 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
 
   // Single combined loop: filter + search + collect sort data in one pass per fixture
   const fixtureEntityMap = new Map<string, { contract: any; negotiation: any }>();
+  const groupValues = needsGroupCount ? new Set<string>() : null;
   if (needsEntityLoop) {
     // Cache entity data per fixture to avoid duplicate loads
     const fixtureEntitiesCache = new Map<string, { contracts: any[]; recaps: any[]; negotiations: any[] }>();
@@ -1198,18 +1383,9 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
         if (!anyEntityMatches) continue;
       }
 
-      // 3. Global search
+      // 3. Global search (uses denormalized searchText field)
       if (searchTermsLower) {
-        const searchableFields: string[] = [fixture.fixtureNumber.toLowerCase()];
-        for (const item of entities) {
-          if ('contractNumber' in item && item.contractNumber) searchableFields.push(item.contractNumber.toLowerCase());
-          if ('recapNumber' in item && item.recapNumber) searchableFields.push(item.recapNumber.toLowerCase());
-          if (item.vesselId) { const n = lookups?.vesselNameByIdLower.get(item.vesselId); if (n) searchableFields.push(n); }
-          if (item.ownerId) { const n = lookups?.companyNameByIdLower.get(item.ownerId); if (n) searchableFields.push(n); }
-          if (item.chartererId) { const n = lookups?.companyNameByIdLower.get(item.chartererId); if (n) searchableFields.push(n); }
-          if (item.brokerId) { const n = lookups?.companyNameByIdLower.get(item.brokerId); if (n) searchableFields.push(n); }
-        }
-        if (!searchTermsLower.every(term => searchableFields.join(' ').includes(term))) {
+        if (!fixture.searchText || !searchTermsLower.every(term => fixture.searchText!.includes(term))) {
           continue;
         }
       }
@@ -1221,6 +1397,13 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
           ? (negotiations.find((n: any) => n._id === entity.negotiationId) ?? null)
           : null;
         fixtureEntityMap.set(fixture._id, { contract: entity, negotiation });
+      }
+
+      // 5. Collect unique group values (reuse already-loaded entities)
+      if (groupValues && groupByEntityKey) {
+        const entity = contracts[0] ?? recaps[0] ?? null;
+        const val = entity?.[groupByEntityKey];
+        if (val != null) groupValues.add(String(val));
       }
 
       filteredFixtures.push(fixture);
@@ -1285,6 +1468,7 @@ async function paginateByFixture(ctx: { db: any; storage: any }, args: Paginated
     hasMore,
     totalCount: allFixtures.length,
     unfilteredTotalCount,
+    totalGroupCount: groupValues ? groupValues.size : undefined,
   };
 }
 
@@ -1411,19 +1595,13 @@ async function paginateByNegotiation(ctx: { db: any; storage: any }, args: Pagin
     });
   }
 
-  // Global search (uses unified lookups)
+  // Global search (uses denormalized searchText field on fixture)
   if (args.searchTerms && args.searchTerms.length > 0) {
     const searchTermsLower = args.searchTerms.map(t => t.toLowerCase());
 
     filtered = filtered.filter(t => {
-      const neg = t.negotiation;
       const fix = t.fixture;
-      const fields: string[] = [fix.fixtureNumber.toLowerCase()];
-      if (neg.negotiationNumber) fields.push(neg.negotiationNumber.toLowerCase());
-      if (neg.vesselId) { const n = lookups?.vesselNameByIdLower.get(neg.vesselId); if (n) fields.push(n); }
-      if (neg.counterpartyId) { const n = lookups?.companyNameByIdLower.get(neg.counterpartyId); if (n) fields.push(n); }
-      if (neg.brokerId) { const n = lookups?.companyNameByIdLower.get(neg.brokerId); if (n) fields.push(n); }
-      return searchTermsLower.every(term => fields.join(' ').includes(term));
+      return fix.searchText && searchTermsLower.every(term => fix.searchText!.includes(term));
     });
   }
 
@@ -1561,6 +1739,7 @@ async function paginateByNegotiation(ctx: { db: any; storage: any }, args: Pagin
     hasMore,
     totalCount: filtered.length,
     unfilteredTotalCount,
+    totalGroupCount: undefined as number | undefined,
   };
 }
 
@@ -1639,21 +1818,13 @@ async function paginateByContract(ctx: { db: any; storage: any }, args: Paginate
     filtered = filtered.filter(t => matchesEntityFilters(t.entity, nameFilters!));
   }
 
-  // Global search (uses unified lookups)
+  // Global search (uses denormalized searchText field on fixture)
   if (args.searchTerms && args.searchTerms.length > 0) {
     const searchTermsLower = args.searchTerms.map(t => t.toLowerCase());
 
     filtered = filtered.filter(t => {
-      const entity = t.entity;
       const fix = t.fixture;
-      const fields: string[] = [fix.fixtureNumber.toLowerCase()];
-      if ('contractNumber' in entity && entity.contractNumber) fields.push(entity.contractNumber.toLowerCase());
-      if ('recapNumber' in entity && entity.recapNumber) fields.push(entity.recapNumber.toLowerCase());
-      if (entity.vesselId) { const n = lookups?.vesselNameByIdLower.get(entity.vesselId); if (n) fields.push(n); }
-      if (entity.ownerId) { const n = lookups?.companyNameByIdLower.get(entity.ownerId); if (n) fields.push(n); }
-      if (entity.chartererId) { const n = lookups?.companyNameByIdLower.get(entity.chartererId); if (n) fields.push(n); }
-      if (entity.brokerId) { const n = lookups?.companyNameByIdLower.get(entity.brokerId); if (n) fields.push(n); }
-      return searchTermsLower.every(term => fields.join(' ').includes(term));
+      return fix.searchText && searchTermsLower.every(term => fix.searchText!.includes(term));
     });
   }
 
@@ -1768,6 +1939,7 @@ async function paginateByContract(ctx: { db: any; storage: any }, args: Paginate
     hasMore,
     totalCount: filtered.length,
     unfilteredTotalCount,
+    totalGroupCount: undefined as number | undefined,
   };
 }
 

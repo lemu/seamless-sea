@@ -286,6 +286,9 @@ export default defineSchema({
     // Denormalized lastUpdated timestamp - max of fixture, contracts, recaps, negotiations timestamps
     // Updated automatically when related entities change
     lastUpdated: v.optional(v.number()),
+    // Denormalized search text - all searchable values concatenated lowercase
+    // Updated automatically when related entities change
+    searchText: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

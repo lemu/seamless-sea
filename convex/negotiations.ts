@@ -68,6 +68,100 @@ async function updateFixtureLastUpdatedViaOrder(
   }
 }
 
+// Helper function to rebuild fixture's searchText
+// Duplicated here to avoid circular dependency issues with internal functions
+async function updateFixtureSearchText(
+  ctx: MutationCtx,
+  fixtureId: Id<"fixtures">
+): Promise<void> {
+  const fixture = await ctx.db.get(fixtureId);
+  if (!fixture) return;
+
+  const values = new Set<string>();
+  values.add(fixture.fixtureNumber);
+
+  const contracts = await ctx.db.query("contracts").withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId)).collect();
+  const recapManagers = await ctx.db.query("recap_managers").withIndex("by_fixture", (q) => q.eq("fixtureId", fixtureId)).collect();
+
+  let negotiations: any[] = [];
+  let order: any = null;
+  if (fixture.orderId) {
+    order = await ctx.db.get(fixture.orderId);
+    negotiations = await ctx.db.query("negotiations").withIndex("by_order", (q) => q.eq("orderId", fixture.orderId!)).collect();
+  }
+
+  const vesselIds = new Set<string>();
+  const companyIds = new Set<string>();
+  const portIds = new Set<string>();
+  const cargoTypeIds = new Set<string>();
+  const userIds = new Set<string>();
+
+  for (const c of contracts) {
+    if (c.contractNumber) values.add(c.contractNumber);
+    if (c.contractType) values.add(c.contractType);
+    if (c.loadDeliveryType) values.add(c.loadDeliveryType);
+    if (c.dischargeRedeliveryType) values.add(c.dischargeRedeliveryType);
+    if (c.vesselId) vesselIds.add(c.vesselId);
+    if (c.ownerId) companyIds.add(c.ownerId);
+    if (c.chartererId) companyIds.add(c.chartererId);
+    if (c.brokerId) companyIds.add(c.brokerId);
+    if (c.loadPortId) portIds.add(c.loadPortId);
+    if (c.dischargePortId) portIds.add(c.dischargePortId);
+    if (c.cargoTypeId) cargoTypeIds.add(c.cargoTypeId);
+  }
+  for (const r of recapManagers) {
+    if (r.recapNumber) values.add(r.recapNumber);
+    if (r.contractType) values.add(r.contractType);
+    if (r.vesselId) vesselIds.add(r.vesselId);
+    if (r.ownerId) companyIds.add(r.ownerId);
+    if (r.chartererId) companyIds.add(r.chartererId);
+    if (r.brokerId) companyIds.add(r.brokerId);
+    if (r.loadPortId) portIds.add(r.loadPortId);
+    if (r.dischargePortId) portIds.add(r.dischargePortId);
+    if (r.cargoTypeId) cargoTypeIds.add(r.cargoTypeId);
+  }
+  for (const n of negotiations) {
+    if (n.negotiationNumber) values.add(n.negotiationNumber);
+    if (n.marketIndexName) values.add(n.marketIndexName);
+    if (n.loadDeliveryType) values.add(n.loadDeliveryType);
+    if (n.dischargeRedeliveryType) values.add(n.dischargeRedeliveryType);
+    if (n.vesselId) vesselIds.add(n.vesselId);
+    if (n.counterpartyId) companyIds.add(n.counterpartyId);
+    if (n.brokerId) companyIds.add(n.brokerId);
+    if (n.dealCaptureUserId) userIds.add(n.dealCaptureUserId);
+  }
+  if (order) {
+    if (order.createdByUserId) userIds.add(order.createdByUserId);
+    if (order.loadPortId) portIds.add(order.loadPortId);
+    if (order.dischargePortId) portIds.add(order.dischargePortId);
+    if (order.cargoTypeId) cargoTypeIds.add(order.cargoTypeId);
+  }
+
+  for (const id of vesselIds) { const v = await ctx.db.get(id as Id<"vessels">); if (v) { values.add(v.name); if (v.imoNumber) values.add(v.imoNumber); } }
+  for (const id of companyIds) { const c = await ctx.db.get(id as Id<"companies">); if (c) values.add(c.name); }
+  for (const id of portIds) { const p = await ctx.db.get(id as Id<"ports">); if (p) { values.add(p.name); if (p.country) values.add(p.country); } }
+  for (const id of cargoTypeIds) { const ct = await ctx.db.get(id as Id<"cargo_types">); if (ct) values.add(ct.name); }
+  for (const id of userIds) { const u = await ctx.db.get(id as Id<"users">); if (u) values.add(u.name); }
+
+  const searchText = Array.from(values).map((v) => v.toLowerCase()).join(" ");
+  await ctx.db.patch(fixtureId, { searchText });
+}
+
+// Helper function to update fixture's searchText via order
+async function updateFixtureSearchTextViaOrder(
+  ctx: MutationCtx,
+  orderId: Id<"orders">
+): Promise<void> {
+  const fixture = await ctx.db
+    .query("fixtures")
+    .withIndex("by_order", (q) => q.eq("orderId", orderId))
+    .first();
+
+  if (fixture) {
+    await updateFixtureSearchText(ctx, fixture._id);
+  }
+}
+
 // Create a new negotiation
 export const create = mutation({
   args: {
@@ -122,8 +216,9 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Update the fixture's lastUpdated timestamp via the order
+    // Update the fixture's lastUpdated timestamp and searchText via the order
     await updateFixtureLastUpdatedViaOrder(ctx, args.orderId);
+    await updateFixtureSearchTextViaOrder(ctx, args.orderId);
 
     // TODO: Log activity
     // await logActivity(ctx, "negotiation", negotiationId, "created", ...);
@@ -161,8 +256,9 @@ export const update = mutation({
       updatedAt: Date.now(),
     });
 
-    // Update the fixture's lastUpdated timestamp via the order
+    // Update the fixture's lastUpdated timestamp and searchText via the order
     await updateFixtureLastUpdatedViaOrder(ctx, existing.orderId);
+    await updateFixtureSearchTextViaOrder(ctx, existing.orderId);
 
     return negotiationId;
   },
@@ -199,8 +295,9 @@ export const updateStatus = mutation({
       updatedAt: Date.now(),
     });
 
-    // Update the fixture's lastUpdated timestamp via the order
+    // Update the fixture's lastUpdated timestamp and searchText via the order
     await updateFixtureLastUpdatedViaOrder(ctx, negotiation.orderId);
+    await updateFixtureSearchTextViaOrder(ctx, negotiation.orderId);
 
     // TODO: Log activity
     // await logActivity(ctx, "negotiation", args.negotiationId, "status_changed", ...);
@@ -481,8 +578,9 @@ export const calculateAnalytics = mutation({
       updatedAt: Date.now(),
     });
 
-    // Update the fixture's lastUpdated timestamp via the order
+    // Update the fixture's lastUpdated timestamp and searchText via the order
     await updateFixtureLastUpdatedViaOrder(ctx, negotiation.orderId);
+    await updateFixtureSearchTextViaOrder(ctx, negotiation.orderId);
 
     return {
       message: "Analytics calculated successfully",

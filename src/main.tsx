@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router";
+import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { ConvexReactClient } from "convex/react";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { authClient } from "./lib/auth-client";
@@ -216,7 +217,9 @@ const router = createBrowserRouter([
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ConvexBetterAuthProvider client={convex} authClient={authClient}>
-      <RouterProvider router={router} />
+      <NuqsAdapter>
+        <RouterProvider router={router} />
+      </NuqsAdapter>
     </ConvexBetterAuthProvider>
   </StrictMode>,
 );
