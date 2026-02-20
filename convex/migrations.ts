@@ -1,7 +1,8 @@
-import { mutation } from "./_generated/server";
+import { mutation, internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { logActivity, trackFieldChange } from "./audit";
+import { v } from "convex/values";
 
 // Helper to get random item from array
 function randomItem<T>(array: T[]): T {
@@ -1876,11 +1877,16 @@ async function attachTradeDeskLogs(
       .withIndex("by_negotiation", (q) => q.eq("negotiationId", negotiation._id))
       .first();
 
-    if (!contract) continue;
-
     // Calculate daysAgoOffset based on fixture creation time
     const DAY = 24 * 60 * 60 * 1000;
     const daysAgoOffset = Math.floor((baseNow - fixture.createdAt) / DAY);
+
+    if (!contract) {
+      // No contract — apply negotiation-only scenario
+      const scenario = selectTradeDeskScenario(negotiation.status, null, undefined);
+      await applyTradeDeskScenario(ctx, scenario, fixture.orderId!, negotiation._id, null, userId, counterpartyUserId, daysAgoOffset, baseNow);
+      continue;
+    }
 
     // Correct invalid status combinations before creating logs
     await correctTradeDeskStatusCombination(ctx, negotiation, contract);
@@ -2360,187 +2366,56 @@ export const verifyUniqueCPIDs = mutation({
   },
 });
 
-// Backfill activity logs for existing fixtures
-export const backfillActivityLogs = mutation({
-  args: {},
+// Internal: clear all activity logs
+export const clearActivityLogs = internalMutation({
   handler: async (ctx) => {
-    const users = await ctx.db.query("users").collect();
-
-    if (users.length === 0) {
-      throw new Error("No users found");
+    const existing = await ctx.db.query("activity_logs").collect();
+    for (const log of existing) {
+      await ctx.db.delete(log._id);
     }
+    return { cleared: existing.length };
+  },
+});
 
-    const mainUser = users[0];
-    const counterpartyUser = users.length > 1 ? users[1] : users[0];
+// Internal: process a batch of fixtures for activity logs
+export const processActivityLogBatch = internalMutation({
+  args: {
+    fixtureIds: v.array(v.id("fixtures")),
+    userId: v.id("users"),
+    counterpartyUserId: v.id("users"),
+    baseNow: v.number(),
+  },
+  handler: async (ctx, { fixtureIds, userId, counterpartyUserId, baseNow }) => {
+    let processed = 0;
+    for (const fixtureId of fixtureIds) {
+      const fixture = await ctx.db.get(fixtureId);
+      if (!fixture) continue;
 
-    // Get all contracts with orders and negotiations
-    const contracts = await ctx.db.query("contracts").collect();
-    const contractsWithOrdersAndNegotiations = contracts.filter(
-      (c) => c.orderId && c.negotiationId
-    );
-
-    console.log(`Found ${contractsWithOrdersAndNegotiations.length} contracts with full lifecycle`);
-
-    let activityLogsCreated = 0;
-
-    for (const contract of contractsWithOrdersAndNegotiations) {
-      if (!contract.orderId || !contract.negotiationId) continue;
-
-      // Create activity logs for this contract's lifecycle
-      try {
-        // Order lifecycle
-        await logActivity(
-          ctx,
-          "order",
-          contract.orderId,
-          "created",
-          "Created order draft",
-          { value: "draft", label: "Draft" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "order",
-          contract.orderId,
-          "distributed",
-          "Distributed the order to the market",
-          { value: "distributed", label: "Distributed" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        // Negotiation lifecycle
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "sent",
-          "Sent indicative offer",
-          { value: "indicative-offer", label: "Indicative offer" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "sent",
-          "Sent indicative bid",
-          { value: "indicative-bid", label: "Indicative bid" },
-          undefined,
-          counterpartyUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "sent",
-          "Sent firm offer",
-          { value: "firm-offer", label: "Firm offer" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "sent",
-          "Sent firm bid",
-          { value: "firm-bid", label: "Firm bid" },
-          undefined,
-          counterpartyUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "accepted",
-          "Accepted firm bid. Offer is now firm",
-          { value: "firm", label: "Firm" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "on-subs",
-          "Went on subs",
-          { value: "on-subs", label: "On Subs" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "negotiation",
-          contract.negotiationId,
-          "fixed",
-          "Set negotiation as fixed",
-          { value: "fixed", label: "Fixed" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        // Contract lifecycle
-        await logActivity(
-          ctx,
-          "contract",
-          contract._id,
-          "created",
-          "Contract draft was created",
-          { value: "draft", label: "Draft" }
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "contract",
-          contract._id,
-          "status-changed",
-          "Changed contract status to working copy",
-          { value: "working-copy", label: "Working copy" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-
-        await logActivity(
-          ctx,
-          "contract",
-          contract._id,
-          "signed",
-          "Signed the contract. Status is now final",
-          { value: "final", label: "Final" },
-          undefined,
-          mainUser._id
-        );
-        activityLogsCreated++;
-      } catch (error) {
-        console.error(`Error creating activity logs for contract ${contract._id}:`, error);
+      if (fixture.orderId) {
+        await attachTradeDeskLogs(ctx, fixture, userId, counterpartyUserId, baseNow);
+      } else {
+        await attachOutOfTradeLogs(ctx, fixture, userId, baseNow);
       }
+      processed++;
     }
+    return { processed };
+  },
+});
+
+// Internal: gather fixture IDs and user IDs for backfill
+export const getActivityLogBackfillData = internalMutation({
+  handler: async (ctx) => {
+    const fixtures = await ctx.db.query("fixtures").collect();
+    const users = await ctx.db.query("users").take(2);
+    if (users.length === 0) throw new Error("No users found");
+
+    const userId = users[0]._id;
+    const counterpartyUserId = users.length > 1 ? users[1]._id : users[0]._id;
 
     return {
-      success: true,
-      contractsProcessed: contractsWithOrdersAndNegotiations.length,
-      activityLogsCreated,
+      fixtureIds: fixtures.map((f) => f._id),
+      userId,
+      counterpartyUserId,
     };
   },
 });

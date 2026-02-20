@@ -12,6 +12,7 @@ import type * as approvals from "../approvals.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as authQueries from "../authQueries.js";
+import type * as backfillActivityLogs from "../backfillActivityLogs.js";
 import type * as boards from "../boards.js";
 import type * as cargo_types from "../cargo_types.js";
 import type * as cleanOrphanedData from "../cleanOrphanedData.js";
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   audit: typeof audit;
   auth: typeof auth;
   authQueries: typeof authQueries;
+  backfillActivityLogs: typeof backfillActivityLogs;
   boards: typeof boards;
   cargo_types: typeof cargo_types;
   cleanOrphanedData: typeof cleanOrphanedData;
