@@ -23,7 +23,7 @@ const urlStateParsers = {
   search: parseAsString,
 
   // Sorting
-  sortBy: parseAsString,
+  sortBy: parseAsString.withDefault('lastUpdated'),
   sortDesc: parseAsBoolean.withDefault(true),
 
   // Grouping
@@ -54,7 +54,7 @@ const urlStateParsers = {
 export interface FixtureUrlState {
   bk: string;
   search: string | null;
-  sortBy: string | null;
+  sortBy: string;
   sortDesc: boolean;
   groupBy: string;
   page: number;
@@ -309,7 +309,7 @@ export function useFixtureUrlState(): [FixtureUrlState, FixtureUrlActions] {
     setUrlState({
       bk: 'system-all',
       search: null,
-      sortBy: null,
+      sortBy: 'lastUpdated',
       sortDesc: true,
       groupBy: 'fixtureId',
       page: 0,
