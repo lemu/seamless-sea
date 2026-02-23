@@ -628,7 +628,7 @@ function Fixtures() {
 
   // Derive component-level state from URL
   const activeFilters = useMemo(() => deserializeFiltersFromUrl(urlState), [urlState]);
-  const globalSearchTerms = useMemo(() => urlState.search?.split(/\s+/).filter(Boolean) ?? [], [urlState.search]);
+  const globalSearchTerms = useMemo(() => urlState.search?.split(/\s*,\s*/).filter(Boolean) ?? [], [urlState.search]);
   const sorting: SortingState = useMemo(() => urlState.sortBy ? [{ id: urlState.sortBy, desc: urlState.sortDesc }] : [], [urlState.sortBy, urlState.sortDesc]);
   const grouping: GroupingState = useMemo(() => urlState.groupBy ? [urlState.groupBy] : [], [urlState.groupBy]);
   const pagination: PaginationState = useMemo(() => ({ pageIndex: urlState.page, pageSize: urlState.pageSize }), [urlState.page, urlState.pageSize]);
@@ -882,7 +882,7 @@ function Fixtures() {
   // Search handler — updates URL, wrapped in transition for INP
   const handleGlobalSearchChange = useCallback((terms: string[]) => {
     startSearchTransition(() => {
-      urlActions.setSearch(terms.join(' ') || null);
+      urlActions.setSearch(terms.join(', ') || null);
     });
   }, [urlActions]);
 

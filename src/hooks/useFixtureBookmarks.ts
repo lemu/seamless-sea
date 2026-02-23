@@ -364,7 +364,7 @@ export function useFixtureBookmarks(
 
       urlActions.setAllUrlState({
         ...filterParams,
-        search: bookmarkSearch.join(" ") || null,
+        search: bookmarkSearch.join(", ") || null,
         sortBy: bookmarkSorting[0]?.id ?? 'lastUpdated',
         sortDesc: bookmarkSorting[0]?.desc ?? true,
         groupBy: bookmarkGrouping[0] ?? "fixtureId",
@@ -418,7 +418,7 @@ export function useFixtureBookmarks(
 
       urlActions.setAllUrlState({
         ...filterParams,
-        search: bookmarkSearch.join(" ") || null,
+        search: bookmarkSearch.join(", ") || null,
         sortBy: bookmarkSorting[0]?.id ?? 'lastUpdated',
         sortDesc: bookmarkSorting[0]?.desc ?? true,
         groupBy: bookmarkGrouping[0] ?? "fixtureId",
