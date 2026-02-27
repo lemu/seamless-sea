@@ -23,7 +23,7 @@ function AuthGate() {
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[var(--color-surface-secondary)]">
-        <Spinner size="lg" variant="primary" showLabel loadingText="Loading..." />
+        <Spinner size="l" variant="primary" showLabel loadingText="Loading..." />
       </div>
     );
   }
@@ -36,7 +36,7 @@ function AuthGate() {
   // During redirect (authenticated but haven't redirected yet)
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-[var(--color-surface-secondary)]">
-      <Spinner size="lg" variant="primary" showLabel loadingText="Loading..." />
+      <Spinner size="l" variant="primary" showLabel loadingText="Loading..." />
     </div>
   );
 }

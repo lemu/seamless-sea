@@ -15,14 +15,19 @@ import ForgotPassword from "./routes/ForgotPassword.tsx";
 import ResetPassword from "./routes/ResetPassword.tsx";
 import AcceptInvitation from "./routes/AcceptInvitation.tsx";
 import Home from "./routes/Home.tsx";
-import FreightPlanner from "./routes/FreightPlanner.tsx";
+import VoyageEconomics from "./routes/VoyageEconomics.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
 import Recaps from "./routes/Recaps.tsx";
 import AgreementContracts from "./routes/AgreementContracts.tsx";
 import ClauseLibrary from "./routes/ClauseLibrary.tsx";
 import Compliance from "./routes/Compliance.tsx";
-import GlobalMarket from "./routes/GlobalMarket.tsx";
-import Assets from "./routes/Assets.tsx";
+import GlobalMarketSupply from "./routes/GlobalMarketSupply.tsx";
+import GlobalMarketCommodities from "./routes/GlobalMarketCommodities.tsx";
+import GlobalMarketFreight from "./routes/GlobalMarketFreight.tsx";
+import AssetsVessels from "./routes/AssetsVessels.tsx";
+import AssetsFleets from "./routes/AssetsFleets.tsx";
+import AssetsPorts from "./routes/AssetsPorts.tsx";
+import AssetsCanals from "./routes/AssetsCanals.tsx";
 import Fixtures from "./routes/Fixtures.tsx";
 import SeaNet from "./routes/SeaNet.tsx";
 import Notifications from "./routes/Notifications.tsx";
@@ -79,10 +84,10 @@ const router = createBrowserRouter([
       },
       // Management routes
       {
-        path: "freight-planner",
-        element: <ProtectedRoute><FreightPlanner /></ProtectedRoute>,
+        path: "voyage-economics",
+        element: <ProtectedRoute><VoyageEconomics /></ProtectedRoute>,
         handle: {
-          crumb: () => "Freight planner",
+          crumb: () => "Voyage economics",
         },
       },
       {
@@ -139,17 +144,22 @@ const router = createBrowserRouter([
       },
       {
         path: "global-market",
-        element: <ProtectedRoute><GlobalMarket /></ProtectedRoute>,
-        handle: {
-          crumb: () => "Global market",
-        },
+        children: [
+          { index: true, element: <Navigate to="/global-market/supply" replace /> },
+          { path: "supply", element: <ProtectedRoute><GlobalMarketSupply /></ProtectedRoute>, handle: { crumb: () => "Supply" } },
+          { path: "commodities", element: <ProtectedRoute><GlobalMarketCommodities /></ProtectedRoute>, handle: { crumb: () => "Commodities" } },
+          { path: "freight", element: <ProtectedRoute><GlobalMarketFreight /></ProtectedRoute>, handle: { crumb: () => "Freight" } },
+        ],
       },
       {
         path: "assets",
-        element: <ProtectedRoute><Assets /></ProtectedRoute>,
-        handle: {
-          crumb: () => "Assets",
-        },
+        children: [
+          { index: true, element: <Navigate to="/assets/vessels" replace /> },
+          { path: "vessels", element: <ProtectedRoute><AssetsVessels /></ProtectedRoute>, handle: { crumb: () => "Vessels" } },
+          { path: "fleets", element: <ProtectedRoute><AssetsFleets /></ProtectedRoute>, handle: { crumb: () => "Fleets" } },
+          { path: "ports", element: <ProtectedRoute><AssetsPorts /></ProtectedRoute>, handle: { crumb: () => "Ports" } },
+          { path: "canals", element: <ProtectedRoute><AssetsCanals /></ProtectedRoute>, handle: { crumb: () => "Canals" } },
+        ],
       },
       {
         path: "fixtures",

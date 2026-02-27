@@ -146,7 +146,7 @@ export function ApprovalSignatureRow({
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-success-bold)] flex items-center justify-center">
                                 <Icon
                                   name="approved"
-                                  size="md"
+                                  size="m"
                                   className="text-[var(--color-text-success-bold)] translate-x-[1px] translate-y-[1px]"
                                 />
                               </div>
@@ -155,7 +155,7 @@ export function ApprovalSignatureRow({
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-icon-warning-bold)] flex items-center justify-center">
                                 <Icon
                                   name="pending-approval"
-                                  size="md"
+                                  size="m"
                                   className="text-[var(--color-icon-warning-bold)] translate-x-[1px] translate-y-[1px]"
                                 />
                               </div>
@@ -164,7 +164,7 @@ export function ApprovalSignatureRow({
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-danger)] flex items-center justify-center">
                                 <Icon
                                   name="XCircle"
-                                  size="md"
+                                  size="m"
                                   className="text-[var(--color-text-danger)] translate-x-[1px] translate-y-[1px]"
                                 />
                               </div>

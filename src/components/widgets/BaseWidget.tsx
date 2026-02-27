@@ -31,7 +31,7 @@ export function BaseWidget({
 }: BaseWidgetProps) {
   if (error) {
     return (
-      <div className="flex h-full flex-col rounded-lg border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)]">
+      <div className="flex h-full flex-col rounded-l border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)]">
         <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
           <div className="flex items-center justify-between">
             <h3 className="text-body-medium-md truncate font-medium text-[var(--color-text-primary)]">
@@ -43,7 +43,7 @@ export function BaseWidget({
           <div className="text-center">
             <Icon
               name="alert-circle"
-              size="lg"
+              size="l"
               className="mx-auto mb-2 text-[var(--color-text-tertiary)]"
             />
             <p className="text-body-sm text-[var(--color-text-secondary)]">
@@ -59,7 +59,7 @@ export function BaseWidget({
   }
 
   return (
-    <div className="rounded-xlg flex h-full flex-col border border-[var(--color-border-primary-medium)] bg-[var(--color-surface-primary)]">
+    <div className="rounded-xl flex h-full flex-col border border-[var(--color-border-primary-medium)] bg-[var(--color-surface-primary)]">
       {/* Widget Header */}
       <div className="widget-drag-handle cursor-grab border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
         <div className="flex items-center justify-between">
@@ -72,7 +72,7 @@ export function BaseWidget({
               {/* Widget Actions Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" icon="more-horizontal" />
+                  <Button variant="ghost" size="s" icon="more-horizontal" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onEdit && (

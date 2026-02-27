@@ -222,7 +222,7 @@ export function ExportDialog<T extends Record<string, any>>({
             <div className="flex gap-2">
               <Toggle
                 variant="outline"
-                size="md"
+                size="m"
                 pressed={format === "csv"}
                 onPressedChange={() => setFormat("csv")}
               >
@@ -230,7 +230,7 @@ export function ExportDialog<T extends Record<string, any>>({
               </Toggle>
               <Toggle
                 variant="outline"
-                size="md"
+                size="m"
                 pressed={format === "excel"}
                 onPressedChange={() => setFormat("excel")}
               >
@@ -238,7 +238,7 @@ export function ExportDialog<T extends Record<string, any>>({
               </Toggle>
               <Toggle
                 variant="outline"
-                size="md"
+                size="m"
                 pressed={format === "pdf"}
                 onPressedChange={() => setFormat("pdf")}
               >
@@ -337,7 +337,7 @@ export function ExportDialog<T extends Record<string, any>>({
                 {dataScope !== "all" && (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="s"
                     onClick={handleResetToBookmark}
                     disabled={isExporting || !bookmarkName}
                   >
@@ -346,7 +346,7 @@ export function ExportDialog<T extends Record<string, any>>({
                 )}
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="s"
                   onClick={handleSelectAll}
                   disabled={isExporting}
                 >
@@ -354,7 +354,7 @@ export function ExportDialog<T extends Record<string, any>>({
                 </Button>
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="s"
                   onClick={handleDeselectAll}
                   disabled={isExporting}
                 >
@@ -372,7 +372,7 @@ export function ExportDialog<T extends Record<string, any>>({
             />
 
             {/* Scrollable Columns Container */}
-            <div className="relative max-h-[200px] overflow-y-auto rounded-md border border-[var(--color-border-primary-subtle)] p-4">
+            <div className="relative max-h-[200px] overflow-y-auto rounded-m border border-[var(--color-border-primary-subtle)] p-4">
               {filteredColumns.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {filteredColumns.map((column) => (
@@ -381,7 +381,7 @@ export function ExportDialog<T extends Record<string, any>>({
                       pressed={column.selected}
                       onPressedChange={() => handleColumnToggle(column.id)}
                       variant="outline"
-                      size="sm"
+                      size="s"
                     >
                       {column.label}
                     </Toggle>

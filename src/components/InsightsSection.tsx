@@ -381,7 +381,7 @@ export function InsightsSection() {
         }
       `}</style>
 
-      <div className="insights-container rounded-lg border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] relative overflow-hidden">
+      <div className="insights-container rounded-l border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] relative overflow-hidden">
         {/* Desktop dividers (1280px+) - vertical */}
         <div className="divider-desktop-1 hidden absolute top-0 bottom-0 left-1/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
         <div className="divider-desktop-2 hidden absolute top-0 bottom-0 left-2/4 w-px bg-[var(--color-border-primary-subtle)]"></div>
@@ -409,7 +409,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 combobox-route justify-between" dropdown>
+                <Button size="s" variant="default" className="flex-1 min-w-0 combobox-route justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -447,7 +447,7 @@ export function InsightsSection() {
                 placeholder="Select port"
                 searchPlaceholder="Search ports..."
                 trigger={({ selectedOption, placeholder }) => (
-                  <Button size="sm" variant="default" className="min-w-0 combobox-port justify-between" dropdown>
+                  <Button size="s" variant="default" className="min-w-0 combobox-port justify-between" dropdown>
                     <span className="truncate">{selectedOption?.label || placeholder}</span>
                   </Button>
                 )}
@@ -458,7 +458,7 @@ export function InsightsSection() {
                 placeholder="Select fuel"
                 searchPlaceholder="Search fuel types..."
                 trigger={({ selectedOption, placeholder }) => (
-                  <Button size="sm" variant="default" className="min-w-0 combobox-fuel justify-between" dropdown>
+                  <Button size="s" variant="default" className="min-w-0 combobox-fuel justify-between" dropdown>
                     <span className="truncate">{selectedOption?.label || placeholder}</span>
                   </Button>
                 )}
@@ -499,7 +499,7 @@ export function InsightsSection() {
               placeholder="Select route"
               searchPlaceholder="Search routes..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 combobox-route justify-between" dropdown>
+                <Button size="s" variant="default" className="flex-1 min-w-0 combobox-route justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}
@@ -537,7 +537,7 @@ export function InsightsSection() {
               placeholder="Select port"
               searchPlaceholder="Search ports..."
               trigger={({ selectedOption, placeholder }) => (
-                <Button size="sm" variant="default" className="flex-1 min-w-0 combobox-port justify-between" dropdown>
+                <Button size="s" variant="default" className="flex-1 min-w-0 combobox-port justify-between" dropdown>
                   <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </Button>
               )}

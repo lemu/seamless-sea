@@ -235,7 +235,7 @@ export function FreightAnalytics({
                       <span className="text-[var(--color-text-success)] flex items-center gap-1">
                         {formatCurrencyValue(savingsFromHighest.amount)} (
                         {formatPercentValue(savingsFromHighest.percent)})
-                        <Icon name="CheckCircle" size="sm" />
+                        <Icon name="CheckCircle" size="s" />
                       </span>
                     </div>
                   )}
@@ -296,7 +296,7 @@ export function FreightAnalytics({
                       {marketComparison.percent < 0 && (
                         <Icon
                           name="CheckCircle"
-                          size="sm"
+                          size="s"
                           className="inline ml-1"
                         />
                       )}

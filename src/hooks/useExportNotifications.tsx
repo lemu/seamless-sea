@@ -36,13 +36,13 @@ export function useExportNotifications() {
       onComplete: ({ recordCount }) => {
         toast.success("Export completed!", {
           description: (
-            <div className="flex flex-col gap-[var(--space-md)]">
+            <div className="flex flex-col gap-[var(--space-m)]">
               <p className="text-body-md text-[var(--color-text-primary)]">
                 {recordCount.toLocaleString()} records exported as {format.toUpperCase()}
               </p>
-              <div className="flex gap-[var(--space-sm)]">
+              <div className="flex gap-[var(--space-s)]">
                 <Button
-                  size="sm"
+                  size="s"
                   variant="default"
                   onClick={() => {
                     toast.dismiss();
@@ -62,13 +62,13 @@ export function useExportNotifications() {
         toast.error("Export failed", {
           id: toastId,
           description: (
-            <div className="flex flex-col gap-[var(--space-md)]">
+            <div className="flex flex-col gap-[var(--space-m)]">
               <p className="text-body-sm text-[var(--color-text-primary)]">
                 {error.message}
               </p>
-              <div className="flex gap-[var(--space-sm)]">
+              <div className="flex gap-[var(--space-s)]">
                 <Button
-                  size="sm"
+                  size="s"
                   variant="primary"
                   onClick={() => {
                     toast.dismiss();
@@ -78,7 +78,7 @@ export function useExportNotifications() {
                   Retry
                 </Button>
                 <Button
-                  size="sm"
+                  size="s"
                   variant="default"
                   onClick={() => toast.dismiss()}
                 >

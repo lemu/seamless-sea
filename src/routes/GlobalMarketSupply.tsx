@@ -1,13 +1,13 @@
-function Compliance() {
+function GlobalMarketSupply() {
   return (
     <div className="m-6 flex flex-col gap-[var(--space-l)]">
       <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6">
-        <p className="text-body-md text-[var(--color-text-secondary)]">
-          Compliance tools and reports will be implemented here.
+        <p className="text-body-md text-text-secondary">
+          Supply analytics will be displayed here.
         </p>
       </div>
     </div>
   );
 }
 
-export default Compliance;
+export default GlobalMarketSupply;

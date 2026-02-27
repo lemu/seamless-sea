@@ -2,7 +2,7 @@ export default function ClauseLibrary() {
   return (
     <div className="m-6 space-y-6 p-6">
       <div className="space-y-4">
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Standard Clauses
           </h2>
@@ -11,7 +11,7 @@ export default function ClauseLibrary() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Custom Clauses
           </h2>
@@ -20,7 +20,7 @@ export default function ClauseLibrary() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Search & Filter
           </h2>

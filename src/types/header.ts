@@ -13,4 +13,14 @@ export interface HeaderActionsContextType {
    * Set the header actions to display
    */
   setActions: (actions: ReactNode | null) => void;
+
+  /**
+   * Current header tabs to display
+   */
+  tabs: ReactNode | null;
+
+  /**
+   * Set the header tabs to display
+   */
+  setTabs: (tabs: ReactNode | null) => void;
 }

@@ -77,7 +77,7 @@ function SignUpPage() {
         <Card className="w-full max-w-md">
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-4">
-              <Spinner size="lg" variant="primary" />
+              <Spinner size="l" variant="primary" />
               <p className="text-text-secondary">Loading invitation…</p>
             </div>
           </CardContent>
@@ -132,7 +132,7 @@ function SignUpPage() {
             </p>
           )}
           {!hasInvite && (
-            <div className="mt-3 p-3 bg-[var(--color-warning-surface)] border border-[var(--color-warning-border)] rounded-md">
+            <div className="mt-3 p-3 bg-[var(--color-warning-surface)] border border-[var(--color-warning-border)] rounded-m">
               <p className="text-sm text-[var(--color-warning-text)] text-center">
                 Sign up is by invitation only. Please request an invitation from your administrator.
               </p>

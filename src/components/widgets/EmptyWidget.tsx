@@ -19,7 +19,7 @@ export function EmptyWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
     >
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <Icon name="square-dashed-bottom-code" size="lg" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
+          <Icon name="square-dashed-bottom-code" size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
           <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
             Empty Widget
           </p>

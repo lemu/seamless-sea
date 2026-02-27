@@ -200,7 +200,7 @@ function TradeDesk() {
           <span className="insights-label text-body-md font-medium text-[var(--color-text-primary)]">
             Insights
           </span>
-          <Icon name="chart-line" size="md" className="insights-icon" />
+          <Icon name="chart-line" size="m" className="insights-icon" />
         </div>
         <div className="mx-2 h-1 w-1 rounded-full bg-[var(--color-text-tertiary)]"></div>
         <Button variant="secondary" icon="plus" iconPosition="left" className="whitespace-nowrap">
@@ -376,11 +376,11 @@ function TradeDesk() {
           const isExpanded = row.getIsExpanded();
 
           return (
-            <div className="flex items-center gap-[var(--space-sm)] h-7 px-[var(--space-md)] pl-[var(--space-xlg)]">
+            <div className="flex items-center gap-[var(--space-s)] h-7 px-[var(--space-m)] pl-[var(--space-2xl)]">
               {canExpand && (
                 <button
                   onClick={row.getToggleExpandedHandler()}
-                  className="flex h-[var(--size-sm)] w-[var(--size-sm)] items-center justify-center rounded-sm text-[var(--color-text-secondary)] hover:bg-[var(--blue-100)] hover:text-[var(--color-text-primary)]"
+                  className="flex h-[var(--size-s)] w-[var(--size-s)] items-center justify-center rounded-s text-[var(--color-text-secondary)] hover:bg-[var(--blue-100)] hover:text-[var(--color-text-primary)]"
                 >
                   <Icon
                     name={isExpanded ? "chevron-down" : "chevron-right"}
@@ -676,7 +676,7 @@ function TradeDesk() {
         }
       `}</style>
 
-      <div className="m-6 flex flex-col gap-[var(--space-lg)]">
+      <div className="m-6 flex flex-col gap-[var(--space-l)]">
       {/* Insights Section */}
       {showInsights && (
         <div className="space-y-4">
@@ -698,7 +698,7 @@ function TradeDesk() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="md" icon="more-horizontal" className="shrink-0 ml-auto" />
+            <Button size="m" icon="more-horizontal" className="shrink-0 ml-auto" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72 max-w-[90vw]">
             <div className="p-3">
@@ -708,7 +708,7 @@ function TradeDesk() {
                     Sorting
                   </h4>
                   <Select>
-                    <SelectTrigger size="sm">
+                    <SelectTrigger size="s">
                       <SelectValue placeholder="Select column to sort" />
                     </SelectTrigger>
                     <SelectContent>
@@ -728,7 +728,7 @@ function TradeDesk() {
                     Grouping
                   </h4>
                   <Select>
-                    <SelectTrigger size="sm">
+                    <SelectTrigger size="s">
                       <SelectValue placeholder="Select column to group by" />
                     </SelectTrigger>
                     <SelectContent>
@@ -747,17 +747,17 @@ function TradeDesk() {
                   Display columns
                 </h4>
                 <div className="flex flex-wrap items-start justify-start gap-1">
-                  <Toggle variant="outline" size="sm" pressed={true}>ID</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Counterparty</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Type</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Stage</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Laycan</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Vessel</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Last bid</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>Last offer</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={false}>Demurrage</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={true}>TCE</Toggle>
-                  <Toggle variant="outline" size="sm" pressed={false}>Validity</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>ID</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Counterparty</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Type</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Stage</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Laycan</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Vessel</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Last bid</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>Last offer</Toggle>
+                  <Toggle variant="outline" size="s" pressed={false}>Demurrage</Toggle>
+                  <Toggle variant="outline" size="s" pressed={true}>TCE</Toggle>
+                  <Toggle variant="outline" size="s" pressed={false}>Validity</Toggle>
                 </div>
               </div>
             </div>

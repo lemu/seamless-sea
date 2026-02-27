@@ -17,9 +17,10 @@ export function HeaderActionsProvider({
   children: ReactNode;
 }) {
   const [actions, setActions] = useState<ReactNode | null>(null);
+  const [tabs, setTabs] = useState<ReactNode | null>(null);
 
   return (
-    <HeaderActionsContext.Provider value={{ actions, setActions }}>
+    <HeaderActionsContext.Provider value={{ actions, setActions, tabs, setTabs }}>
       {children}
     </HeaderActionsContext.Provider>
   );

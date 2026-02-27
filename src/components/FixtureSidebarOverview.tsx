@@ -215,7 +215,7 @@ export function FixtureSidebarOverview({
                   }}>
                     <AttributesLabel>Negotiation</AttributesLabel>
                     <AttributesValue>
-                      <FixtureStatus value="negotiation-fixed" size="sm" lowercase={false} asBadge />
+                      <FixtureStatus value="negotiation-fixed" size="s" lowercase={false} asBadge />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>
@@ -227,7 +227,7 @@ export function FixtureSidebarOverview({
                   }}>
                     <AttributesLabel>Contract</AttributesLabel>
                     <AttributesValue>
-                      <FixtureStatus value="contract-working-copy" size="sm" lowercase={false} asBadge />
+                      <FixtureStatus value="contract-working-copy" size="s" lowercase={false} asBadge />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>
@@ -593,7 +593,7 @@ export function FixtureSidebarOverview({
                     <AttributesLabel>Freight savings from highest</AttributesLabel>
                     <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
                       {formatRate(financialAnalytics.freightSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.freightSavingsPercent)})
-                      <Icon name="CheckCircle" size="sm" />
+                      <Icon name="CheckCircle" size="s" />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>
@@ -638,7 +638,7 @@ export function FixtureSidebarOverview({
                       {financialAnalytics.freightVsMarket < 0 && (
                         <Icon
                           name="CheckCircle"
-                          size="sm"
+                          size="s"
                           className="inline ml-1"
                         />
                       )}
@@ -719,7 +719,7 @@ export function FixtureSidebarOverview({
                     <AttributesLabel>Demurrage savings from highest</AttributesLabel>
                     <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
                       {formatCurrency(financialAnalytics.demurrageSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.demurrageSavingsPercent)})
-                      <Icon name="CheckCircle" size="sm" />
+                      <Icon name="CheckCircle" size="s" />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>

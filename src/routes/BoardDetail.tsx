@@ -147,7 +147,7 @@ function BoardDetail() {
         <div className="py-12 text-center">
           <Icon
             name="alert-circle"
-            size="lg"
+            size="l"
             className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
           />
           <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">
@@ -173,7 +173,7 @@ function BoardDetail() {
         <div className="py-12 text-center">
           <Icon
             name="lock"
-            size="lg"
+            size="l"
             className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
           />
           <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">
@@ -189,7 +189,7 @@ function BoardDetail() {
   }
 
   return (
-    <div className="m-6 flex flex-col gap-[var(--space-lg)]">
+    <div className="m-6 flex flex-col gap-[var(--space-l)]">
       {/* Board Content - Widget Grid */}
       <div key="widget-grid-container">
         <WidgetGrid
@@ -203,7 +203,7 @@ function BoardDetail() {
 
       {/* Board Description */}
       {board.description && (
-        <div className="rounded-lg bg-[var(--color-background-neutral-subtle)] p-4">
+        <div className="rounded-l bg-[var(--color-background-neutral-subtle)] p-4">
           <h4 className="text-heading-sm mb-2 text-[var(--color-text-primary)]">
             Description
           </h4>

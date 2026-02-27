@@ -11,7 +11,7 @@ export default function Forecasting() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Market Forecasting
           </h2>
@@ -20,7 +20,7 @@ export default function Forecasting() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Demand Planning
           </h2>
@@ -29,7 +29,7 @@ export default function Forecasting() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Route Optimization
           </h2>
@@ -38,7 +38,7 @@ export default function Forecasting() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Fuel Cost Prediction
           </h2>
@@ -47,7 +47,7 @@ export default function Forecasting() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Risk Assessment
           </h2>
@@ -56,7 +56,7 @@ export default function Forecasting() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Capacity Planning
           </h2>

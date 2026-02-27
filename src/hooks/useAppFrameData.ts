@@ -94,10 +94,10 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     ],
     operations: [
       {
-        title: "Freight planner",
+        title: "Voyage economics",
         icon: "ship",
-        url: "/freight-planner",
-        isActive: currentPath === "/freight-planner",
+        url: "/voyage-economics",
+        isActive: currentPath === "/voyage-economics",
         items: [],
       },
       {
@@ -153,13 +153,24 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         title: "Global market",
         icon: "globe",
         url: "/global-market",
-        isActive: currentPath === "/global-market",
+        isActive: currentPath.startsWith("/global-market"),
+        items: [
+          { title: "Supply", url: "/global-market/supply", isActive: currentPath === "/global-market/supply" },
+          { title: "Commodities", url: "/global-market/commodities", isActive: currentPath === "/global-market/commodities" },
+          { title: "Freight", url: "/global-market/freight", isActive: currentPath === "/global-market/freight" },
+        ],
       },
       {
         title: "Assets",
         icon: "container",
         url: "/assets",
-        isActive: currentPath === "/assets",
+        isActive: currentPath.startsWith("/assets"),
+        items: [
+          { title: "Vessels", url: "/assets/vessels", isActive: currentPath === "/assets/vessels" },
+          { title: "Fleets", url: "/assets/fleets", isActive: currentPath === "/assets/fleets" },
+          { title: "Ports", url: "/assets/ports", isActive: currentPath === "/assets/ports" },
+          { title: "Canals", url: "/assets/canals", isActive: currentPath === "/assets/canals" },
+        ],
       },
       {
         title: "Fixtures",

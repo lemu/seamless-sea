@@ -53,7 +53,7 @@ export function FormattedActivityLogDescription({
             <FixtureStatus
               key={index}
               value={part.status.value as StatusValue}
-              size="xsm"
+              size="xs"
               lowercase={true}
               asBadge
             />
@@ -84,7 +84,7 @@ export function ActivityLogExpandableContent({ entry }: { entry: ActivityLogEntr
   }
 
   return (
-    <div className="w-fit overflow-hidden rounded-lg border border-[var(--color-border-primary-medium)]">
+    <div className="w-fit overflow-hidden rounded-l border border-[var(--color-border-primary-medium)]">
       <table className="w-auto">
         <tbody>
           {entry.expandable.data.map((param, idx) => (

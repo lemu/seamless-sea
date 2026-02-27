@@ -237,7 +237,7 @@ export function FixtureSidebar({
                         {fixture.loadPort.name}
                         {fixture.loadPort.countryCode && `, ${fixture.loadPort.countryCode}`}
                       </span>
-                      <Icon name="arrow-right" size="sm" />
+                      <Icon name="arrow-right" size="s" />
                       <span>
                         {fixture.dischargePort.name}
                         {fixture.dischargePort.countryCode && `, ${fixture.dischargePort.countryCode}`}

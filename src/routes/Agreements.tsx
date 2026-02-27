@@ -2,7 +2,7 @@ export default function Agreements() {
   return (
     <div className="m-6 space-y-6 p-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Recaps
           </h2>
@@ -11,7 +11,7 @@ export default function Agreements() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Contracts
           </h2>
@@ -20,7 +20,7 @@ export default function Agreements() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Clause Library
           </h2>

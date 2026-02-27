@@ -245,7 +245,7 @@ function OrganizationSettings() {
   if (userOrganizations === undefined || membership === undefined) {
     return (
       <div className="m-6 flex items-center justify-center p-12">
-        <Spinner size="lg" variant="primary" />
+        <Spinner size="l" variant="primary" />
       </div>
     );
   }
@@ -380,7 +380,7 @@ function OrganizationSettings() {
                     <Button
                       type="button"
                       variant="secondary"
-                      size="sm"
+                      size="s"
                       onClick={handleCopyLink}
                     >
                       Copy
@@ -414,10 +414,10 @@ function OrganizationSettings() {
               {members.map((member) => (
                 <div
                   key={member.membershipId}
-                  className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-primary-subtle)] hover:bg-[var(--color-surface-secondary)]"
+                  className="flex items-center justify-between p-3 rounded-l border border-[var(--color-border-primary-subtle)] hover:bg-[var(--color-surface-secondary)]"
                 >
                   <div className="flex items-center gap-3">
-                    <Avatar size="md">
+                    <Avatar size="m">
                       <AvatarImage src={member.avatarUrl || undefined} alt={member.name} />
                       <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                     </Avatar>
@@ -455,7 +455,7 @@ function OrganizationSettings() {
                         </Select>
                         <Button
                           variant="secondary"
-                          size="sm"
+                          size="s"
                           onClick={() =>
                             setRemoveMemberDialog({
                               open: true,
@@ -502,7 +502,7 @@ function OrganizationSettings() {
                   .map((invite) => (
                     <div
                       key={invite._id}
-                      className="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border-primary-subtle)]"
+                      className="flex items-center justify-between p-3 rounded-l border border-[var(--color-border-primary-subtle)]"
                     >
                       <div>
                         <p className="text-body-md font-medium text-[var(--color-text-primary)]">
@@ -516,7 +516,7 @@ function OrganizationSettings() {
                         {getStatusBadge(invite.status)}
                         <Button
                           variant="secondary"
-                          size="sm"
+                          size="s"
                           onClick={() =>
                             setRevokeInviteDialog({
                               open: true,

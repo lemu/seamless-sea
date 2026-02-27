@@ -1317,7 +1317,7 @@ function Fixtures() {
 
   return (
     <>
-      <div className="p-6 flex flex-col gap-[var(--space-lg)] max-w-full min-w-0">
+      <div className="p-6 flex flex-col gap-[var(--space-l)] max-w-full min-w-0">
         {/* Bookmarks Tabs Row + Filters Row */}
         <Bookmarks
           variant="tabs"
@@ -1360,7 +1360,7 @@ function Fixtures() {
                     <Button
                       variant="ghost"
                       onClick={bm.handleRevert}
-                      className="h-[var(--size-md)] flex-shrink-0"
+                      className="h-[var(--size-m)] flex-shrink-0"
                     >
                       Reset
                     </Button>
@@ -1372,7 +1372,7 @@ function Fixtures() {
                     <Button
                       variant="ghost"
                       onClick={bm.handleRevert}
-                      className="h-[var(--size-md)] flex-shrink-0"
+                      className="h-[var(--size-m)] flex-shrink-0"
                     >
                       Revert Changes
                     </Button>
@@ -1397,7 +1397,7 @@ function Fixtures() {
               visibleColumns={visibleColumnsForSettings}
               onColumnVisibilityChange={handleSettingsColumnVisibilityChange}
               align="end"
-              triggerClassName="h-[var(--size-md)]"
+              triggerClassName="h-[var(--size-m)]"
             />
           </Bookmarks.Settings>
         </Bookmarks>

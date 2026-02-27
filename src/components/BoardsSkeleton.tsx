@@ -5,7 +5,7 @@ export function BoardsSkeleton() {
   const skeletonCards = Array.from({ length: 6 }, (_, index) => (
     <div
       key={index}
-      className="group relative rounded-lg border border-[var(--color-border-primary-subtle)] p-4"
+      className="group relative rounded-l border border-[var(--color-border-primary-subtle)] p-4"
     >
       {/* Pin button area */}
       <div className="absolute top-2 right-2 h-6 w-6 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
@@ -55,7 +55,7 @@ export function BoardsEmptyState({ onCreateBoard }: { onCreateBoard: () => void 
     <div className="py-12 text-center">
       <Icon
         name="layout-dashboard"
-        size="lg"
+        size="l"
         className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
       />
       <h3 className="text-heading-lg mb-2 text-[var(--color-text-primary)]">

@@ -21,7 +21,7 @@ export function BoardDetailSkeleton() {
       </div>
 
       {/* Board Content Skeleton */}
-      <div className="flex min-h-[500px] items-center justify-center rounded-lg border-2 border-dashed border-[var(--color-border-primary-subtle)]">
+      <div className="flex min-h-[500px] items-center justify-center rounded-l border-2 border-dashed border-[var(--color-border-primary-subtle)]">
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-full bg-[var(--color-background-neutral-subtle)]" />
           <div className="mx-auto mb-2 h-8 w-40 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
@@ -31,7 +31,7 @@ export function BoardDetailSkeleton() {
       </div>
 
       {/* Description Skeleton */}
-      <div className="rounded-lg bg-[var(--color-background-neutral-subtle)] p-4">
+      <div className="rounded-l bg-[var(--color-background-neutral-subtle)] p-4">
         <div className="mb-2 h-6 w-24 animate-pulse rounded bg-[var(--color-background-neutral-subtle-hovered)]" />
         <div className="space-y-2">
           <div className="h-4 w-full animate-pulse rounded bg-[var(--color-background-neutral-subtle-hovered)]" />

@@ -11,7 +11,7 @@ export default function AgreementContracts() {
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Active Contracts
           </h2>
@@ -20,7 +20,7 @@ export default function AgreementContracts() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Contract Templates
           </h2>
@@ -29,7 +29,7 @@ export default function AgreementContracts() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
+        <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6 bg-[var(--color-surface-primary)]">
           <h2 className="text-heading-lg font-semibold text-[var(--color-text-primary)] mb-2">
             Contract History
           </h2>

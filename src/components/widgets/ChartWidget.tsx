@@ -20,7 +20,7 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
       return (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <Icon name="bar-chart-2" size="lg" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
+            <Icon name="bar-chart-2" size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
             <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
               No data available
             </p>

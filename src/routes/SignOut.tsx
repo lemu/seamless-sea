@@ -25,7 +25,7 @@ function SignOut() {
   return (
     <div className="flex h-full items-center justify-center">
       <Spinner
-        size="lg"
+        size="l"
         variant="primary"
         showLabel
         loadingText={status === "signing-out" ? "Signing out..." : "Redirecting..."}

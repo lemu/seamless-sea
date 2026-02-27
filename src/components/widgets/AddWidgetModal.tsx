@@ -221,7 +221,7 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
               </>
             ) : (
               <>
-                <Icon name="plus" size="sm" />
+                <Icon name="plus" size="s" />
                 Create widget
               </>
             )}

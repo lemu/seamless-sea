@@ -146,7 +146,7 @@ function Boards() {
   }
 
   return (
-    <div className="m-6 flex flex-col gap-[var(--space-lg)]">
+    <div className="m-6 flex flex-col gap-[var(--space-l)]">
       {/* Boards Grid */}
       {boards && boards.length === 0 ? (
         <BoardsEmptyState onCreateBoard={() => setShowCreateModal(true)} />
@@ -157,7 +157,7 @@ function Boards() {
               key={board._id}
               role="button"
               tabIndex={0}
-              className="group relative cursor-pointer rounded-lg border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-brand)]"
+              className="group relative cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border-brand)]"
               onClick={() => navigate(`/boards/${board._id}`)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -182,7 +182,7 @@ function Boards() {
               >
                 <Icon
                   name={isPinned(board._id) ? "pin" : "pin-off"}
-                  size="sm"
+                  size="s"
                   className={
                     isPinned(board._id)
                       ? "text-[var(--color-text-brand)]"
@@ -254,7 +254,7 @@ function CreateBoardModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-[var(--color-surface-primary)] p-6">
+      <div className="w-full max-w-md rounded-l bg-[var(--color-surface-primary)] p-6">
         <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
           Create new board
         </h2>
@@ -269,7 +269,7 @@ function CreateBoardModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter board title..."
-              className="w-full rounded-md border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
+              className="w-full rounded-m border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
               disabled={isCreating}
               autoFocus
             />

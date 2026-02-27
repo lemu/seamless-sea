@@ -24,7 +24,7 @@ function AppContent() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Spinner size="lg" variant="primary" showLabel loadingText="Loading..." />
+        <Spinner size="l" variant="primary" showLabel loadingText="Loading..." />
       </div>
     );
   }
@@ -52,6 +52,7 @@ function AppContent() {
       defaultSidebarOpen={true}
       headerContent={<HeaderContent />}
       headerActions={context?.actions}
+      headerTabs={context?.tabs}
       onNavigate={(url) => {
         // Intercept Tide-UI's hardcoded user menu URLs
         if (url === "/user/profile" || url === "user/profile") {

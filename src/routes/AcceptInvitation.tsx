@@ -86,7 +86,7 @@ function AcceptInvitation() {
         <Card className="w-full max-w-md">
           <CardContent className="py-12">
             <div className="flex flex-col items-center gap-4">
-              <Spinner size="lg" variant="primary" />
+              <Spinner size="l" variant="primary" />
               <p className="text-[var(--color-text-secondary)]">Loading invitation...</p>
             </div>
           </CardContent>
