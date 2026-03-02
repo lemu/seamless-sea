@@ -1,4 +1,5 @@
 import React from "react";
+import { Copy, SquareX, Pencil } from "lucide-react";
 import {
   Button,
   Icon,
@@ -76,18 +77,18 @@ export function BaseWidget({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onEdit && (
-                    <DropdownMenuItem icon="edit" onClick={onEdit}>
+                    <DropdownMenuItem icon={Pencil} onClick={onEdit}>
                       Edit widget
                     </DropdownMenuItem>
                   )}
                   {onDuplicate && (
-                    <DropdownMenuItem icon="copy" onClick={onDuplicate}>
+                    <DropdownMenuItem icon={Copy} onClick={onDuplicate}>
                       Duplicate widget
                     </DropdownMenuItem>
                   )}
                   {onDelete && (
                     <DropdownMenuItem
-                      icon="square-x"
+                      icon={SquareX}
                       onClick={onDelete}
                       destructive
                     >

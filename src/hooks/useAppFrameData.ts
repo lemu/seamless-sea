@@ -3,6 +3,11 @@ import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "./useUser";
 import type { Id } from "../../convex/_generated/dataModel";
+import type { ComponentType } from "react";
+import {
+  House, LayoutDashboard, Ship, TrendingUp, ScrollText,
+  ShieldCheck, Map, Globe, Container, Anchor, Bell, CircleHelp,
+} from "lucide-react";
 
 // Tide-UI AppFrame types
 export interface AppFrameUser {
@@ -22,7 +27,7 @@ export interface AppFrameTeam {
 
 export interface AppFrameNavItem {
   title: string;
-  icon: string;
+  icon: ComponentType;
   url: string;
   isActive: boolean;
   items?: Array<{
@@ -81,13 +86,13 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     main: [
       {
         title: "Home",
-        icon: "house",
+        icon: House,
         url: "/home",
         isActive: currentPath === "/home",
       },
       {
         title: "Boards",
-        icon: "layout-dashboard",
+        icon: LayoutDashboard,
         url: "/boards",
         isActive: currentPath === "/boards" || currentPath.startsWith("/boards/"),
       },
@@ -95,21 +100,21 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     operations: [
       {
         title: "Voyage economics",
-        icon: "ship",
+        icon: Ship,
         url: "/voyage-economics",
         isActive: currentPath === "/voyage-economics",
         items: [],
       },
       {
         title: "Trade desk",
-        icon: "trending-up",
+        icon: TrendingUp,
         url: "/trade-desk",
         isActive: currentPath === "/trade-desk",
         items: [],
       },
       {
         title: "Agreements",
-        icon: "scroll-text",
+        icon: ScrollText,
         url: "/agreements",
         isActive:
           currentPath === "/agreements" ||
@@ -136,7 +141,7 @@ export function useAppFrameData(): UseAppFrameDataReturn {
       },
       {
         title: "Compliance",
-        icon: "shield-check",
+        icon: ShieldCheck,
         url: "/compliance",
         isActive: currentPath === "/compliance",
         items: [],
@@ -145,13 +150,13 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     intelligence: [
       {
         title: "SeaNet",
-        icon: "map",
+        icon: Map,
         url: "/seanet",
         isActive: currentPath === "/seanet",
       },
       {
         title: "Global market",
-        icon: "globe",
+        icon: Globe,
         url: "/global-market",
         isActive: currentPath.startsWith("/global-market"),
         items: [
@@ -162,7 +167,7 @@ export function useAppFrameData(): UseAppFrameDataReturn {
       },
       {
         title: "Assets",
-        icon: "container",
+        icon: Container,
         url: "/assets",
         isActive: currentPath.startsWith("/assets"),
         items: [
@@ -174,7 +179,7 @@ export function useAppFrameData(): UseAppFrameDataReturn {
       },
       {
         title: "Fixtures",
-        icon: "anchor",
+        icon: Anchor,
         url: "/fixtures",
         isActive: currentPath === "/fixtures",
       },
@@ -182,13 +187,13 @@ export function useAppFrameData(): UseAppFrameDataReturn {
     support: [
       {
         title: "Notifications",
-        icon: "bell",
+        icon: Bell,
         url: "/notifications",
         isActive: currentPath === "/notifications",
       },
       {
         title: "Help & support",
-        icon: "circle-help",
+        icon: CircleHelp,
         url: "/help-support",
         isActive: currentPath === "/help-support",
       },

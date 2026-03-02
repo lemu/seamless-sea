@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate, Outlet, useLocation } from "react-router";
+import { Plus } from "lucide-react";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
 import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
@@ -55,7 +56,7 @@ function Boards() {
       !isOnBoardDetail ? (
         <Button
           variant="primary"
-          icon="plus"
+          icon={Plus}
           iconPosition="left"
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 shrink-0"

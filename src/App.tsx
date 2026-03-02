@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useNavigate } from "react-router";
 import * as React from "react";
-import { AppFrame, Spinner, Toaster } from "@rafal.lemieszewski/tide-ui";
+import { AppFrame, Spinner, Toaster, TooltipProvider } from "@rafal.lemieszewski/tide-ui";
 import { UserProvider } from "./contexts/UserContext";
 import { HeaderActionsProvider, HeaderActionsContext } from "./contexts/HeaderActionsContext";
 import { useAppFrameData } from "./hooks";
@@ -75,12 +75,14 @@ function AppContent() {
 
 function App() {
   return (
-    <UserProvider>
-      <HeaderActionsProvider>
-        <AppContent />
-        <Toaster position="bottom-right" />
-      </HeaderActionsProvider>
-    </UserProvider>
+    <TooltipProvider delayDuration={400}>
+      <UserProvider>
+        <HeaderActionsProvider>
+          <AppContent />
+          <Toaster position="bottom-right" />
+        </HeaderActionsProvider>
+      </UserProvider>
+    </TooltipProvider>
   );
 }
 

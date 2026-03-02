@@ -13,6 +13,20 @@ import {
   AvatarFallback,
   type StatusValue,
 } from "@rafal.lemieszewski/tide-ui";
+import {
+  UserOwner,
+  UserBroker,
+  UserCharterer,
+  UserCreatedBy,
+  ShipLoad,
+  ShipUnload,
+} from "@rafal.lemieszewski/tide-ui/custom-icons";
+import {
+  MapPin, CheckCircle, CircleCheckBig,
+  Ship, Package, Weight, DollarSign, TrendingDown,
+  Activity, Clock, Percent, Calendar, PenTool,
+  GitBranch, FileCheck,
+} from "lucide-react";
 import type { FixtureData } from "../../types/fixture";
 import type { CellContext, Row } from "@tanstack/react-table";
 import {
@@ -42,28 +56,28 @@ const getStatusLabel = (status: string): string =>
 const isDefined = <T,>(value: T | null | undefined): value is T => value != null;
 
 // ── Icon helpers (hoisted to module scope) ───────────────────────────────────
-const iconShip = ({ className }: { className?: string }) => <Icon name="ship" className={className} aria-hidden="true" />;
-const iconShipLoad = ({ className }: { className?: string }) => <Icon name="ship-load" className={className} aria-hidden="true" />;
-const iconShipUnload = ({ className }: { className?: string }) => <Icon name="ship-unload" className={className} aria-hidden="true" />;
-const iconMapPin = ({ className }: { className?: string }) => <Icon name="map-pin" className={className} aria-hidden="true" />;
-const iconTruck = ({ className }: { className?: string }) => <Icon name="truck" className={className} aria-hidden="true" />;
-const iconPackage = ({ className }: { className?: string }) => <Icon name="package" className={className} aria-hidden="true" />;
-const iconWeight = ({ className }: { className?: string }) => <Icon name="weight" className={className} aria-hidden="true" />;
-const iconDollar = ({ className }: { className?: string }) => <Icon name="dollar-sign" className={className} aria-hidden="true" />;
-const iconTrendingDown = ({ className }: { className?: string }) => <Icon name="trending-down" className={className} aria-hidden="true" />;
-const iconActivity = ({ className }: { className?: string }) => <Icon name="activity" className={className} aria-hidden="true" />;
-const iconClock = ({ className }: { className?: string }) => <Icon name="clock" className={className} aria-hidden="true" />;
-const iconPercent = ({ className }: { className?: string }) => <Icon name="percent" className={className} aria-hidden="true" />;
-const iconCalendar = ({ className }: { className?: string }) => <Icon name="calendar" className={className} aria-hidden="true" />;
-const iconCheckCircle = ({ className }: { className?: string }) => <Icon name="check-circle" className={className} aria-hidden="true" />;
-const iconPenTool = ({ className }: { className?: string }) => <Icon name="pen-tool" className={className} aria-hidden="true" />;
-const iconUserOwner = ({ className }: { className?: string }) => <Icon name="user-owner" className={className} aria-hidden="true" />;
-const iconUserBroker = ({ className }: { className?: string }) => <Icon name="user-broker" className={className} aria-hidden="true" />;
-const iconUserCharterer = ({ className }: { className?: string }) => <Icon name="user-charterer" className={className} aria-hidden="true" />;
-const iconUserCreatedBy = ({ className }: { className?: string }) => <Icon name="user-created-by" className={className} aria-hidden="true" />;
-const iconGitBranch = ({ className }: { className?: string }) => <Icon name="git-branch" className={className} aria-hidden="true" />;
-const iconFileCheck = ({ className }: { className?: string }) => <Icon name="file-check" className={className} aria-hidden="true" />;
-const iconCircleCheckBig = ({ className }: { className?: string }) => <Icon name="circle-check-big" className={className} aria-hidden="true" />;
+const iconShip = ({ className }: { className?: string }) => <Icon name={Ship} className={className} aria-hidden="true" />;
+const iconShipLoad = ({ className }: { className?: string }) => <Icon name={ShipLoad} className={className} aria-hidden="true" />;
+const iconShipUnload = ({ className }: { className?: string }) => <Icon name={ShipUnload} className={className} aria-hidden="true" />;
+const iconMapPin = ({ className }: { className?: string }) => <Icon name={MapPin} className={className} aria-hidden="true" />;
+const iconShipDelivery = ({ className }: { className?: string }) => <Icon name="anchor" className={className} aria-hidden="true" />;
+const iconPackage = ({ className }: { className?: string }) => <Icon name={Package} className={className} aria-hidden="true" />;
+const iconWeight = ({ className }: { className?: string }) => <Icon name={Weight} className={className} aria-hidden="true" />;
+const iconDollar = ({ className }: { className?: string }) => <Icon name={DollarSign} className={className} aria-hidden="true" />;
+const iconTrendingDown = ({ className }: { className?: string }) => <Icon name={TrendingDown} className={className} aria-hidden="true" />;
+const iconActivity = ({ className }: { className?: string }) => <Icon name={Activity} className={className} aria-hidden="true" />;
+const iconClock = ({ className }: { className?: string }) => <Icon name={Clock} className={className} aria-hidden="true" />;
+const iconPercent = ({ className }: { className?: string }) => <Icon name={Percent} className={className} aria-hidden="true" />;
+const iconCalendar = ({ className }: { className?: string }) => <Icon name={Calendar} className={className} aria-hidden="true" />;
+const iconCheckCircle = ({ className }: { className?: string }) => <Icon name={CheckCircle} className={className} aria-hidden="true" />;
+const iconPenTool = ({ className }: { className?: string }) => <Icon name={PenTool} className={className} aria-hidden="true" />;
+const iconUserOwner = ({ className }: { className?: string }) => <Icon name={UserOwner} className={className} aria-hidden="true" />;
+const iconUserBroker = ({ className }: { className?: string }) => <Icon name={UserBroker} className={className} aria-hidden="true" />;
+const iconUserCharterer = ({ className }: { className?: string }) => <Icon name={UserCharterer} className={className} aria-hidden="true" />;
+const iconUserCreatedBy = ({ className }: { className?: string }) => <Icon name={UserCreatedBy} className={className} aria-hidden="true" />;
+const iconGitBranch = ({ className }: { className?: string }) => <Icon name={GitBranch} className={className} aria-hidden="true" />;
+const iconFileCheck = ({ className }: { className?: string }) => <Icon name={FileCheck} className={className} aria-hidden="true" />;
+const iconCircleCheckBig = ({ className }: { className?: string }) => <Icon name={CircleCheckBig} className={className} aria-hidden="true" />;
 
 // ── Avatar party column helper ───────────────────────────────────────────────
 function createPartyColumn(
@@ -441,7 +455,7 @@ export function createFixtureColumns(opts: {
       label: "Load Delivery Type",
       size: 150,
       filterGroup: "Location",
-      icon: iconTruck,
+      icon: iconShipDelivery,
       enableGrouping: true,
       aggregatedNoun: "types",
     }, highlight),
@@ -474,7 +488,7 @@ export function createFixtureColumns(opts: {
       label: "Discharge Redelivery Type",
       size: 180,
       filterGroup: "Location",
-      icon: iconTruck,
+      icon: iconShipDelivery,
       enableGrouping: true,
       aggregatedNoun: "types",
     }, highlight),

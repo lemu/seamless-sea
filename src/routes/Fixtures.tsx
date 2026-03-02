@@ -9,17 +9,16 @@ import {
   type PaginationState,
 } from "@tanstack/react-table";
 import {
-  DataTable,
   Button,
-  Bookmarks,
-  Filters,
   DataTableSettingsMenu,
   Separator,
   Icon,
   statusConfig,
-  type FilterDefinition,
-  type FilterValue,
 } from "@rafal.lemieszewski/tide-ui";
+import { DataTable } from "@rafal.lemieszewski/tide-ui/data-table";
+import { Bookmarks } from "@rafal.lemieszewski/tide-ui/bookmarks";
+import { Filters, type FilterDefinition, type FilterValue } from "@rafal.lemieszewski/tide-ui/filters";
+import { CheckCircle, Layers, Upload } from "lucide-react";
 import { useHeaderActions, useFixtureUrlState, useFixtureBookmarks } from "../hooks";
 import { serializeFiltersToUrl, deserializeFiltersFromUrl } from "../hooks/useFixtureUrlState";
 import { createFixtureColumns } from "./fixtures/fixtureColumns";
@@ -519,8 +518,8 @@ function enforceMinColumnSizing(
 }
 
 // Static icon components — hoisted to avoid re-creation per render
-const LayersIcon = ({ className }: { className?: string }) => <Icon name="layers" className={className} aria-hidden="true" />;
-const CheckCircleIcon = ({ className }: { className?: string }) => <Icon name="check-circle" className={className} aria-hidden="true" />;
+const LayersIcon = ({ className }: { className?: string }) => <Icon name={Layers} className={className} aria-hidden="true" />;
+const CheckCircleIcon = ({ className }: { className?: string }) => <Icon name={CheckCircle} className={className} aria-hidden="true" />;
 const FilterIcon = ({ className }: { className?: string }) => <Icon name="filter" className={className} />;
 
 // Default column visibility — static, extracted to avoid re-creation per render
@@ -603,7 +602,7 @@ function Fixtures() {
     () => (
       <Button
         variant="secondary"
-        icon="share"
+        icon={Upload}
         iconPosition="left"
         onClick={() => setShowExportDialog(true)}
       >
@@ -1397,7 +1396,6 @@ function Fixtures() {
               visibleColumns={visibleColumnsForSettings}
               onColumnVisibilityChange={handleSettingsColumnVisibilityChange}
               align="end"
-              triggerClassName="h-[var(--size-m)]"
             />
           </Bookmarks.Settings>
         </Bookmarks>

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Plus } from "lucide-react";
 import { useMutation } from "convex/react";
 import {
   Button,
@@ -221,7 +222,7 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
               </>
             ) : (
               <>
-                <Icon name="plus" size="s" />
+                <Icon name={Plus} size="s" />
                 Create widget
               </>
             )}

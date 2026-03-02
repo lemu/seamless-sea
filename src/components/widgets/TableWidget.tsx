@@ -1,3 +1,4 @@
+import { Table2 } from "lucide-react";
 import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { Icon } from "@rafal.lemieszewski/tide-ui";
 
@@ -27,7 +28,7 @@ export function TableWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
     >
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <Icon name="table" size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
+          <Icon name={Table2} size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
           <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
             Table Widget
           </p>

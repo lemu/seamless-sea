@@ -1,5 +1,22 @@
 import { BaseWidget, type WidgetProps } from "./BaseWidget";
-import { Icon, Chart, createChartConfig, type ChartType, type ChartDataPoint, type ChartConfig as TideChartConfig } from "@rafal.lemieszewski/tide-ui";
+import { Icon } from "@rafal.lemieszewski/tide-ui";
+import { BarChart2 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+
+type ChartType = "bar" | "line" | "composed";
+
+interface ChartDataPoint {
+  [key: string]: string | number | undefined;
+}
 
 interface ChartWidgetConfig {
   chartType: ChartType;
@@ -8,11 +25,9 @@ interface ChartWidgetConfig {
   yAxis?: string;
   title: string;
   data?: ChartDataPoint[];
-  config?: TideChartConfig;
 }
 
 export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable }: WidgetProps) {
-  // Cast config to chart-specific type
   const chartConfig = config as unknown as ChartWidgetConfig;
 
   const renderChart = () => {
@@ -20,7 +35,7 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
       return (
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <Icon name="bar-chart-2" size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
+            <Icon name={BarChart2} size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
             <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
               No data available
             </p>
@@ -29,21 +44,23 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
       );
     }
 
-    // Use provided config or create default based on chart type
-    const tideConfig = chartConfig.config || createChartConfig([chartConfig.yAxis || "value"]);
+    const dataKey = chartConfig.yAxis || "value";
 
     return (
       <div className="h-[200px] w-full">
-        <Chart
-          type={chartConfig.chartType}
-          data={chartConfig.data}
-          config={tideConfig}
-          height={200}
-          showGrid={true}
-          showTooltip={true}
-          responsive={true}
-          colorScheme={chartConfig.chartType === "line" ? "line" : "bar"}
-        />
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartConfig.data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-primary-subtle)" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            {chartConfig.chartType === "bar" ? (
+              <Bar dataKey={dataKey} fill="var(--color-chart-bar-1)" />
+            ) : (
+              <Line dataKey={dataKey} stroke="var(--color-chart-line-1)" dot={false} />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     );
   };
@@ -63,7 +80,6 @@ export function ChartWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
   );
 }
 
-// Default configuration for new chart widgets
 export const defaultChartConfig: ChartWidgetConfig = {
   title: "New chart",
   chartType: "bar",
@@ -71,5 +87,4 @@ export const defaultChartConfig: ChartWidgetConfig = {
   xAxis: undefined,
   yAxis: undefined,
   data: undefined,
-  config: undefined,
 };

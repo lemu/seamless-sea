@@ -1,5 +1,7 @@
 import { useMemo } from "react";
-import { Chart, createChartConfig, Combobox, Button } from "@rafal.lemieszewski/tide-ui";
+import { Combobox, Button } from "@rafal.lemieszewski/tide-ui";
+import { Chart, createChartConfig } from "@rafal.lemieszewski/tide-ui/chart";
+import type { ChartConfig } from "@rafal.lemieszewski/tide-ui/chart";
 
 export function InsightsSection() {
 
@@ -160,87 +162,6 @@ export function InsightsSection() {
 
   const vesselSupplyData = useMemo(() => generateCongestionData(), []);
 
-  const freightRateConfig = useMemo(() => createChartConfig({
-    rate: {
-      label: "Freight rate ($/mt)",
-      color: "var(--color-chart-line-1)",
-      type: "line",
-      showDots: false,
-      strokeStyle: "solid",
-    },
-    prediction: {
-      label: "Prediction ($/mt)",
-      color: "var(--color-chart-line-1)",
-      type: "line",
-      showDots: false,
-      strokeStyle: "dashed",
-    },
-    index: {
-      label: "Index ($/mt)",
-      color: "var(--color-chart-line-4)",
-      type: "line",
-      showDots: false,
-    },
-    counterpartyRange: {
-      label: "Max/Min counterparty ($/mt)",
-      type: "range-area",
-      stroke: "none",
-      fill: "#C8D8E1",
-    },
-  }), []);
-
-  const bunkerPricingConfig = useMemo(() => createChartConfig({
-    spotBunkerRate: {
-      label: "Spot bunker rate ($/mt)",
-      color: "var(--color-chart-line-1)",
-      type: "line",
-      showDots: false,
-    },
-    spotFreightRate: {
-      label: "Spot freight rate ($/mt)",
-      color: "var(--color-chart-line-2)",
-      type: "line",
-      showDots: false,
-      yAxisId: "right",
-    },
-  }), []);
-
-  const cargoDemandConfig = useMemo(() => createChartConfig({
-    ladenPercent: {
-      label: "Laden %",
-      color: "var(--color-chart-line-1)",
-      type: "line",
-      showDots: false,
-    },
-    ladenPercentAvg: {
-      label: "Laden % (4 week avg.)",
-      color: "var(--color-chart-line-4)",
-      type: "line",
-      showDots: false,
-    },
-    vesselsCount: {
-      label: "Vessels count",
-      type: "bar",
-      color: "#e5eff3",
-      yAxisId: "right",
-    },
-  }), []);
-
-  const vesselSupplyConfig = useMemo(() => createChartConfig({
-    vesselsInPort: {
-      label: "Vessels in port",
-      type: "bar",
-      color: "#e5eff3",
-    },
-    avgDuration: {
-      label: "Avg. duration (days)",
-      color: "var(--color-chart-line-4)",
-      type: "line",
-      showDots: false,
-      yAxisId: "right",
-    },
-  }), []);
-
   // Maritime routes for the combobox
   const maritimeRoutes = [
     { value: "c3", label: "C3 • Tubarao, BR — Qingdao, CN" },
@@ -285,6 +206,30 @@ export function InsightsSection() {
     { value: "mgo", label: "MGO" },
     { value: "lng", label: "LNG" },
   ];
+
+  // Chart configs
+  const freightRateConfig = createChartConfig({
+    counterpartyRange: { label: "Max/Min counterparty ($/mt)", type: "range-area", fill: "#C8D8E1", color: "#C8D8E1" },
+    rate: { label: "Freight rate ($/mt)", type: "line", color: "var(--color-chart-line-1)" },
+    prediction: { label: "Prediction ($/mt)", type: "line", color: "var(--color-chart-line-1)", strokeStyle: "dashed" },
+    index: { label: "Index ($/mt)", type: "line", color: "var(--color-chart-line-4)" },
+  } as ChartConfig);
+
+  const bunkerPricingConfig = createChartConfig({
+    spotBunkerRate: { label: "Spot bunker rate ($/mt)", type: "line", color: "var(--color-chart-line-1)", yAxisId: "left" },
+    spotFreightRate: { label: "Spot freight rate ($/mt)", type: "line", color: "var(--color-chart-line-2)", yAxisId: "right" },
+  } as ChartConfig);
+
+  const supplyDemandConfig = createChartConfig({
+    vesselsCount: { label: "Vessels count", type: "bar", color: "#e5eff3", yAxisId: "right" },
+    ladenPercent: { label: "Laden %", type: "line", color: "var(--color-chart-line-1)", yAxisId: "left" },
+    ladenPercentAvg: { label: "Laden % (4 week avg.)", type: "line", color: "var(--color-chart-line-4)", yAxisId: "left" },
+  } as ChartConfig);
+
+  const congestionConfig = createChartConfig({
+    vesselsInPort: { label: "Vessels in port", type: "bar", color: "#e5eff3", yAxisId: "left" },
+    avgDuration: { label: "Avg. duration (days)", type: "line", color: "var(--color-chart-line-4)", yAxisId: "right" },
+  } as ChartConfig);
 
   return (
     <>
@@ -343,15 +288,16 @@ export function InsightsSection() {
 
         /* Chart header */
         .insights-chart-header {
-          margin-bottom: 24px;
+          margin-bottom: 12px;
           display: flex;
           align-items: center;
           gap: 8px;
         }
 
-        /* Chart body with dynamic height */
+        /* Chart body fills remaining space */
         .insights-chart-body {
-          min-height: 260px;
+          flex: 1;
+          min-height: 0;
         }
 
         /* Responsive ComboBox widths */
@@ -420,16 +366,13 @@ export function InsightsSection() {
               type="composed"
               data={freightRateData}
               config={freightRateConfig}
-              height={200}
+              height={220}
+              showLegend
+              showTooltip
+              showGrid
               legendHeight={44}
-              responsive={true}
-              maintainAspectRatio={false}
-              yAxisWidth={30}
-              tooltipMaxWidth="max-w-72"
-              tooltipAllowEscapeViewBox={{ x: true, y: true }}
               yAxisTickCount={3}
-              showLegend={true}
-              legendOrder={["rate", "prediction", "index", "counterpartyRange"]}
+              margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
             />
           </div>
         </div>
@@ -470,19 +413,17 @@ export function InsightsSection() {
               type="composed"
               data={bunkerPricingData}
               config={bunkerPricingConfig}
-              height={200}
+              height={220}
+              showLegend
+              showTooltip
+              showGrid
               legendHeight={44}
-              responsive={true}
-              maintainAspectRatio={false}
-              yAxisWidth={30}
               yAxisTickCount={3}
               yAxisDomain={[0, 800]}
-              showRightYAxis={true}
-              rightYAxisTickCount={3}
+              showRightYAxis
               rightYAxisDomain={[0, 20]}
-              tooltipAllowEscapeViewBox={{ x: true, y: true }}
-              showLegend={true}
-              legendOrder={["spotBunkerRate", "spotFreightRate"]}
+              rightYAxisTickCount={3}
+              margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
             />
           </div>
         </div>
@@ -509,18 +450,18 @@ export function InsightsSection() {
             <Chart
               type="composed"
               data={cargoDemandData}
-              config={cargoDemandConfig}
-              height={200}
+              config={supplyDemandConfig}
+              height={220}
+              showLegend
+              showTooltip
+              showGrid
               legendHeight={44}
-              responsive={true}
-              maintainAspectRatio={false}
-              yAxisWidth={30}
               yAxisTickCount={3}
               yAxisDomain={[0, 100]}
-              showRightYAxis={true}
-              rightYAxisTickCount={3}
+              showRightYAxis
               rightYAxisDomain={[0, 80]}
-              tooltipAllowEscapeViewBox={{ x: true, y: true }}
+              rightYAxisTickCount={3}
+              margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
             />
           </div>
         </div>
@@ -547,18 +488,18 @@ export function InsightsSection() {
             <Chart
               type="composed"
               data={vesselSupplyData}
-              config={vesselSupplyConfig}
-              height={200}
+              config={congestionConfig}
+              height={220}
+              showLegend
+              showTooltip
+              showGrid
               legendHeight={44}
-              responsive={true}
-              maintainAspectRatio={false}
-              yAxisWidth={30}
               yAxisTickCount={3}
               yAxisDomain={[0, 100]}
-              showRightYAxis={true}
-              rightYAxisTickCount={3}
+              showRightYAxis
               rightYAxisDomain={[0, 6]}
-              tooltipAllowEscapeViewBox={{ x: true, y: true }}
+              rightYAxisTickCount={3}
+              margin={{ top: 4, right: 4, bottom: 4, left: 0 }}
             />
           </div>
         </div>

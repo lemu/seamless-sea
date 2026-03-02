@@ -15,6 +15,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
+import { Plus, Lock } from "lucide-react";
 import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
@@ -54,7 +55,7 @@ function BoardDetail() {
         <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="secondary"
-            icon="plus"
+            icon={Plus}
             iconPosition="left"
             onClick={() => {
               setIsAddingWidget(true);
@@ -172,7 +173,7 @@ function BoardDetail() {
       <div className="m-6 p-6">
         <div className="py-12 text-center">
           <Icon
-            name="lock"
+            name={Lock}
             size="l"
             className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
           />

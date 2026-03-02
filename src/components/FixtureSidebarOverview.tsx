@@ -23,6 +23,7 @@ import {
   Icon,
   Flag,
 } from "@rafal.lemieszewski/tide-ui";
+import { CheckCircle } from "lucide-react";
 import { ApprovalSignatureRow } from "./ApprovalSignatureRow";
 import {
   formatLaycanRange,
@@ -593,7 +594,7 @@ export function FixtureSidebarOverview({
                     <AttributesLabel>Freight savings from highest</AttributesLabel>
                     <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
                       {formatRate(financialAnalytics.freightSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.freightSavingsPercent)})
-                      <Icon name="CheckCircle" size="s" />
+                      <Icon name={CheckCircle} size="s" />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>
@@ -719,7 +720,7 @@ export function FixtureSidebarOverview({
                     <AttributesLabel>Demurrage savings from highest</AttributesLabel>
                     <AttributesValue className="text-[var(--color-text-success)] flex items-center gap-1">
                       {formatCurrency(financialAnalytics.demurrageSavingsAmount ?? 0)} ({formatPercent(financialAnalytics.demurrageSavingsPercent)})
-                      <Icon name="CheckCircle" size="s" />
+                      <Icon name={CheckCircle} size="s" />
                     </AttributesValue>
                   </AttributesRow>
                 </AttributesItem>

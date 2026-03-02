@@ -1,3 +1,4 @@
+import { LayoutDashboard } from "lucide-react";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
 
 export function BoardsSkeleton() {
@@ -54,7 +55,7 @@ export function BoardsEmptyState({ onCreateBoard }: { onCreateBoard: () => void 
   return (
     <div className="py-12 text-center">
       <Icon
-        name="layout-dashboard"
+        name={LayoutDashboard}
         size="l"
         className="mx-auto mb-4 text-[var(--color-text-tertiary)]"
       />

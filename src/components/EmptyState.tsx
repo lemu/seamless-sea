@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { Button } from "@rafal.lemieszewski/tide-ui";
 
 interface EmptyStateProps {
@@ -316,7 +317,7 @@ export function EmptyState({
         {actionLabel && onAction && (
           <Button
             variant="primary"
-            icon="plus"
+            icon={Plus}
             iconPosition="left"
             onClick={onAction}
             className="w-full"

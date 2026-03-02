@@ -1,4 +1,10 @@
 import * as React from "react";
+import {
+  House, Ship, TrendingUp, ScrollText, ShieldCheck,
+  Map, Globe, Container, Anchor, LayoutDashboard,
+  Bell, CircleHelp,
+  Plus, Eye, PinOff, Pencil, Trash2, Printer, User, Settings2, LogOut,
+} from "lucide-react";
 import { useUser } from "../hooks";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -40,7 +46,7 @@ interface MenuSubItem {
 
 interface MenuItem {
   title: string;
-  icon: string;
+  icon: React.ComponentType;
   url: string;
   isActive: boolean;
   items?: MenuSubItem[];
@@ -152,7 +158,7 @@ const getSidebarData = (
       main: [
         {
           title: "Home",
-          icon: "house",
+          icon: House,
           url: "/home",
           isActive: currentPath === "/home",
         },
@@ -160,21 +166,21 @@ const getSidebarData = (
       operations: [
         {
           title: "Freight planner",
-          icon: "ship",
+          icon: Ship,
           url: "/freight-planner",
           isActive: currentPath === "/freight-planner",
           items: [],
         },
         {
           title: "Trade desk",
-          icon: "trending-up",
+          icon: TrendingUp,
           url: "/trade-desk",
           isActive: currentPath === "/trade-desk",
           items: [],
         },
         {
           title: "Agreements",
-          icon: "scroll-text",
+          icon: ScrollText,
           url: "/agreements",
           isActive:
             currentPath === "/agreements" ||
@@ -201,7 +207,7 @@ const getSidebarData = (
         },
         {
           title: "Compliance",
-          icon: "shield-check",
+          icon: ShieldCheck,
           url: "/compliance",
           isActive: currentPath === "/compliance",
           items: [],
@@ -210,45 +216,45 @@ const getSidebarData = (
       intelligence: [
         {
           title: "SeaNet",
-          icon: "map",
+          icon: Map,
           url: "/seanet",
           isActive: currentPath === "/seanet",
         },
         {
           title: "Global market",
-          icon: "globe",
+          icon: Globe,
           url: "/global-market",
           isActive: currentPath === "/global-market",
         },
         {
           title: "Assets",
-          icon: "container",
+          icon: Container,
           url: "/assets",
           isActive: currentPath === "/assets",
         },
         {
           title: "Fixtures",
-          icon: "anchor",
+          icon: Anchor,
           url: "/fixtures",
           isActive: currentPath === "/fixtures",
         },
       ],
       boards: pinnedBoards.map((board: PinnedBoard) => ({
         title: board.title,
-        icon: "layout-dashboard" as const,
+        icon: LayoutDashboard,
         url: `/boards/${board._id}`,
         isActive: currentPath === `/boards/${board._id}`,
       })),
       support: [
         {
           title: "Notifications",
-          icon: "bell",
+          icon: Bell,
           url: "/notifications",
           isActive: currentPath === "/notifications",
         },
         {
           title: "Help & support",
-          icon: "circle-help",
+          icon: CircleHelp,
           url: "/help-support",
           isActive: currentPath === "/help-support",
         },
@@ -676,7 +682,7 @@ function AppSidebar() {
                                                     onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as string}
+                            name={item.icon}
                             size="s"
                           />
                           <span>{item.title}</span>
@@ -718,7 +724,7 @@ function AppSidebar() {
                             onClick={() => toggleExpanded(item.title)}
                           >
                             <Icon
-                              name={item.icon as string}
+                              name={item.icon}
                               size="s"
                             />
                             <span>{item.title}</span>
@@ -761,7 +767,7 @@ function AppSidebar() {
                                     className="cursor-pointer w-full hover:!bg-[var(--color-background-neutral-subtle-hovered)]"
                                   >
                                     <Icon
-                                      name={item.icon as string}
+                                      name={item.icon}
                                       size="s"
                                     />
                                   </SidebarMenuButton>
@@ -810,7 +816,7 @@ function AppSidebar() {
                               onClick={() => navigate(item.url)}
                             >
                               <Icon
-                                name={item.icon as string}
+                                name={item.icon}
                                 size="s"
                                 color={item.isActive ? "brand" : undefined}
                                 className={
@@ -858,7 +864,7 @@ function AppSidebar() {
                                                     onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as string}
+                            name={item.icon}
                             size="s"
                           />
                           <span>{item.title}</span>
@@ -892,7 +898,7 @@ function AppSidebar() {
                 className="h-4 w-4 p-0 text-[var(--color-text-tertiary)] hover:!bg-[var(--color-background-neutral-subtle-hovered)] hover:text-[var(--color-text-secondary)]"
                 onClick={() => setNewBoardModalOpen(true)}
               >
-                <Icon name="plus" size="s" className="text-[var(--color-text-tertiary)]" />
+                <Icon name={Plus} size="s" className="text-[var(--color-text-tertiary)]" />
               </Button>
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -913,7 +919,7 @@ function AppSidebar() {
                                                     onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as string}
+                            name={item.icon}
                             size="s"
                           />
                           <span>{item.title}</span>
@@ -936,26 +942,26 @@ function AppSidebar() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="right" align="start" className="w-48">
                         <DropdownMenuItem
-                          icon="eye"
+                          icon={Eye}
                           onClick={() => navigate(item.url)}
                                                   >
                           View
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          icon="pin-off"
+                          icon={PinOff}
                           onClick={() => handleUnpinBoard(item)}
                                                   >
                           Unpin
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          icon="edit"
+                          icon={Pencil}
                           onClick={() => handleRenameBoard(item)}
                                                   >
                           Rename
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          icon="trash"
+                          icon={Trash2}
                           onClick={() => handleDeleteBoard(item)}
                           className="cursor-pointer text-[var(--color-text-destructive)] hover:bg-[var(--color-background-destructive-subtle)] hover:text-[var(--color-text-destructive)]"
                         >
@@ -1002,7 +1008,7 @@ function AppSidebar() {
                                                     onClick={() => navigate(item.url)}
                         >
                           <Icon
-                            name={item.icon as string}
+                            name={item.icon}
                             size="s"
                           />
                           <span>{item.title}</span>
@@ -1057,7 +1063,7 @@ function AppSidebar() {
               </span>
             </CommandItem>
             <CommandItem onSelect={() => window.print()}>
-              <Icon name="printer" size="s" className="mr-2" />
+              <Icon name={Printer} size="s" className="mr-2" />
               <span>Print Page</span>
               <span className="text-caption-sm ml-auto text-[var(--color-text-tertiary)]">
                 {isMacOS() ? "⌘" : "Ctrl"}P
@@ -1074,7 +1080,7 @@ function AppSidebar() {
                   setCommandOpen(false);
                 }}
               >
-                <Icon name={item.icon as string} size="s" className="mr-2" />
+                <Icon name={item.icon} size="s" className="mr-2" />
                 <span>{item.title}</span>
               </CommandItem>
             ))}
@@ -1086,7 +1092,7 @@ function AppSidebar() {
                   setCommandOpen(false);
                 }}
               >
-                <Icon name={item.icon as string} size="s" className="mr-2" />
+                <Icon name={item.icon} size="s" className="mr-2" />
                 <span>{item.title}</span>
               </CommandItem>
             ))}
@@ -1098,7 +1104,7 @@ function AppSidebar() {
                   setCommandOpen(false);
                 }}
               >
-                <Icon name={item.icon as string} size="s" className="mr-2" />
+                <Icon name={item.icon} size="s" className="mr-2" />
                 <span>{item.title}</span>
               </CommandItem>
             ))}
@@ -1107,7 +1113,7 @@ function AppSidebar() {
                 key={item.title}
                 onSelect={() => setCommandOpen(false)}
               >
-                <Icon name={item.icon as string} size="s" className="mr-2" />
+                <Icon name={item.icon} size="s" className="mr-2" />
                 <span>{item.title}</span>
               </CommandItem>
             ))}
@@ -1122,7 +1128,7 @@ function AppSidebar() {
                   setCommandOpen(false);
                 }}
               >
-                <Icon name={item.icon as string} size="s" className="mr-2" />
+                <Icon name={item.icon} size="s" className="mr-2" />
                 <span>{item.title}</span>
               </CommandItem>
             ))}
@@ -1531,13 +1537,13 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
 
           {/* Action Items */}
           <DropdownMenuItem
-            icon="user"
+            icon={User}
             onClick={() => navigate("/user-profile")}
                       >
             User profile
           </DropdownMenuItem>
           <DropdownMenuItem
-            icon="settings"
+            icon={Settings2}
             onClick={() => navigate("/organization-settings")}
                       >
             Organization settings
@@ -1546,7 +1552,7 @@ function CombinedSwitcher({ user, teams }: CombinedSwitcherProps) {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
-            icon="log-out"
+            icon={LogOut}
             onClick={logout}
             destructive
           >

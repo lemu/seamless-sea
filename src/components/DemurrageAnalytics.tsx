@@ -9,6 +9,7 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@rafal.lemieszewski/tide-ui";
+import { CheckCircle } from "lucide-react";
 import { formatPercent } from "../utils/dataUtils";
 
 interface DemurrageAnalyticsProps {
@@ -215,7 +216,7 @@ export function DemurrageAnalytics({
                       <span className="text-[var(--color-text-success)] flex items-center gap-1">
                         {formatCurrencyValue(savingsFromHighest.amount)} (
                         {formatPercentValue(savingsFromHighest.percent)})
-                        <Icon name="CheckCircle" size="s" />
+                        <Icon name={CheckCircle} size="s" />
                       </span>
                     </div>
                   )}

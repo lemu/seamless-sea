@@ -14,8 +14,8 @@ import {
   Separator,
   Toggle,
   toast,
-  DateRangePicker,
 } from "@rafal.lemieszewski/tide-ui";
+import { DateRangePicker } from "@rafal.lemieszewski/tide-ui/date-picker";
 import type {
   ExportFormat,
   ExportDataScope,

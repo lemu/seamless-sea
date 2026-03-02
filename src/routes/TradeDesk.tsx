@@ -3,7 +3,6 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import {
-  DataTable,
   Badge,
   Button,
   Icon,
@@ -18,11 +17,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Filters,
   cn,
 } from "@rafal.lemieszewski/tide-ui";
-import type { FilterDefinition, FilterValue } from "@rafal.lemieszewski/tide-ui";
+import { DataTable } from "@rafal.lemieszewski/tide-ui/data-table";
+import { Filters, type FilterDefinition, type FilterValue } from "@rafal.lemieszewski/tide-ui/filters";
 import { InsightsSection } from "../components/InsightsSection";
+import { Building2, Tag, Layers, Ship, Briefcase, Calendar, Plus, LineChart } from "lucide-react";
 import { useHeaderActions } from "../hooks";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -200,14 +200,14 @@ function TradeDesk() {
           <span className="insights-label text-body-md font-medium text-[var(--color-text-primary)]">
             Insights
           </span>
-          <Icon name="chart-line" size="m" className="insights-icon" />
+          <Icon name={LineChart} size="m" className="insights-icon" />
         </div>
         <div className="mx-2 h-1 w-1 rounded-full bg-[var(--color-text-tertiary)]"></div>
-        <Button variant="secondary" icon="plus" iconPosition="left" className="whitespace-nowrap">
+        <Button variant="secondary" icon={Plus} iconPosition="left" className="whitespace-nowrap">
           <span className="btn-negotiation-full">New negotiation</span>
           <span className="btn-negotiation-short">Negotiation</span>
         </Button>
-        <Button variant="primary" icon="plus" iconPosition="left" className="whitespace-nowrap">
+        <Button variant="primary" icon={Plus} iconPosition="left" className="whitespace-nowrap">
           <span className="btn-order-full">New order</span>
           <span className="btn-order-short">Order</span>
         </Button>
@@ -312,7 +312,7 @@ function TradeDesk() {
     {
       id: 'counterparty',
       label: 'Counterparty',
-      icon: ({ className }) => <Icon name="building" className={className} />,
+      icon: ({ className }) => <Icon name={Building2} className={className} />,
       type: 'multiselect',
       options: uniqueCounterparties,
       searchPlaceholder: 'Search counterparties...',
@@ -320,7 +320,7 @@ function TradeDesk() {
     {
       id: 'type',
       label: 'Type',
-      icon: ({ className }) => <Icon name="tag" className={className} />,
+      icon: ({ className }) => <Icon name={Tag} className={className} />,
       type: 'multiselect',
       options: uniqueTypes,
       searchPlaceholder: 'Search types...',
@@ -328,7 +328,7 @@ function TradeDesk() {
     {
       id: 'stage',
       label: 'Stage',
-      icon: ({ className }) => <Icon name="layers" className={className} />,
+      icon: ({ className }) => <Icon name={Layers} className={className} />,
       type: 'multiselect',
       options: uniqueStages,
       searchPlaceholder: 'Search stages...',
@@ -336,7 +336,7 @@ function TradeDesk() {
     {
       id: 'vessel',
       label: 'Vessel',
-      icon: ({ className }) => <Icon name="ship" className={className} />,
+      icon: ({ className }) => <Icon name={Ship} className={className} />,
       type: 'multiselect',
       options: uniqueVessels,
       searchPlaceholder: 'Search vessels...',
@@ -344,7 +344,7 @@ function TradeDesk() {
     {
       id: 'broker',
       label: 'Broker',
-      icon: ({ className }) => <Icon name="briefcase" className={className} />,
+      icon: ({ className }) => <Icon name={Briefcase} className={className} />,
       type: 'multiselect',
       options: uniqueBrokers,
       searchPlaceholder: 'Search brokers...',
@@ -352,7 +352,7 @@ function TradeDesk() {
     {
       id: 'laycan',
       label: 'Laycan',
-      icon: ({ className }) => <Icon name="calendar" className={className} />,
+      icon: ({ className }) => <Icon name={Calendar} className={className} />,
       type: 'select',
       options: dateRangeOptions,
     },

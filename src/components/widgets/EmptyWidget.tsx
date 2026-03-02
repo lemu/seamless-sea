@@ -1,3 +1,4 @@
+import { Code2 } from "lucide-react";
 import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { Icon } from "@rafal.lemieszewski/tide-ui";
 
@@ -19,7 +20,7 @@ export function EmptyWidget({ config, onEdit, onDelete, onDuplicate, isEditable 
     >
       <div className="flex flex-1 items-center justify-center">
         <div className="text-center">
-          <Icon name="square-dashed-bottom-code" size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
+          <Icon name={Code2} size="l" className="mx-auto mb-2 text-[var(--color-text-tertiary)]" />
           <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
             Empty Widget
           </p>

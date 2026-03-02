@@ -19,6 +19,8 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@rafal.lemieszewski/tide-ui";
+import { XCircle } from "lucide-react";
+import { Approved, PendingApproval } from "@rafal.lemieszewski/tide-ui/custom-icons";
 import { formatDateTime, getCompanyInitials } from "../utils/dataUtils";
 
 interface ApprovalSignatureRecord {
@@ -145,7 +147,7 @@ export function ApprovalSignatureRow({
                             {isComplete && (
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-success-bold)] flex items-center justify-center">
                                 <Icon
-                                  name="approved"
+                                  name={Approved}
                                   size="m"
                                   className="text-[var(--color-text-success-bold)] translate-x-[1px] translate-y-[1px]"
                                 />
@@ -154,7 +156,7 @@ export function ApprovalSignatureRow({
                             {isPending && (
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-icon-warning-bold)] flex items-center justify-center">
                                 <Icon
-                                  name="pending-approval"
+                                  name={PendingApproval}
                                   size="m"
                                   className="text-[var(--color-icon-warning-bold)] translate-x-[1px] translate-y-[1px]"
                                 />
@@ -163,7 +165,7 @@ export function ApprovalSignatureRow({
                             {isRejected && (
                               <div className="w-4 h-4 rounded-full bg-[var(--color-surface-base)] border-2 border-[var(--color-text-danger)] flex items-center justify-center">
                                 <Icon
-                                  name="XCircle"
+                                  name={XCircle}
                                   size="m"
                                   className="text-[var(--color-text-danger)] translate-x-[1px] translate-y-[1px]"
                                 />
