@@ -16,8 +16,6 @@ export const getCurrentUser = query({
       return null;
     }
 
-    console.log("getCurrentUser: Auth user found:", user.email);
-
     // Try to get avatar URL from our users table (for backwards compatibility)
     // First try exact match (uses index, fast)
     let dbUser = await ctx.db
@@ -34,29 +32,12 @@ export const getCurrentUser = query({
           (u) => u.email.trim().toLowerCase() === normalizedEmail
         ) ?? null;
 
-      if (dbUser) {
-        console.log(
-          "getCurrentUser: Found user with case-insensitive match:",
-          dbUser.email,
-          "vs auth email:",
-          user.email
-        );
-      }
     }
-
-    console.log(
-      "getCurrentUser: DB user lookup result:",
-      dbUser ? "FOUND" : "NOT FOUND",
-      "for email:",
-      user.email
-    );
 
     // If user doesn't exist in users table, schedule a mutation to create it
     // (queries can't modify data, but we can trigger a mutation)
     if (!dbUser) {
       console.warn("⚠️ User authenticated but not in users table:", user.email);
-    } else {
-      console.log("✅ User found with appUserId:", dbUser._id);
     }
 
     let avatarUrl = null;
