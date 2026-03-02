@@ -1,6 +1,6 @@
 import { useQueryStates, parseAsArrayOf, parseAsString, parseAsInteger, parseAsIsoDateTime, parseAsBoolean, parseAsJson } from 'nuqs';
 import { useMemo, useCallback } from 'react';
-import type { FilterValue } from '@rafal.lemieszewski/tide-ui';
+import type { FilterValue } from '@rafal.lemieszewski/tide-ui/filters';
 
 // ── JSON shape for the `f` catch-all filter param ──────────────────────
 // Each entry maps a filter key to one of:

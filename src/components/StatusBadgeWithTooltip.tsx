@@ -9,7 +9,7 @@ import { formatDuration as formatDurationUtil } from "../utils/dataUtils";
 
 interface StatusBadgeWithTooltipProps {
   value: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "s" | "m" | "l";
   lowercase?: boolean;
   // Timeline information for tooltip
   timeline?: {
@@ -43,7 +43,7 @@ interface StatusBadgeWithTooltipProps {
  */
 export function StatusBadgeWithTooltip({
   value,
-  size = "sm",
+  size = "s",
   lowercase = true,
   timeline,
 }: StatusBadgeWithTooltipProps) {
