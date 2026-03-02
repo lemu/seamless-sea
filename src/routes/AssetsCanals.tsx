@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQueryState, parseAsString } from "nuqs";
 import { Tabs, TabsList, TabsTrigger, Button } from "@rafal.lemieszewski/tide-ui";
 import { useHeaderTabs, useHeaderActions } from "../hooks";
+import { Upload } from "lucide-react";
 
 function AssetsCanals() {
   const [tab, setTab] = useQueryState("tab", parseAsString.withDefault("overview"));
@@ -20,7 +21,7 @@ function AssetsCanals() {
 
   useHeaderTabs(headerTabs);
 
-  const headerActions = useMemo(() => <Button variant="default">Export</Button>, []);
+  const headerActions = useMemo(() => <Button variant="default" icon={Upload} iconPosition="left">Export</Button>, []);
   useHeaderActions(headerActions);
 
   return (
