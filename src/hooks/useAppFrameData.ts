@@ -179,7 +179,7 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         items: [
           { title: "Vessels", url: "/assets/vessels/overview", isActive: currentPath.startsWith("/assets/vessels") },
           { title: "Fleets", url: "/assets/fleets", isActive: currentPath === "/assets/fleets" },
-          { title: "Ports", url: "/assets/ports", isActive: currentPath === "/assets/ports" },
+          { title: "Ports", url: "/assets/ports/overview", isActive: currentPath.startsWith("/assets/ports") },
           { title: "Chokepoints", url: "/assets/canals", isActive: currentPath === "/assets/canals" },
         ],
       },
