@@ -240,17 +240,31 @@ export function UserProfileCard({ user }) {
 }
 ```
 
-### Semantic Tailwind Utilities
+### Tailwind + Tide UI CSS Variables
 
-Use semantic utilities from the design system preset, not arbitrary CSS variable values:
+Tide UI exposes design tokens as CSS variables. Use Tailwind's arbitrary value syntax to apply them. There is no `tailwind-preset.js` in this project — shorthand utilities like `text-text-primary` do **not** exist.
 
 ```typescript
-// ❌ Bad: Ambiguous — Tailwind can't determine if it's color or font-size
-className="text-[var(--color-text-primary)]"
+// ✅ Correct: arbitrary value syntax
+className="text-[var(--color-text-brand-bold)]"
 
-// ✅ Good: Semantic utility from tailwind-preset.js
+// ✅ Also correct for high-specificity overrides (e.g. inside DataTable cells)
+style={{ color: "var(--color-text-brand-bold)" }}
+
+// ❌ Wrong: these utilities are not defined
 className="text-text-primary"
+className="text-text-brand"
 ```
+
+**Key text color variables (defined in tide-ui):**
+- `--color-text-brand-bold` — brand blue (`#005f85`), use for links and accents
+- `--color-text-primary` — primary text
+- `--color-text-secondary` — secondary text
+- `--color-text-tertiary` — tertiary text
+- `--color-text-disabled` — disabled state
+- `--color-text-danger` — error/danger
+
+**Note:** `--color-text-brand` (without `-bold`) is **not defined** and resolves to nothing.
 
 ## Convex Database Guidelines
 
