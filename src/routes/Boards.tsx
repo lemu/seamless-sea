@@ -2,7 +2,21 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate, Outlet, useLocation } from "react-router";
 import { Plus, Copy } from "lucide-react";
-import { Button, Icon, toast } from "@rafal.lemieszewski/tide-ui";
+import {
+  Button,
+  Icon,
+  toast,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogBody,
+  DialogFooter,
+  Input,
+  FormField,
+  FormLabel,
+  FormControl,
+} from "@rafal.lemieszewski/tide-ui";
 import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardsSkeleton, BoardsEmptyState } from "../components/BoardsSkeleton";
@@ -202,8 +216,9 @@ function Boards() {
               aria-label={`Open board: ${board.title}`}
             >
               {/* Pin Button */}
-              <button
-                className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
+              <Button
+                variant="ghost"
+                className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isPinned(board._id)) {
@@ -219,11 +234,11 @@ function Boards() {
                   size="s"
                   className={
                     isPinned(board._id)
-                      ? "text-[var(--color-text-brand)]"
+                      ? "text-[var(--color-text-brand-bold)]"
                       : "text-[var(--color-text-secondary)]"
                   }
                 />
-              </button>
+              </Button>
 
               {/* Board Content */}
               <div className="mb-3 flex items-center gap-3">
@@ -260,14 +275,15 @@ function Boards() {
                 className="group relative rounded-l border border-[var(--color-border-primary-subtle)] p-4"
               >
                 {/* Duplicate Button */}
-                <button
-                  className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
+                <Button
+                  variant="ghost"
+                  className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                   onClick={() => handleDuplicateBoard(board._id)}
                   aria-label={`Duplicate board: ${board.title}`}
                   title="Duplicate to my boards"
                 >
                   <Copy size={14} className="text-[var(--color-text-secondary)]" />
-                </button>
+                </Button>
 
                 {/* View link */}
                 <div
@@ -304,21 +320,21 @@ function Boards() {
       )}
 
       {/* Create Board Modal */}
-      {showCreateModal && (
-        <CreateBoardModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreateBoard}
-        />
-      )}
+      <CreateBoardModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreate={handleCreateBoard}
+      />
     </div>
   );
 }
 
-// Simple modal component for board creation
 function CreateBoardModal({
+  open,
   onClose,
   onCreate,
 }: {
+  open: boolean;
   onClose: () => void;
   onCreate: (title: string) => Promise<void>;
 }) {
@@ -341,30 +357,28 @@ function CreateBoardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-l bg-[var(--color-surface-primary)] p-6">
-        <h2 className="text-heading-lg mb-4 text-[var(--color-text-primary)]">
-          Create new board
-        </h2>
-
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create new board</DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="text-body-md mb-2 block text-[var(--color-text-primary)]">
-              Board Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter board title..."
-              className="w-full rounded-m border border-[var(--color-border-primary-subtle)] px-3 py-2 focus:border-[var(--color-border-brand)] focus:outline-none"
-              disabled={isCreating}
-              autoFocus
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" onClick={onClose} disabled={isCreating}>
+          <DialogBody>
+            <FormField>
+              <FormLabel>Board title</FormLabel>
+              <FormControl>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter board title…"
+                  disabled={isCreating}
+                  autoFocus
+                />
+              </FormControl>
+            </FormField>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={isCreating}>
               Cancel
             </Button>
             <Button
@@ -372,12 +386,12 @@ function CreateBoardModal({
               variant="primary"
               disabled={!title.trim() || isCreating}
             >
-              {isCreating ? "Creating..." : "Create board"}
+              {isCreating ? "Creating…" : "Create board"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

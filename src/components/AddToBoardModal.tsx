@@ -9,8 +9,16 @@ import {
   DialogTitle,
   DialogBody,
   DialogFooter,
+  RadioGroup,
+  RadioGroupItem,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+  toast,
 } from "@rafal.lemieszewski/tide-ui";
-import { toast } from "@rafal.lemieszewski/tide-ui";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useUser } from "../hooks";
@@ -126,30 +134,20 @@ export function AddToBoardModal({ chartTitle, source, onClose }: AddToBoardModal
           </p>
 
           {/* Mode toggle */}
-          <div className="flex gap-3">
+          <RadioGroup
+            value={mode}
+            onValueChange={(val) => setMode(val as Mode)}
+            className="flex gap-3"
+          >
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="mode"
-                value="existing"
-                checked={mode === "existing"}
-                onChange={() => setMode("existing")}
-                className="accent-[var(--color-text-brand-bold)]"
-              />
+              <RadioGroupItem value="existing" />
               <span className="text-body-sm text-[var(--color-text-primary)]">Existing board</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="mode"
-                value="new"
-                checked={mode === "new"}
-                onChange={() => setMode("new")}
-                className="accent-[var(--color-text-brand-bold)]"
-              />
+              <RadioGroupItem value="new" />
               <span className="text-body-sm text-[var(--color-text-primary)]">New board</span>
             </label>
-          </div>
+          </RadioGroup>
 
           {mode === "existing" ? (
             <div className="flex flex-col gap-1.5">
@@ -161,30 +159,28 @@ export function AddToBoardModal({ chartTitle, source, onClose }: AddToBoardModal
                   No boards yet — switch to "New board" to create one.
                 </p>
               ) : (
-                <select
-                  value={selectedBoardId}
-                  onChange={(e) => setSelectedBoardId(e.target.value)}
-                  className="w-full rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-2 text-body-sm text-[var(--color-text-primary)] focus:border-[var(--color-border-brand)] focus:outline-none"
-                >
-                  <option value="">Choose a board…</option>
-                  {boards.map((board) => (
-                    <option key={board._id} value={board._id}>
-                      {board.title}
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedBoardId} onValueChange={setSelectedBoardId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a board…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {boards.map((board) => (
+                      <SelectItem key={board._id} value={board._id}>
+                        {board.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
               <label className="text-body-sm text-[var(--color-text-primary)]">Board title</label>
-              <input
-                type="text"
+              <Input
                 value={newBoardTitle}
                 onChange={(e) => setNewBoardTitle(e.target.value)}
                 placeholder="My new board…"
                 autoFocus
-                className="w-full rounded-md border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)] px-3 py-2 text-body-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-border-brand)] focus:outline-none"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && canSubmit) handleSubmit();
                 }}

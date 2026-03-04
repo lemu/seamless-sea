@@ -14,6 +14,8 @@ import {
   DialogBody,
   DialogFooter,
   DialogTitle,
+  RadioGroup,
+  RadioGroupItem,
   toast,
 } from "@rafal.lemieszewski/tide-ui";
 import { Plus, Lock, Share2 } from "lucide-react";
@@ -323,35 +325,33 @@ function ShareBoardDialog({ board, open, onOpenChange, onVisibilityChange }: Sha
           <DialogTitle>Share "{board.title}"</DialogTitle>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-4">
-          <label className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]" style={selected === "private" ? { borderColor: "var(--color-border-brand)" } : {}}>
-            <input
-              type="radio"
-              name="visibility"
-              value="private"
-              checked={selected === "private"}
-              onChange={() => setSelected("private")}
-              className="mt-0.5 accent-[var(--color-text-brand-bold)]"
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-body-md font-medium text-[var(--color-text-primary)]">Private</span>
-              <span className="text-body-sm text-[var(--color-text-secondary)]">Only you can see and edit this board.</span>
-            </div>
-          </label>
+          <RadioGroup
+            value={selected}
+            onValueChange={(val) => setSelected(val as "private" | "org_view")}
+            className="flex flex-col gap-4"
+          >
+            <label
+              className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]"
+              style={selected === "private" ? { borderColor: "var(--color-border-brand)" } : {}}
+            >
+              <RadioGroupItem value="private" className="mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-body-md font-medium text-[var(--color-text-primary)]">Private</span>
+                <span className="text-body-sm text-[var(--color-text-secondary)]">Only you can see and edit this board.</span>
+              </div>
+            </label>
 
-          <label className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]" style={selected === "org_view" ? { borderColor: "var(--color-border-brand)" } : {}}>
-            <input
-              type="radio"
-              name="visibility"
-              value="org_view"
-              checked={selected === "org_view"}
-              onChange={() => setSelected("org_view")}
-              className="mt-0.5 accent-[var(--color-text-brand-bold)]"
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-body-md font-medium text-[var(--color-text-primary)]">Organisation — View only</span>
-              <span className="text-body-sm text-[var(--color-text-secondary)]">Everyone in your organisation can view this board. They can duplicate it to make their own editable copy.</span>
-            </div>
-          </label>
+            <label
+              className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]"
+              style={selected === "org_view" ? { borderColor: "var(--color-border-brand)" } : {}}
+            >
+              <RadioGroupItem value="org_view" className="mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-body-md font-medium text-[var(--color-text-primary)]">Organisation — View only</span>
+                <span className="text-body-sm text-[var(--color-text-secondary)]">Everyone in your organisation can view this board. They can duplicate it to make their own editable copy.</span>
+              </div>
+            </label>
+          </RadioGroup>
         </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSaving}>
