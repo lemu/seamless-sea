@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { useNavigate, Outlet, useLocation } from "react-router";
-import { Plus } from "lucide-react";
-import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
+import { Plus, Copy } from "lucide-react";
+import { Button, Icon, toast } from "@rafal.lemieszewski/tide-ui";
 import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardsSkeleton, BoardsEmptyState } from "../components/BoardsSkeleton";
@@ -43,9 +43,21 @@ function Boards() {
       : "skip",
   );
 
+  // Get boards shared with the org
+  const sharedBoards = useQuery(
+    api.boards.getBoardsSharedWithOrg,
+    user?._id && currentOrganization?._id
+      ? {
+          userId: user._id,
+          organizationId: currentOrganization._id,
+        }
+      : "skip",
+  );
+
   const createBoard = useMutation(api.boards.createBoard);
   const pinBoard = useMutation(api.boards.pinBoard);
   const unpinBoard = useMutation(api.boards.unpinBoard);
+  const duplicateBoard = useMutation(api.boards.duplicateBoard);
 
   // Check if we're on a board detail page (child route)
   const isOnBoardDetail = location.pathname.match(/^\/boards\/[^/]+$/);
@@ -118,6 +130,27 @@ function Boards() {
     } catch (error) {
       console.error("Failed to unpin board:", error);
       alert("Failed to unpin board");
+    }
+  };
+
+  const handleDuplicateBoard = async (boardId: string) => {
+    if (!user?._id || !currentOrganization?._id) return;
+
+    try {
+      const newBoardId = await duplicateBoard({
+        boardId: boardId as Id<"boards">,
+        userId: user._id,
+        organizationId: currentOrganization._id,
+      });
+      toast.success("Board duplicated to your boards", {
+        action: {
+          label: "Open",
+          onClick: () => navigate(`/boards/${newBoardId}`),
+        },
+      });
+    } catch (error) {
+      console.error("Failed to duplicate board:", error);
+      toast.error("Failed to duplicate board");
     }
   };
 
@@ -213,6 +246,60 @@ function Boards() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Shared with org section */}
+      {sharedBoards && sharedBoards.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <h2 className="text-heading-sm text-[var(--color-text-primary)]">Shared with your organisation</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {sharedBoards.map((board) => (
+              <div
+                key={board._id}
+                className="group relative rounded-l border border-[var(--color-border-primary-subtle)] p-4"
+              >
+                {/* Duplicate Button */}
+                <button
+                  className="absolute top-2 right-2 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:bg-[var(--color-background-neutral-subtle-hovered)]"
+                  onClick={() => handleDuplicateBoard(board._id)}
+                  aria-label={`Duplicate board: ${board.title}`}
+                  title="Duplicate to my boards"
+                >
+                  <Copy size={14} className="text-[var(--color-text-secondary)]" />
+                </button>
+
+                {/* View link */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="cursor-pointer focus:outline-none"
+                  onClick={() => navigate(`/boards/${board._id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/boards/${board._id}`);
+                    }
+                  }}
+                  aria-label={`View board: ${board.title}`}
+                >
+                  <div className="mb-3 flex items-center gap-3">
+                    <h3 className="text-heading-md truncate text-[var(--color-text-primary)]">
+                      {board.title}
+                    </h3>
+                  </div>
+                  {board.description && (
+                    <p className="text-body-sm mb-3 text-[var(--color-text-secondary)]">
+                      {board.description}
+                    </p>
+                  )}
+                  <div className="text-caption-sm flex items-center justify-between text-[var(--color-text-tertiary)]">
+                    <span>Shared • {formatDate(board.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

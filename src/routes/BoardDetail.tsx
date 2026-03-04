@@ -14,8 +14,9 @@ import {
   DialogBody,
   DialogFooter,
   DialogTitle,
+  toast,
 } from "@rafal.lemieszewski/tide-ui";
-import { Plus, Lock } from "lucide-react";
+import { Plus, Lock, Share2 } from "lucide-react";
 import { useUser, useHeaderActions } from "../hooks";
 import { api } from "../../convex/_generated/api";
 import { BoardDetailSkeleton } from "../components/BoardDetailSkeleton";
@@ -30,6 +31,7 @@ function BoardDetail() {
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Get the board data
   const board = useQuery(
@@ -44,6 +46,7 @@ function BoardDetail() {
   );
 
   const deleteBoard = useMutation(api.boards.deleteBoard);
+  const updateBoard = useMutation(api.boards.updateBoard);
 
   // Calculate ownership early for header actions
   const isOwner = board && user?._id ? board.userId === user._id : false;
@@ -53,6 +56,15 @@ function BoardDetail() {
     () =>
       board && user && isOwner ? (
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="secondary"
+            icon={Share2}
+            iconPosition="left"
+            onClick={() => setShowShareDialog(true)}
+          >
+            Share
+          </Button>
+
           <Button
             variant="secondary"
             icon={Plus}
@@ -81,7 +93,7 @@ function BoardDetail() {
           </DropdownMenu>
         </div>
       ) : null,
-    [board, user, isOwner, setIsAddingWidget, setShowAddWidgetModal, setShowDeleteDialog]
+    [board, user, isOwner, setIsAddingWidget, setShowAddWidgetModal, setShowDeleteDialog, setShowShareDialog]
   );
 
   // Set header actions
@@ -252,7 +264,109 @@ function BoardDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Share Board Dialog */}
+      {board && (
+        <ShareBoardDialog
+          board={board}
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          onVisibilityChange={async (visibility) => {
+            try {
+              await updateBoard({ boardId: board._id, visibility });
+              toast.success(
+                visibility === "org_view"
+                  ? "Board is now visible to your organisation"
+                  : "Board is now private"
+              );
+            } catch (error) {
+              console.error("Failed to update visibility:", error);
+              toast.error("Failed to update sharing settings");
+            }
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Share Board Dialog ────────────────────────────────────────────────────────
+
+interface ShareBoardDialogProps {
+  board: { _id: Id<"boards">; title: string; visibility?: "private" | "org_view" | null };
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onVisibilityChange: (visibility: "private" | "org_view") => Promise<void>;
+}
+
+function ShareBoardDialog({ board, open, onOpenChange, onVisibilityChange }: ShareBoardDialogProps) {
+  const currentVisibility = board.visibility ?? "private";
+  const [selected, setSelected] = useState<"private" | "org_view">(currentVisibility);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isDirty = selected !== currentVisibility;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onVisibilityChange(selected);
+      onOpenChange(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Share "{board.title}"</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-4">
+          <label className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]" style={selected === "private" ? { borderColor: "var(--color-border-brand)" } : {}}>
+            <input
+              type="radio"
+              name="visibility"
+              value="private"
+              checked={selected === "private"}
+              onChange={() => setSelected("private")}
+              className="mt-0.5 accent-[var(--color-text-brand-bold)]"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-body-md font-medium text-[var(--color-text-primary)]">Private</span>
+              <span className="text-body-sm text-[var(--color-text-secondary)]">Only you can see and edit this board.</span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer rounded-l border border-[var(--color-border-primary-subtle)] p-4 transition-colors hover:border-[var(--color-border-primary-hovered)]" style={selected === "org_view" ? { borderColor: "var(--color-border-brand)" } : {}}>
+            <input
+              type="radio"
+              name="visibility"
+              value="org_view"
+              checked={selected === "org_view"}
+              onChange={() => setSelected("org_view")}
+              className="mt-0.5 accent-[var(--color-text-brand-bold)]"
+            />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-body-md font-medium text-[var(--color-text-primary)]">Organisation — View only</span>
+              <span className="text-body-sm text-[var(--color-text-secondary)]">Everyone in your organisation can view this board. They can duplicate it to make their own editable copy.</span>
+            </div>
+          </label>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={!isDirty || isSaving}
+          >
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
