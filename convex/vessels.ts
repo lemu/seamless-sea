@@ -335,6 +335,20 @@ export const seedVessels = mutation({
   handler: seedVesselsInternal,
 });
 
+// Query vessels with owner names joined
+export const listWithDetails = query({
+  args: {},
+  handler: async (ctx) => {
+    const vessels = await ctx.db.query("vessels").order("asc").collect();
+    return Promise.all(
+      vessels.map(async (v) => {
+        const owner = v.currentOwnerId ? await ctx.db.get(v.currentOwnerId) : null;
+        return { ...v, ownerName: owner?.name ?? null };
+      })
+    );
+  },
+});
+
 // Query all vessels
 export const list = query({
   args: {},
@@ -360,6 +374,17 @@ export const getById = query({
   args: { id: v.id("vessels") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id);
+  },
+});
+
+// Get vessel by ID with owner name joined
+export const getWithOwner = query({
+  args: { id: v.id("vessels") },
+  handler: async (ctx, args) => {
+    const vessel = await ctx.db.get(args.id);
+    if (!vessel) return null;
+    const owner = vessel.currentOwnerId ? await ctx.db.get(vessel.currentOwnerId) : null;
+    return { ...vessel, ownerName: owner?.name ?? null };
   },
 });
 

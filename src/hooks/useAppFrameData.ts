@@ -6,7 +6,7 @@ import type { Id } from "../../convex/_generated/dataModel";
 import type { ComponentType } from "react";
 import {
   House, LayoutDashboard, Ship, TrendingUp, ScrollText,
-  ShieldCheck, Map, Globe, Container, Anchor, Bell, CircleHelp,
+  ShieldCheck, Map, Globe, Container, Anchor, Bell, CircleHelp, Newspaper,
 } from "lucide-react";
 
 // Tide-UI AppFrame types
@@ -91,6 +91,12 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         isActive: currentPath === "/home",
       },
       {
+        title: "News",
+        icon: Newspaper,
+        url: "/news",
+        isActive: currentPath === "/news",
+      },
+      {
         title: "Boards",
         icon: LayoutDashboard,
         url: "/boards",
@@ -171,10 +177,10 @@ export function useAppFrameData(): UseAppFrameDataReturn {
         url: "/assets",
         isActive: currentPath.startsWith("/assets"),
         items: [
-          { title: "Vessels", url: "/assets/vessels", isActive: currentPath === "/assets/vessels" },
+          { title: "Vessels", url: "/assets/vessels/overview", isActive: currentPath.startsWith("/assets/vessels") },
           { title: "Fleets", url: "/assets/fleets", isActive: currentPath === "/assets/fleets" },
           { title: "Ports", url: "/assets/ports", isActive: currentPath === "/assets/ports" },
-          { title: "Canals", url: "/assets/canals", isActive: currentPath === "/assets/canals" },
+          { title: "Chokepoints", url: "/assets/canals", isActive: currentPath === "/assets/canals" },
         ],
       },
       {

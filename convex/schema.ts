@@ -79,6 +79,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     userId: v.id("users"),
     organizationId: v.id("organizations"),
+    visibility: v.optional(v.union(v.literal("private"), v.literal("org_view"))), // default "private"
     createdAt: v.number(),
     updatedAt: v.number(),
   }),
@@ -722,6 +723,49 @@ export default defineSchema({
   })
     .index("by_load_port", ["loadPortId"])
     .index("by_discharge_port", ["dischargePortId"]),
+
+  // Vessel sample data - Per-vessel chart/table data for prototyping
+  vessel_sample_data: defineTable({
+    vesselId: v.id("vessels"),
+    portCalls: v.array(v.object({
+      country: v.string(),
+      port: v.string(),
+      activity: v.string(),
+      arrived: v.string(),
+      departed: v.string(),
+      berth: v.string(),
+      cargo: v.string(),
+    })),
+    voyages: v.array(v.object({
+      voyage: v.string(),
+      loadPort: v.string(),
+      dischPort: v.string(),
+      ladenDays: v.number(),
+      ballastDays: v.number(),
+      cargoMt: v.number(),
+      avgLadenSpeed: v.number(),
+      avgBallastSpeed: v.number(),
+      avgDraft: v.number(),
+      bunkerMt: v.number(),
+    })),
+    monthlyStats: v.array(v.object({
+      month: v.string(),
+      ladenDays: v.number(),
+      ballastDays: v.number(),
+      cargoMt: v.optional(v.number()),
+    })),
+    weeklyPerformance: v.array(v.object({
+      label: v.string(),
+      ladenSpeed: v.number(),
+      ballastSpeed: v.number(),
+      draft: v.number(),
+    })),
+    speedDistribution: v.array(v.object({
+      bucket: v.string(),
+      count: v.number(),
+      bunkerPerDay: v.number(),
+    })),
+  }).index("by_vessel", ["vesselId"]),
 
   // User Bookmarks - Persistent user bookmarks for Fixtures table
   user_bookmarks: defineTable({

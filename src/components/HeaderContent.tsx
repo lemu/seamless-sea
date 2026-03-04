@@ -44,6 +44,26 @@ function DynamicBreadcrumbs() {
     boardId ? { boardId: boardId as Id<"boards"> } : "skip",
   );
 
+  // Get vessel data for dynamic vessel titles
+  const vesselMatch = matches.find(
+    (match: unknown) =>
+      match &&
+      typeof match === "object" &&
+      "params" in match &&
+      match.params &&
+      typeof match.params === "object" &&
+      "id" in match.params &&
+      "pathname" in match &&
+      typeof match.pathname === "string" &&
+      match.pathname.startsWith("/assets/vessels/") &&
+      /^\/assets\/vessels\/[^/]+$/.test((match as { pathname: string }).pathname),
+  ) as { params: { id: string }; pathname: string } | undefined;
+  const vesselId = vesselMatch?.params?.id;
+  const vesselData = useQuery(
+    api.vessels.getWithOwner,
+    vesselId ? { id: vesselId as Id<"vessels"> } : "skip",
+  );
+
   // Filter matches that have breadcrumb handles
   const routeCrumbs = matches
     .filter(
@@ -57,18 +77,24 @@ function DynamicBreadcrumbs() {
     )
     .map((match: unknown) => {
       const matchTyped = match as {
-        handle: { crumb: (match: unknown) => string; redirectOnly?: boolean };
+        handle: { crumb: (match: unknown) => string; crumbPath?: string; redirectOnly?: boolean };
         pathname: string;
         params?: Record<string, string | undefined>;
       };
       const handle = matchTyped.handle;
       const crumbFn = handle?.crumb;
-      const path = matchTyped.pathname;
+      const path = handle?.crumbPath ?? matchTyped.pathname;
       const isRedirectOnly = handle?.redirectOnly || false;
 
       // Special handling for board detail routes
       if (matchTyped.params?.id && matchTyped.pathname.startsWith("/boards/")) {
         const title = boardData?.title || "Loading...";
+        return { title, path, isRedirectOnly };
+      }
+
+      // Special handling for vessel detail routes
+      if (matchTyped.params?.id && matchTyped.pathname.startsWith("/assets/vessels/")) {
+        const title = vesselData?.name || "Loading...";
         return { title, path, isRedirectOnly };
       }
 

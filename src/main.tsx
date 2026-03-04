@@ -15,6 +15,7 @@ import ForgotPassword from "./routes/ForgotPassword.tsx";
 import ResetPassword from "./routes/ResetPassword.tsx";
 import AcceptInvitation from "./routes/AcceptInvitation.tsx";
 import Home from "./routes/Home.tsx";
+import News from "./routes/News.tsx";
 import VoyageEconomics from "./routes/VoyageEconomics.tsx";
 import TradeDesk from "./routes/TradeDesk.tsx";
 import Recaps from "./routes/Recaps.tsx";
@@ -25,6 +26,7 @@ import GlobalMarketSupply from "./routes/GlobalMarketSupply.tsx";
 import GlobalMarketCommodities from "./routes/GlobalMarketCommodities.tsx";
 import GlobalMarketFreight from "./routes/GlobalMarketFreight.tsx";
 import AssetsVessels from "./routes/AssetsVessels.tsx";
+import VesselDetail from "./routes/VesselDetail.tsx";
 import AssetsFleets from "./routes/AssetsFleets.tsx";
 import AssetsPorts from "./routes/AssetsPorts.tsx";
 import AssetsCanals from "./routes/AssetsCanals.tsx";
@@ -80,6 +82,13 @@ const router = createBrowserRouter([
         element: <ProtectedRoute><Home /></ProtectedRoute>,
         handle: {
           crumb: () => "Home",
+        },
+      },
+      {
+        path: "news",
+        element: <ProtectedRoute><News /></ProtectedRoute>,
+        handle: {
+          crumb: () => "News",
         },
       },
       // Management routes
@@ -155,10 +164,19 @@ const router = createBrowserRouter([
         path: "assets",
         children: [
           { index: true, element: <Navigate to="/assets/vessels" replace /> },
-          { path: "vessels", element: <ProtectedRoute><AssetsVessels /></ProtectedRoute>, handle: { crumb: () => "Vessels" } },
+          {
+            path: "vessels",
+            handle: { crumb: () => "Vessels", crumbPath: "/assets/vessels/list" },
+            children: [
+              { index: true, element: <Navigate to="/assets/vessels/overview" replace /> },
+              { path: "overview", element: <ProtectedRoute><AssetsVessels /></ProtectedRoute> },
+              { path: "list", element: <ProtectedRoute><AssetsVessels /></ProtectedRoute> },
+              { path: ":id", element: <ProtectedRoute><VesselDetail /></ProtectedRoute>, handle: { crumb: () => "Vessel Report" } },
+            ],
+          },
           { path: "fleets", element: <ProtectedRoute><AssetsFleets /></ProtectedRoute>, handle: { crumb: () => "Fleets" } },
           { path: "ports", element: <ProtectedRoute><AssetsPorts /></ProtectedRoute>, handle: { crumb: () => "Ports" } },
-          { path: "canals", element: <ProtectedRoute><AssetsCanals /></ProtectedRoute>, handle: { crumb: () => "Canals" } },
+          { path: "canals", element: <ProtectedRoute><AssetsCanals /></ProtectedRoute>, handle: { crumb: () => "Chokepoints" } },
         ],
       },
       {

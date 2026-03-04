@@ -52,6 +52,7 @@ import type * as testAvatarUrls from "../testAvatarUrls.js";
 import type * as uploadCompanyAvatars from "../uploadCompanyAvatars.js";
 import type * as user_bookmarks from "../user_bookmarks.js";
 import type * as users from "../users.js";
+import type * as vesselSampleData from "../vesselSampleData.js";
 import type * as vessels from "../vessels.js";
 import type * as widgets from "../widgets.js";
 
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   uploadCompanyAvatars: typeof uploadCompanyAvatars;
   user_bookmarks: typeof user_bookmarks;
   users: typeof users;
+  vesselSampleData: typeof vesselSampleData;
   vessels: typeof vessels;
   widgets: typeof widgets;
 }>;
