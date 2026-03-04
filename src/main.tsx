@@ -29,6 +29,7 @@ import AssetsVessels from "./routes/AssetsVessels.tsx";
 import VesselDetail from "./routes/VesselDetail.tsx";
 import AssetsFleets from "./routes/AssetsFleets.tsx";
 import AssetsPorts from "./routes/AssetsPorts.tsx";
+import PortDetail from "./routes/PortDetail.tsx";
 import AssetsCanals from "./routes/AssetsCanals.tsx";
 import Fixtures from "./routes/Fixtures.tsx";
 import SeaNet from "./routes/SeaNet.tsx";
@@ -175,7 +176,20 @@ const router = createBrowserRouter([
             ],
           },
           { path: "fleets", element: <ProtectedRoute><AssetsFleets /></ProtectedRoute>, handle: { crumb: () => "Fleets" } },
-          { path: "ports", element: <ProtectedRoute><AssetsPorts /></ProtectedRoute>, handle: { crumb: () => "Ports" } },
+          {
+            path: "ports",
+            handle: { crumb: () => "Ports", crumbPath: "/assets/ports/list" },
+            children: [
+              { index: true, element: <Navigate to="/assets/ports/overview" replace /> },
+              { path: "overview", element: <ProtectedRoute><AssetsPorts /></ProtectedRoute> },
+              { path: "list", element: <ProtectedRoute><AssetsPorts /></ProtectedRoute> },
+              {
+                path: ":id",
+                element: <ProtectedRoute><PortDetail /></ProtectedRoute>,
+                handle: { crumb: () => "Port Profile" },
+              },
+            ],
+          },
           { path: "canals", element: <ProtectedRoute><AssetsCanals /></ProtectedRoute>, handle: { crumb: () => "Chokepoints" } },
         ],
       },
