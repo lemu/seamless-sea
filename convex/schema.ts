@@ -188,6 +188,14 @@ export default defineSchema({
     latitude: v.optional(v.number()),
     longitude: v.optional(v.number()),
     timezone: v.optional(v.string()),
+    // Extended fields for port profile
+    zone: v.optional(v.string()),              // e.g. "SE Asia"
+    maxDraft: v.optional(v.number()),          // metres
+    maxDWT: v.optional(v.number()),            // e.g. 400000
+    berths: v.optional(v.number()),
+    terminalOperator: v.optional(v.string()),
+    operationalStatus: v.optional(v.string()), // "Open" | "Restricted" | "Closed"
+    restrictions: v.optional(v.string()),      // "None" | description
     isVerified: v.boolean(),
     isActive: v.boolean(),
     createdBy: v.id("users"),
@@ -197,6 +205,60 @@ export default defineSchema({
     .index("by_unlocode", ["unlocode"])
     .index("by_country", ["country"])
     .index("by_verified", ["isVerified"]),
+
+  // Port sample data — per-port analytics for prototyping
+  port_sample_data: defineTable({
+    portId: v.id("ports"),
+    // Sidebar live stats
+    inPort: v.number(),
+    inAnchorage: v.number(),
+    destined: v.number(),
+    avgTurnaround: v.number(),   // days
+    totalDWT: v.number(),        // millions of mt
+
+    // Tab 1 — Port Activity
+    vesselsByType: v.array(v.object({ name: v.string(), count: v.number() })),
+    topOriginPorts: v.array(v.object({ name: v.string(), count: v.number() })),
+    arrivalsByDay: v.array(v.number()),  // 30 values
+    vesselsInPort: v.array(v.object({
+      vessel: v.string(), imo: v.string(), type: v.string(),
+      dwt: v.number(),
+      status: v.union(v.literal("Berth"), v.literal("Anchorage"), v.literal("Waiting")),
+      arrived: v.string(), etaDeparture: v.string(), cargo: v.string(),
+    })),
+
+    // Tab 2 — Port Calls
+    portCallsByMonth: v.array(v.object({ month: v.string(), calls: v.number() })),
+    cargoVolumeByMonth: v.array(v.object({ month: v.string(), volume: v.number() })),
+    callsByVesselType: v.array(v.object({ name: v.string(), count: v.number() })),
+    topCommodities: v.array(v.object({ name: v.string(), volume: v.number() })),
+    portCallsHistory: v.array(v.object({
+      vessel: v.string(), type: v.string(),
+      arrived: v.string(), departed: v.string(),
+      cargo: v.string(), volume: v.number(), stay: v.number(),
+    })),
+    portCallsYTD: v.number(),
+    avgCallsPerMonth: v.number(),
+    avgPortStay: v.number(),
+    volumeYTD: v.number(),  // mt millions
+
+    // Tab 3 — Congestion
+    avgWait: v.number(),
+    maxWait: v.number(),
+    expectedThisWeek: v.number(),
+    waitingTimeTrend: v.array(v.object({ month: v.string(), days: v.number() })),
+    anchorageByDay: v.array(v.number()),  // 30 values
+    waitDistribution: v.array(v.object({
+      month: v.string(),
+      lt1: v.number(), d1to3: v.number(), d3to7: v.number(), gt7: v.number(),
+    })),
+    avgWaitByType: v.array(v.object({ name: v.string(), days: v.number() })),
+    vesselsCongestion: v.array(v.object({
+      vessel: v.string(), type: v.string(), dwt: v.number(),
+      arrivedAnchorage: v.string(), waitSoFar: v.string(),
+      expectedBerth: v.string(), cargo: v.string(),
+    })),
+  }).index("by_port", ["portId"]),
 
   // Cargo Types - Reference data for cargo
   cargo_types: defineTable({

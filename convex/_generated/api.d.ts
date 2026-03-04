@@ -42,6 +42,7 @@ import type * as negotiations from "../negotiations.js";
 import type * as orders from "../orders.js";
 import type * as organizations from "../organizations.js";
 import type * as passwordReset from "../passwordReset.js";
+import type * as portSampleData from "../portSampleData.js";
 import type * as ports from "../ports.js";
 import type * as recapManagers from "../recapManagers.js";
 import type * as routes from "../routes.js";
@@ -97,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   organizations: typeof organizations;
   passwordReset: typeof passwordReset;
+  portSampleData: typeof portSampleData;
   ports: typeof ports;
   recapManagers: typeof recapManagers;
   routes: typeof routes;
