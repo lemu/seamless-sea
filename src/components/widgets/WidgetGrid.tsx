@@ -15,7 +15,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
-import type { WidgetDocument } from "../../types/widgets";
+import type { WidgetDocument, WidgetSize } from "../../types/widgets";
+import { WIDGET_SIZE_CONFIGS, getSizeFromRows, getWidgetSizeConfigs } from "../../types/widgets";
 
 // Layout item type for grid
 interface LayoutItem {
@@ -26,6 +27,9 @@ interface LayoutItem {
   h: number;
   minW?: number;
   minH?: number;
+  maxW?: number;
+  maxH?: number;
+  isResizable?: boolean;
 }
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -33,6 +37,15 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 // Responsive breakpoints and column configuration
 const breakpoints = { lg: 1200, md: 768, sm: 0 };
 const cols = { lg: 4, md: 2, sm: 1 };
+
+// Apply size constraints to a layout item based on its row height
+function withSizeConstraints(item: LayoutItem): LayoutItem {
+  const base = { ...item, isResizable: false };
+  const size = getSizeFromRows(item.h);
+  if (!size) return base; // unknown h (e.g. timeseries h=4) — keep as-is
+  const cfg = WIDGET_SIZE_CONFIGS[size];
+  return { ...base, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h };
+}
 
 export interface WidgetGridProps {
   boardId: Id<"boards">;
@@ -86,6 +99,9 @@ export function WidgetGrid({
     string,
     Layout[]
   > | null>(null);
+
+  // Local layout overrides (applied by size picker, before next Convex sync)
+  const [localLayouts, setLocalLayouts] = useState<Record<string, Layout[]> | null>(null);
 
   // Function to scroll to a grid position
   const scrollToPosition = useCallback((_x: number, y: number) => {
@@ -271,6 +287,28 @@ export function WidgetGrid({
     }
   }, [widgetToDelete, deleteWidget]);
 
+  // Handle widget size change from the size picker
+  // Note: effectiveLayouts is referenced here but defined later; we use a ref to always read current value
+  const effectiveLayoutsRef = useRef<Record<string, Layout[]>>({});
+
+  const handleWidgetResize = (widgetId: string, size: WidgetSize) => {
+    const widget = widgets?.find(w => w._id === widgetId);
+    const configs = getWidgetSizeConfigs(widget?.config.chartType);
+    const cfg = configs[size];
+    if (!cfg) return;
+    const base = effectiveLayoutsRef.current;
+    const updated: Record<string, Layout[]> = {};
+    for (const [bp, layout] of Object.entries(base)) {
+      updated[bp] = (layout as LayoutItem[]).map((item) =>
+        item.i === widgetId
+          ? { ...item, w: cfg.defaultW, h: cfg.h, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h, isResizable: false }
+          : item
+      );
+    }
+    setLocalLayouts(updated);
+    setPendingLayouts(updated);
+  };
+
   // Smart layout generation that preserves existing widget positions
   const generateDefaultLayout = useCallback(
     (widgets: WidgetDocument[]) => {
@@ -379,11 +417,14 @@ export function WidgetGrid({
         (widget) => !existingWidgetIds.has(widget._id),
       );
 
+      // Apply size constraints derived from h for all existing items
+      const constrainedLayout = existingLayout.map(withSizeConstraints);
+
       if (newWidgets.length > 0) {
         // Create occupied grid for this breakpoint
         const currentCols = cols[breakpoint as keyof typeof cols];
         const occupiedGrid = new Set<string>();
-        (existingLayout as LayoutItem[]).forEach((item) => {
+        constrainedLayout.forEach((item) => {
           for (let x = item.x; x < item.x + item.w; x++) {
             for (let y = item.y; y < item.y + item.h; y++) {
               occupiedGrid.add(`${x},${y}`);
@@ -406,6 +447,7 @@ export function WidgetGrid({
                   h: 1,
                   minW: 1,
                   minH: 1,
+                  maxH: 1,
                 };
               }
             }
@@ -419,15 +461,22 @@ export function WidgetGrid({
             h: 1,
             minW: 1,
             minH: 1,
+            maxH: 1,
           };
         });
 
-        updatedLayouts[breakpoint] = [...existingLayout, ...newLayoutItems];
+        updatedLayouts[breakpoint] = [...constrainedLayout, ...newLayoutItems];
+      } else {
+        updatedLayouts[breakpoint] = constrainedLayout;
       }
     }
 
     return updatedLayouts;
   })();
+
+  // Effective layouts: local overrides take priority over Convex layouts
+  const effectiveLayouts = localLayouts ?? currentLayouts;
+  effectiveLayoutsRef.current = effectiveLayouts;
 
   return (
     <div className="w-full">
@@ -435,14 +484,14 @@ export function WidgetGrid({
       <div className="relative" ref={gridRef}>
         <ResponsiveGridLayout
           className="layout"
-          layouts={currentLayouts}
+          layouts={effectiveLayouts}
           breakpoints={breakpoints}
           cols={cols}
           rowHeight={240}
           margin={[16, 16]}
           containerPadding={[0, 0]}
           isDraggable={isEditable}
-          isResizable={isEditable}
+          isResizable={false}
           draggableHandle=".widget-drag-handle"
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={handleBreakpointChange}
@@ -452,15 +501,22 @@ export function WidgetGrid({
           allowOverlap={false}
           maxRows={maxRows}
         >
-          {widgets.map((widget) => (
-            <div key={widget._id} className="relative h-full w-full">
-              <WidgetRenderer
-                widget={widget}
-                isEditable={isEditable}
-                onDelete={() => handleDeleteWidget(widget._id)}
-              />
-            </div>
-          ))}
+          {widgets.map((widget) => {
+            const layoutItem = (effectiveLayouts[currentBreakpoint] as LayoutItem[] | undefined)?.find(
+              (l) => l.i === widget._id
+            );
+            return (
+              <div key={widget._id} className="relative h-full w-full">
+                <WidgetRenderer
+                  widget={widget}
+                  rows={layoutItem?.h ?? 1}
+                  isEditable={isEditable}
+                  onDelete={() => handleDeleteWidget(widget._id)}
+                  onResize={isEditable ? handleWidgetResize : undefined}
+                />
+              </div>
+            );
+          })}
         </ResponsiveGridLayout>
       </div>
 

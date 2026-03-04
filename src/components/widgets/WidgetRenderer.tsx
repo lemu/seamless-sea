@@ -2,23 +2,33 @@ import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { ChartWidget } from "./ChartWidget";
 import { TableWidget } from "./TableWidget";
 import { EmptyWidget } from "./EmptyWidget";
-import type { WidgetDocument } from "../../types/widgets";
+import type { WidgetDocument, WidgetSize } from "../../types/widgets";
+import { getWidgetSizeConfigs } from "../../types/widgets";
+import { getChartById } from "../../data/chartRegistry";
 
 interface WidgetRendererProps {
   widget: WidgetDocument;
+  rows?: number;
   isEditable?: boolean;
   onEdit?: (widgetId: string) => void;
   onDelete?: (widgetId: string) => void;
   onDuplicate?: (widgetId: string) => void;
+  onResize?: (widgetId: string, size: WidgetSize) => void;
 }
 
-export function WidgetRenderer({ 
-  widget, 
+export function WidgetRenderer({
+  widget,
+  rows,
   isEditable = true,
   onEdit,
   onDelete,
   onDuplicate,
+  onResize,
 }: WidgetRendererProps) {
+  const registryEntry = widget.config.source ? getChartById(widget.config.source.chartId) : undefined;
+  const effectiveChartType = registryEntry?.defaultChartType ?? widget.config.chartType;
+  const sizeConfigs = getWidgetSizeConfigs(effectiveChartType);
+
   // Common props for all widgets
   const commonProps: WidgetProps = {
     config: {
@@ -26,10 +36,13 @@ export function WidgetRenderer({
       type: widget.type,
       title: widget.title, // Override any title in config
     },
+    rows,
     isEditable,
     onEdit: onEdit ? () => onEdit(widget._id) : undefined,
     onDelete: onDelete ? () => onDelete(widget._id) : undefined,
     onDuplicate: onDuplicate ? () => onDuplicate(widget._id) : undefined,
+    onResize: onResize ? (size) => onResize(widget._id, size) : undefined,
+    sizeConfigs,
   };
 
 

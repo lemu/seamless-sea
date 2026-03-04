@@ -1,35 +1,44 @@
 import React from "react";
-import { Copy, SquareX, Pencil } from "lucide-react";
+import { Copy, SquareX, Pencil, Check } from "lucide-react";
 import {
   Button,
   Icon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@rafal.lemieszewski/tide-ui";
+import { getSizeFromRowsForConfigs, WIDGET_SIZE_CONFIGS, type WidgetSize, type WidgetSizeConfig } from "../../types/widgets";
 
 export interface BaseWidgetProps {
   title: string;
   children: React.ReactNode;
+  rows?: number;
   onEdit?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onResize?: (size: WidgetSize) => void;
   isEditable?: boolean;
   loading?: boolean;
   error?: string;
+  sizeConfigs?: Partial<Record<WidgetSize, WidgetSizeConfig>>;
 }
 
 export function BaseWidget({
   title,
   children,
+  rows,
   onEdit,
   onDelete,
   onDuplicate,
+  onResize,
   isEditable = true,
   loading = false,
   error,
+  sizeConfigs,
 }: BaseWidgetProps) {
+  const effectiveSizeConfigs = sizeConfigs ?? WIDGET_SIZE_CONFIGS;
   if (error) {
     return (
       <div className="flex h-full flex-col rounded-l border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)]">
@@ -76,6 +85,23 @@ export function BaseWidget({
                   <Button variant="ghost" size="s" icon="more-horizontal" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                  {onResize && (
+                    <>
+                      {(Object.entries(effectiveSizeConfigs) as [WidgetSize, WidgetSizeConfig][]).map(([size, cfg]) => {
+                        const isCurrent = getSizeFromRowsForConfigs(rows ?? 1, effectiveSizeConfigs) === size;
+                        return (
+                          <DropdownMenuItem
+                            key={size}
+                            icon={isCurrent ? Check : undefined}
+                            onClick={() => onResize(size)}
+                          >
+                            {cfg.label}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   {onEdit && (
                     <DropdownMenuItem icon={Pencil} onClick={onEdit}>
                       Edit widget
@@ -129,8 +155,11 @@ import type { GenericWidgetConfig } from "../../types/widgets";
 
 export interface WidgetProps {
   config: GenericWidgetConfig & { type: string };
+  rows?: number;
   onEdit?: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onResize?: (size: WidgetSize) => void;
   isEditable?: boolean;
+  sizeConfigs?: Partial<Record<WidgetSize, WidgetSizeConfig>>;
 }

@@ -4,6 +4,23 @@
  */
 import type { Id } from "../../convex/_generated/dataModel";
 import type { Layout } from "react-grid-layout";
+import type { ChartSection } from "../data/chartRegistry";
+
+// ============================================================================
+// Widget Source Contract
+// ============================================================================
+
+/**
+ * Records where a widget came from and how to re-fetch its data.
+ * Stored in widget config — board widgets are independent of the source.
+ */
+export interface WidgetSource {
+  section: ChartSection;
+  chartId: string;
+  entityId?: string; // e.g. vesselId, routeId
+  tab?: string;
+  filters: Record<string, unknown>;
+}
 
 // ============================================================================
 // Widget Types
@@ -29,7 +46,7 @@ interface BaseWidgetConfig {
  * Chart widget configuration
  */
 export interface ChartWidgetConfig extends BaseWidgetConfig {
-  chartType: "bar" | "line" | "pie" | "area";
+  chartType: "bar" | "line" | "pie" | "area" | "timeseries";
   dataSource?: string;
   xAxis?: string;
   yAxis?: string;
@@ -80,6 +97,9 @@ export type WidgetConfigUnion =
  * Used for database storage and generic handling
  */
 export interface GenericWidgetConfig extends BaseWidgetConfig {
+  // Source contract — where this widget came from
+  source?: WidgetSource;
+
   // Chart-specific fields
   chartType?: string; // ChartType from tide-ui - using string to avoid import dependency
   dataSource?: string;
@@ -163,6 +183,52 @@ export interface WidgetDefinition {
   minHeight?: number;
   defaultWidth?: number;
   defaultHeight?: number;
+}
+
+// ============================================================================
+// Widget Size Tiers
+// ============================================================================
+
+export type WidgetSize = "small" | "medium" | "large";
+
+export interface WidgetSizeConfig {
+  label: string;
+  h: number;
+  defaultW: number;
+  minW: number;
+  maxW: number;
+  chartHeight: number;
+}
+
+export const WIDGET_SIZE_CONFIGS: Record<WidgetSize, WidgetSizeConfig> = {
+  small:  { label: "Small",  h: 1, defaultW: 1, minW: 1, maxW: 2, chartHeight: 160 },
+  medium: { label: "Medium", h: 2, defaultW: 2, minW: 2, maxW: 4, chartHeight: 416 },
+  large:  { label: "Large",  h: 3, defaultW: 3, minW: 3, maxW: 4, chartHeight: 672 },
+};
+
+export const TIMESERIES_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
+  small:  { label: "Small",  h: 1, defaultW: 2, minW: 2, maxW: 2, chartHeight: 160 },
+  medium: { label: "Medium", h: 2, defaultW: 4, minW: 4, maxW: 4, chartHeight: 416 },
+};
+
+export function getWidgetSizeConfigs(chartType?: string): Partial<Record<WidgetSize, WidgetSizeConfig>> {
+  if (chartType === "timeseries") return TIMESERIES_SIZE_CONFIGS;
+  return WIDGET_SIZE_CONFIGS;
+}
+
+export function getSizeFromRows(h: number): WidgetSize | null {
+  if (h === 1) return "small";
+  if (h === 2) return "medium";
+  if (h === 3) return "large";
+  return null;
+}
+
+export function getSizeFromRowsForConfigs(
+  h: number,
+  configs: Partial<Record<WidgetSize, WidgetSizeConfig>>
+): WidgetSize | null {
+  const entry = Object.entries(configs).find(([, cfg]) => cfg.h === h);
+  return entry ? (entry[0] as WidgetSize) : null;
 }
 
 // ============================================================================
