@@ -12,7 +12,7 @@ function AssetsCanals() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList size="s">
           <TabsTrigger size="s" value="overview">Overview</TabsTrigger>
-          <TabsTrigger size="s" value="list">Canals list</TabsTrigger>
+          <TabsTrigger size="s" value="list">Chokepoints list</TabsTrigger>
         </TabsList>
       </Tabs>
     ),
@@ -29,8 +29,8 @@ function AssetsCanals() {
       <div className="rounded-l border border-[var(--color-border-primary-subtle)] p-6">
         <p className="text-body-md text-text-secondary">
           {tab === "overview"
-            ? "Canals overview will be displayed here."
-            : "Canals list will be displayed here."}
+            ? "Chokepoints overview will be displayed here."
+            : "Chokepoints list will be displayed here."}
         </p>
       </div>
     </div>
