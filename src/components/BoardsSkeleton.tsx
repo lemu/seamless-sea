@@ -1,51 +1,32 @@
 import { LayoutDashboard } from "lucide-react";
 import { Button, Icon } from "@rafal.lemieszewski/tide-ui";
 
-export function BoardsSkeleton() {
-  // Create 6 skeleton cards to match typical grid layout
-  const skeletonCards = Array.from({ length: 6 }, (_, index) => (
-    <div
-      key={index}
-      className="group relative rounded-l border border-[var(--color-border-primary-subtle)] p-4"
-    >
-      {/* Pin button area */}
-      <div className="absolute top-2 right-2 h-6 w-6 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
+function BoardCardSkeleton() {
+  return (
+    <div className="relative rounded-l border border-[var(--color-border-primary-subtle)] p-4">
+      {/* Pin button — matches absolute top-2 right-2 h-6 w-6 */}
+      <div className="absolute top-2 right-2 h-6 w-6 animate-pulse rounded bg-[var(--color-bg-secondary)]" />
 
-      {/* Board title */}
-      <div className="mb-3 h-6 w-3/4 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
+      {/* Title row — matches mb-3 flex items-center gap-3 with h-5 text */}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="h-5 w-2/3 animate-pulse rounded bg-[var(--color-bg-secondary)]" />
+      </div>
 
-      {/* Description area (show on some cards) */}
-      {index % 2 === 0 && (
-        <div className="mb-3 space-y-2">
-          <div className="h-4 w-full animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-          <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-        </div>
-      )}
-
-      {/* Footer metadata */}
+      {/* Footer — matches text-caption-sm flex items-center justify-between */}
       <div className="flex items-center justify-between">
-        <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-        {index % 3 === 0 && (
-          <div className="h-3 w-12 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-        )}
+        <div className="h-3 w-28 animate-pulse rounded bg-[var(--color-bg-secondary)]" />
       </div>
     </div>
-  ));
+  );
+}
 
+export function BoardsSkeleton() {
   return (
-    <div className="space-y-6 p-6">
-      {/* Header - matches the real header structure */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="mb-2 h-10 w-32 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-          <div className="h-5 w-48 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-        </div>
-        <div className="h-10 w-32 animate-pulse rounded bg-[var(--color-background-neutral-subtle)]" />
-      </div>
-
-      {/* Boards Grid Skeleton */}
+    <div className="m-6 flex flex-col gap-[var(--space-l)]">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {skeletonCards}
+        {Array.from({ length: 6 }, (_, i) => (
+          <BoardCardSkeleton key={i} />
+        ))}
       </div>
     </div>
   );
