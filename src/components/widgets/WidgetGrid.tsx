@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
 import type { WidgetDocument, WidgetSize } from "../../types/widgets";
-import { WIDGET_SIZE_CONFIGS, getSizeFromRows, getWidgetSizeConfigs } from "../../types/widgets";
+import { WIDGET_SIZE_CONFIGS, getSizeFromRows, getWidgetSizeConfigs, NEWS_TICKER_SIZE_CONFIGS } from "../../types/widgets";
 
 // Layout item type for grid
 interface LayoutItem {
@@ -39,12 +39,15 @@ const breakpoints = { lg: 1200, md: 768, sm: 0 };
 const cols = { lg: 4, md: 2, sm: 1 };
 
 // Apply size constraints to a layout item based on its row height
-function withSizeConstraints(item: LayoutItem): LayoutItem {
+function withSizeConstraints(item: LayoutItem, widgetType?: string): LayoutItem {
   const base = { ...item, isResizable: false };
   const size = getSizeFromRows(item.h);
   if (!size) return base; // unknown h (e.g. timeseries h=4) — keep as-is
-  const cfg = WIDGET_SIZE_CONFIGS[size];
-  return { ...base, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h };
+  const allConfigs = widgetType === "news_ticker" ? NEWS_TICKER_SIZE_CONFIGS : WIDGET_SIZE_CONFIGS;
+  const cfg = allConfigs[size];
+  if (!cfg) return base;
+  const w = Math.min(cfg.maxW, Math.max(cfg.minW, item.w));
+  return { ...base, w, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h };
 }
 
 export interface WidgetGridProps {
@@ -293,7 +296,9 @@ export function WidgetGrid({
 
   const handleWidgetResize = (widgetId: string, size: WidgetSize) => {
     const widget = widgets?.find(w => w._id === widgetId);
-    const configs = getWidgetSizeConfigs(widget?.config.chartType);
+    const configs = widget?.type === "news_ticker"
+      ? NEWS_TICKER_SIZE_CONFIGS
+      : getWidgetSizeConfigs(widget?.config.chartType);
     const cfg = configs[size];
     if (!cfg) return;
     const base = effectiveLayoutsRef.current;
@@ -408,6 +413,8 @@ export function WidgetGrid({
     const updatedLayouts = { ...layouts };
     const breakpointsToUpdate = Object.keys(updatedLayouts);
 
+    const widgetTypeMap = new Map<string, string>(widgets.map(w => [w._id as string, w.type]));
+
     for (const breakpoint of breakpointsToUpdate) {
       const existingLayout = (updatedLayouts[breakpoint] || []) as LayoutItem[];
       const existingWidgetIds = new Set(
@@ -418,7 +425,7 @@ export function WidgetGrid({
       );
 
       // Apply size constraints derived from h for all existing items
-      const constrainedLayout = existingLayout.map(withSizeConstraints);
+      const constrainedLayout = existingLayout.map(item => withSizeConstraints(item, widgetTypeMap.get(item.i)));
 
       if (newWidgets.length > 0) {
         // Create occupied grid for this breakpoint
