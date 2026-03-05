@@ -30,7 +30,9 @@ export interface WidgetDataResult {
 }
 
 export function useWidgetData(source: WidgetSource | undefined): WidgetDataResult {
-  const vesselId = source?.entityId as Id<"vessels"> | undefined;
+  const vesselId = source?.section === "vessel_report"
+    ? source.entityId as Id<"vessels"> | undefined
+    : undefined;
 
   const sampleData = useQuery(
     api.vesselSampleData.getByVessel,
