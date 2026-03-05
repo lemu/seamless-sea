@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import { Tag } from "@rafal.lemieszewski/tide-ui";
 import { api } from "../../../convex/_generated/api";
 import { BaseWidget } from "../widgets/BaseWidget";
 import { IntelligenceDetailSidebar } from "./IntelligenceDetailSidebar";
@@ -99,20 +100,20 @@ function TickerMode({ items }: { items: IntelligenceItem[] }) {
             style={{ minWidth: 400, maxWidth: 720 }}
           >
             {/* Top line: logo · source · time */}
-            <span className="flex items-center gap-1.5 whitespace-nowrap" style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>
+            <span className="flex items-center gap-1.5 whitespace-nowrap text-body-sm text-[var(--color-text-tertiary)]">
               {item.sourceName && <SourceLogo name={item.sourceName} />}
               {item.sourceName && <span>{item.sourceName}</span>}
               {item.sourceName && <span>·</span>}
               <span>{formatRelativeTime(item.publishedAt)}</span>
             </span>
             {/* Title line: impact dot + title */}
-            <span className="flex items-start gap-2" style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
+            <span className="flex items-start gap-2 text-body-strong-md text-[var(--color-text-primary)]">
               <ImpactDot level={item.impactLevel} />
               <span className="line-clamp-2">{item.title}</span>
             </span>
             {/* Blurb */}
             {item.summary && (
-              <span className="line-clamp-4" style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>
+              <span className="line-clamp-4 text-body-md text-[var(--color-text-secondary)]">
                 {item.summary}
               </span>
             )}
@@ -157,32 +158,36 @@ function ListMode({
           onClick={() => onSelect(item)}
           className="flex items-start gap-3 border-b border-[var(--color-border-primary-subtle)] px-4 py-3 text-left hover:bg-[var(--color-surface-secondary)] transition-colors"
         >
-          <div className="mt-1.5 flex-shrink-0">
+          <div className="mt-[3px] flex-shrink-0">
             <ImpactDot level={item.impactLevel} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-body-sm font-medium text-[var(--color-text-primary)] line-clamp-2">
+            {/* Title — 14px/500, primary */}
+            <p className="text-body-medium-md text-[var(--color-text-primary)] line-clamp-2">
               {item.title}
             </p>
-            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+            {/* Metadata — 12px/400, secondary/tertiary */}
+            <div className="mt-1 flex items-center gap-1.5">
               {item.sourceName && (
-                <span className="text-body-xs text-[var(--color-text-secondary)]">
-                  {item.sourceName}
-                </span>
+                <>
+                  <SourceLogo name={item.sourceName} />
+                  <span className="text-body-sm text-[var(--color-text-secondary)]">
+                    {item.sourceName}
+                  </span>
+                  <span className="text-body-sm text-[var(--color-text-tertiary)]">·</span>
+                </>
               )}
-              <span className="text-body-xs text-[var(--color-text-tertiary)]">
-                · {formatRelativeTime(item.publishedAt)}
+              <span className="text-body-sm text-[var(--color-text-tertiary)]">
+                {formatRelativeTime(item.publishedAt)}
               </span>
             </div>
+            {/* Signal tags — tide-ui Tag, visually de-emphasised below metadata */}
             {item.keySignals && item.keySignals.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {item.keySignals.slice(0, 3).map((signal) => (
-                  <span
-                    key={signal}
-                    className="rounded-sm bg-[var(--color-background-neutral-subtle)] px-1.5 py-0.5 text-[11px] text-[var(--color-text-secondary)]"
-                  >
+                  <Tag key={signal} size="s" variant="rectangular">
                     {signal}
-                  </span>
+                  </Tag>
                 ))}
               </div>
             )}
