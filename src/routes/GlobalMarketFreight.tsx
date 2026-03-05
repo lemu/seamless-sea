@@ -4,7 +4,7 @@ import {
   Tabs, TabsList, TabsTrigger, Button,
   Card, CardHeader, CardTitle, CardContent,
 } from "@rafal.lemieszewski/tide-ui";
-import { Chart } from "@rafal.lemieszewski/tide-ui/chart";
+import { Chart, type ChartDataPoint } from "@rafal.lemieszewski/tide-ui/chart";
 import { DataTable } from "@rafal.lemieszewski/tide-ui/data-table";
 import { type ColumnDef } from "@tanstack/react-table";
 import { useHeaderTabs, useHeaderActions, useDesk } from "../hooks";
@@ -253,7 +253,7 @@ function OverviewTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <Chart type="line" data={indexData} config={balticIndexConfig} height={240} showLegend={true} />
+          <Chart type="line" data={indexData as ChartDataPoint[]} config={balticIndexConfig} height={240} showLegend={true} />
         </CardContent>
       </Card>
 
