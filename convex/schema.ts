@@ -200,14 +200,6 @@ export default defineSchema({
     isActive: v.boolean(),
     createdBy: v.id("users"),
     createdAt: v.number(),
-    // Extended port metadata
-    berths: v.optional(v.number()),
-    maxDWT: v.optional(v.number()),
-    maxDraft: v.optional(v.number()),
-    operationalStatus: v.optional(v.string()),
-    restrictions: v.optional(v.string()),
-    terminalOperator: v.optional(v.string()),
-    zone: v.optional(v.string()),
   })
     .index("by_name", ["name"])
     .index("by_unlocode", ["unlocode"])
@@ -866,16 +858,29 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_user_and_default", ["userId", "isDefault"]),
 
-  // News articles for the Breaking News section on the Home page
+  // News articles — used for both the home Breaking News section and the full Intelligence Feed
   news: defineTable({
     title: v.string(),
     summary: v.optional(v.string()),
-    category: v.string(), // "Market", "Regulatory", "Geopolitical", "Port"
+    category: v.string(), // "Market", "Regulatory", "Geopolitical", "Port" (home feed legacy)
     priority: v.optional(v.union(v.literal("breaking"), v.literal("normal"))),
     publishedAt: v.number(),
     url: v.optional(v.string()),
+    // Intelligence feed extended fields
+    impactLevel: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
+    sourceName: v.optional(v.string()),
+    shippingInsight: v.optional(v.string()),
+    marketImpact: v.optional(v.string()),
+    contractRisk: v.optional(v.string()),
+    recommendedAction: v.optional(v.string()),
+    vesselTypes: v.optional(v.array(v.string())),
+    regions: v.optional(v.array(v.string())),
+    categoryTags: v.optional(v.array(v.string())),
+    keySignals: v.optional(v.array(v.string())),
+    isAiGenerated: v.optional(v.boolean()),
   })
     .index("by_publishedAt", ["publishedAt"])
-    .index("by_priority", ["priority"]),
+    .index("by_priority", ["priority"])
+    .index("by_impactLevel", ["impactLevel"]),
 
 });
