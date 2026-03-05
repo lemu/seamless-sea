@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
 import type { WidgetDocument, WidgetSize } from "../../types/widgets";
-import { getSizeFromRows, getWidgetSizeConfigs, NEWS_TICKER_SIZE_CONFIGS } from "../../types/widgets";
+import { getSizeFromRows, getWidgetSizeConfigs } from "../../types/widgets";
 import { getChartById } from "../../data/chartRegistry";
 
 // Layout item type for grid
@@ -40,15 +40,19 @@ const breakpoints = { lg: 1200, md: 768, sm: 0 };
 const cols = { lg: 4, md: 2, sm: 1 };
 
 // Apply size constraints to a layout item based on its row height
-function withSizeConstraints(item: LayoutItem, breakpoint: string, chartType?: string): LayoutItem {
+function withSizeConstraints(item: LayoutItem, breakpoint: string, widgetType?: string, chartType?: string): LayoutItem {
   const base = { ...item, isResizable: false };
   const size = getSizeFromRows(item.h);
-  if (!size) return base; // unknown h (e.g. timeseries h=4) — keep as-is
-  const configs = getWidgetSizeConfigs(chartType);
+  if (!size) return base; // unknown h — keep as-is
+  const configs = getWidgetSizeConfigs(chartType, widgetType);
   const cfg = configs[size];
   if (!cfg) return base;
-  const bpMinW = cfg.breakpointDefaultW?.[breakpoint] ?? cfg.defaultW;
-  const w = Math.min(Math.max(item.w, bpMinW), cfg.maxW);
+  const exactBpW = cfg.breakpointDefaultW?.[breakpoint];
+  // If an explicit per-breakpoint width is defined, use it exactly.
+  // Otherwise clamp item.w to [defaultW, maxW] to preserve user's sizing choice.
+  const w = exactBpW !== undefined
+    ? exactBpW
+    : Math.min(Math.max(item.w, cfg.defaultW), cfg.maxW);
   return { ...base, w, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h };
 }
 
@@ -298,9 +302,7 @@ export function WidgetGrid({
 
   const handleWidgetResize = (widgetId: string, size: WidgetSize) => {
     const widget = widgets?.find(w => w._id === widgetId);
-    const configs = widget?.type === "news_ticker"
-      ? NEWS_TICKER_SIZE_CONFIGS
-      : getWidgetSizeConfigs(widget?.config.chartType);
+    const configs = getWidgetSizeConfigs(widget?.config.chartType, widget?.type);
     const cfg = configs[size];
     if (!cfg) return;
     const base = effectiveLayoutsRef.current;
@@ -366,8 +368,10 @@ export function WidgetGrid({
 
         // For new widgets, find the next available position
         const chartEntry = widget.config?.source?.chartId ? getChartById(widget.config.source.chartId) : undefined;
-        const defaultW = Math.min(chartEntry?.defaultSize.w ?? 1, currentCols);
-        const defaultH = chartEntry?.defaultSize.h ?? 1;
+        const chartType = widget.config?.chartType as string | undefined;
+        const fallbackConfig = getWidgetSizeConfigs(chartType, widget.type).small;
+        const defaultW = Math.min(chartEntry?.defaultSize.w ?? fallbackConfig?.defaultW ?? 1, currentCols);
+        const defaultH = chartEntry?.defaultSize.h ?? fallbackConfig?.h ?? 1;
         const position = findNextAvailablePosition(defaultW, defaultH);
         return {
           i: widget._id,
@@ -439,7 +443,7 @@ export function WidgetGrid({
         const widget = widgets?.find((w) => w._id === item.i);
         if (widget?.type === "empty") return item; // free sizing — skip constraints
         const chartType = widget?.config?.chartType as string | undefined;
-        return withSizeConstraints(item, breakpoint, chartType);
+        return withSizeConstraints(item, breakpoint, widget?.type, chartType);
       });
 
       if (newWidgets.length > 0) {
@@ -458,12 +462,13 @@ export function WidgetGrid({
         const newLayoutItems = newWidgets.map((widget) => {
           const chartEntry = getChartById(widget.config?.source?.chartId);
           const chartType = widget.config?.chartType as string | undefined;
-          const defaultH = chartEntry?.defaultSize.h ?? 1;
+          const configs = getWidgetSizeConfigs(chartType, widget.type);
+          const fallbackConfig = configs.small;
+          const defaultH = chartEntry?.defaultSize.h ?? fallbackConfig?.h ?? 1;
           const size = getSizeFromRows(defaultH);
-          const configs = getWidgetSizeConfigs(chartType);
           const sizeConfig = size ? configs[size] : null;
-          const bpDefaultW = sizeConfig?.breakpointDefaultW?.[breakpoint] ?? 0;
-          const defaultW = Math.min(Math.max(chartEntry?.defaultSize.w ?? 1, bpDefaultW), currentCols);
+          const bpDefaultW = sizeConfig?.breakpointDefaultW?.[breakpoint] ?? sizeConfig?.defaultW ?? 0;
+          const defaultW = Math.min(Math.max(chartEntry?.defaultSize.w ?? fallbackConfig?.defaultW ?? 1, bpDefaultW), currentCols);
 
           // Find a position that fits the full w×h footprint
           for (let y = 0; y < maxRows; y++) {

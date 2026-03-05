@@ -2,7 +2,7 @@ export default function NewsFeed() {
   return (
     <div className="m-6 space-y-6 p-6">
       <div className="space-y-2">
-        <h1 className="text-heading-2xl font-bold text-[var(--color-text-primary)]">
+        <h1 className="text-heading-xlg text-[var(--color-text-primary)]">
           News Feed
         </h1>
         <p className="text-body-lg text-[var(--color-text-secondary)]">

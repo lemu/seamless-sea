@@ -182,20 +182,6 @@ export const batchUpdateLayouts = mutation({
         w: v.number(),
         h: v.number(),
       }))),
-      xs: v.optional(v.array(v.object({
-        i: v.string(),
-        x: v.number(),
-        y: v.number(),
-        w: v.number(),
-        h: v.number(),
-      }))),
-      xxs: v.optional(v.array(v.object({
-        i: v.string(),
-        x: v.number(),
-        y: v.number(),
-        w: v.number(),
-        h: v.number(),
-      }))),
     }),
   },
   handler: async (ctx, args) => {

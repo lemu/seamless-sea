@@ -103,7 +103,8 @@ export interface NewsTickerWidgetConfig extends BaseWidgetConfig {
 export type WidgetConfigUnion =
   | ({ type: "chart" } & ChartWidgetConfig)
   | ({ type: "table" } & TableWidgetConfig)
-  | ({ type: "empty" } & EmptyWidgetConfig);
+  | ({ type: "empty" } & EmptyWidgetConfig)
+  | ({ type: "news_ticker" } & NewsTickerWidgetConfig);
 
 /**
  * Generic widget config type for when type is not known
@@ -192,10 +193,6 @@ export interface WidgetDefinition {
   description: string;
   icon: string;
   defaultConfig: GenericWidgetConfig;
-  minWidth?: number;
-  minHeight?: number;
-  defaultWidth?: number;
-  defaultHeight?: number;
 }
 
 // ============================================================================
@@ -221,21 +218,17 @@ export const WIDGET_SIZE_CONFIGS: Record<WidgetSize, WidgetSizeConfig> = {
 };
 
 export const TIMESERIES_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
-  small:  { label: "Small",  h: 1, defaultW: 2, breakpointDefaultW: { lg: 2 }, minW: 2, maxW: 2, chartHeight: 160 },
+  small:  { label: "Small",  h: 1, defaultW: 2, breakpointDefaultW: { lg: 2, md: 1, sm: 1 }, minW: 1, maxW: 2, chartHeight: 160 },
   medium: { label: "Medium", h: 2, defaultW: 4, minW: 4, maxW: 4, chartHeight: 416 },
 };
 
 export const NEWS_TICKER_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
   small:  { label: "Ticker", h: 1, defaultW: 4, minW: 4, maxW: 4, chartHeight: 64 },
-  medium: { label: "List",   h: 2, defaultW: 3, minW: 2, maxW: 4, chartHeight: 416 },
+  medium: { label: "List",   h: 2, defaultW: 3, breakpointDefaultW: { lg: 3, md: 1, sm: 1 }, minW: 1, maxW: 4, chartHeight: 416 },
 };
 
-// Full-width stripe: 1×4 on lg, clamps to 1×2 on md, 1×1 on sm (react-grid-layout auto-clamps)
-export const NEWS_STRIPE_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
-  small: { label: "Stripe", h: 1, defaultW: 4, minW: 4, maxW: 4, chartHeight: 64 },
-};
-
-export function getWidgetSizeConfigs(chartType?: string): Partial<Record<WidgetSize, WidgetSizeConfig>> {
+export function getWidgetSizeConfigs(chartType?: string, widgetType?: string): Partial<Record<WidgetSize, WidgetSizeConfig>> {
+  if (widgetType === "news_ticker") return NEWS_TICKER_SIZE_CONFIGS;
   if (chartType === "timeseries") return TIMESERIES_SIZE_CONFIGS;
   return WIDGET_SIZE_CONFIGS;
 }
