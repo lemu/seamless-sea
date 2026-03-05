@@ -118,7 +118,7 @@ export function IntelligenceCard({ item, onSelect }: IntelligenceCardProps) {
         {item.keySignals && item.keySignals.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {item.keySignals.map((signal, i) => (
-              <Tag key={i} size="s" variant="rectangular">{signal}</Tag>
+              <Tag key={i} size="s" variant="squared">{signal}</Tag>
             ))}
           </div>
         )}

@@ -185,7 +185,7 @@ function ListMode({
             {item.keySignals && item.keySignals.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {item.keySignals.slice(0, 3).map((signal) => (
-                  <Tag key={signal} size="s" variant="rectangular">
+                  <Tag key={signal} size="s" variant="squared">
                     {signal}
                   </Tag>
                 ))}
