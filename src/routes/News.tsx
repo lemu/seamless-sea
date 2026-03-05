@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Button, Badge, Skeleton } from "@rafal.lemieszewski/tide-ui";
-import { Bell, X, SlidersHorizontal, ArrowUpDown, Pin } from "lucide-react";
+import { Button, Badge, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tabs, TabsList, TabsTrigger } from "@rafal.lemieszewski/tide-ui";
+import { Bell, X, ArrowUpDown, Pin } from "lucide-react";
 import { IntelligenceCard } from "../components/news/IntelligenceCard";
 import { IntelligenceDetailSidebar } from "../components/news/IntelligenceDetailSidebar";
 import { PinNewsToBoardModal } from "../components/news/PinNewsToBoardModal";
@@ -40,19 +40,19 @@ function CardSkeleton() {
 
 function AlertBanner({ count, onDismiss }: { count: number; onDismiss: () => void }) {
   return (
-    <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-      <Bell size={16} className="text-red-500 flex-shrink-0" />
+    <div className="flex items-center gap-3 bg-red-600 rounded-lg px-4 py-3">
+      <Bell size={16} className="text-white flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <span className="text-body-sm font-semibold text-red-700">
+        <span className="text-body-strong-sm text-white">
           {count} High Impact Alert{count !== 1 ? "s" : ""}
         </span>
-        <span className="text-body-sm text-red-600 ml-2">
+        <span className="text-body-sm text-white ml-2 opacity-80">
           Review the items marked High below — they may require immediate action.
         </span>
       </div>
       <button
         onClick={onDismiss}
-        className="text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+        className="text-white opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
         aria-label="Dismiss alert banner"
       >
         <X size={16} />
@@ -73,19 +73,17 @@ function FilterSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="text-body-sm text-[var(--color-text-primary)] bg-[var(--color-bg-default,#fff)] border border-[var(--color-border-default,#d1d5db)] rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus,#005f85)] appearance-none cursor-pointer"
-      aria-label={label}
-    >
-      <option value="">All {label}</option>
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
+    <Select value={value || "__all__"} onValueChange={(v) => onChange(v === "__all__" ? "" : v)}>
+      <SelectTrigger size="s" className="min-w-[140px]">
+        <SelectValue placeholder={`All ${label}`} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all__">All {label}</SelectItem>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -166,7 +164,7 @@ export default function News() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-heading-md text-[var(--color-text-primary)]">
+          <h1 className="text-heading-sm text-[var(--color-text-primary)]">
             Maritime Intelligence
           </h1>
           <p className="text-body-sm text-[var(--color-text-secondary)] mt-1">
@@ -175,8 +173,7 @@ export default function News() {
         </div>
         <div className="flex items-center gap-2">
           {highImpactCount != null && highImpactCount > 0 && (
-            <Badge intent="destructive" size="s">
-              <Bell size={12} className="mr-1" />
+            <Badge intent="destructive" size="s" icon={<Bell />}>
               {highImpactCount} High Alert{highImpactCount !== 1 ? "s" : ""}
             </Badge>
           )}
@@ -196,74 +193,59 @@ export default function News() {
       )}
 
       {/* Filter bar + sort toggle */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <SlidersHorizontal size={16} className="text-[var(--color-text-tertiary)] flex-shrink-0" />
+      <div className="flex items-center justify-between gap-3">
+        {/* Selects group — no wrapping */}
+        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto min-w-0">
+          <FilterSelect
+            label="Regions"
+            value={region}
+            options={NEWS_REGIONS}
+            onChange={(v) => setFilter("region", v)}
+          />
+          <FilterSelect
+            label="Vessel Types"
+            value={vesselType}
+            options={VESSEL_TYPES}
+            onChange={(v) => setFilter("vessel", v)}
+          />
+          <FilterSelect
+            label="Categories"
+            value={category}
+            options={NEWS_CATEGORIES}
+            onChange={(v) => setFilter("category", v)}
+          />
+          <Select value={impactLevel || "__all__"} onValueChange={(v) => setFilter("impact", v === "__all__" ? "" : v)}>
+            <SelectTrigger size="s" className="min-w-[140px]">
+              <SelectValue placeholder="All Impact Levels" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Impact Levels</SelectItem>
+              {IMPACT_LEVELS.map(({ value, label }) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <FilterSelect
-          label="Regions"
-          value={region}
-          options={NEWS_REGIONS}
-          onChange={(v) => setFilter("region", v)}
-        />
-        <FilterSelect
-          label="Vessel Types"
-          value={vesselType}
-          options={VESSEL_TYPES}
-          onChange={(v) => setFilter("vessel", v)}
-        />
-        <FilterSelect
-          label="Categories"
-          value={category}
-          options={NEWS_CATEGORIES}
-          onChange={(v) => setFilter("category", v)}
-        />
-        <select
-          value={impactLevel}
-          onChange={(e) => setFilter("impact", e.target.value)}
-          className="text-body-sm text-[var(--color-text-primary)] bg-[var(--color-bg-default,#fff)] border border-[var(--color-border-default,#d1d5db)] rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-border-focus,#005f85)] appearance-none cursor-pointer"
-          aria-label="Impact Level"
-        >
-          <option value="">All Impact Levels</option>
-          {IMPACT_LEVELS.map(({ value, label }) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-
-        {hasFilters && (
-          <Button variant="ghost" size="s" onClick={clearFilters}>
-            <X size={12} className="mr-1" />
-            Clear filters
-          </Button>
-        )}
-
-        {/* Sort toggle — pushed to the right */}
-        <div className="ml-auto flex items-center gap-1 bg-[var(--color-bg-neutral-subtle,#f5f5f5)] rounded-md p-0.5">
-          <button
-            onClick={() => setSortMode("impact")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-body-xs rounded transition-colors ${
-              sortMode === "impact"
-                ? "bg-white text-[var(--color-text-primary)] shadow-sm font-medium"
-                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            }`}
-            aria-pressed={sortMode === "impact"}
-          >
-            <ArrowUpDown size={12} />
-            By Impact
-          </button>
-          <button
-            onClick={() => setSortMode("chronological")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-body-xs rounded transition-colors ${
-              sortMode === "chronological"
-                ? "bg-white text-[var(--color-text-primary)] shadow-sm font-medium"
-                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            }`}
-            aria-pressed={sortMode === "chronological"}
-          >
-            Latest first
-          </button>
+          {hasFilters && (
+            <Button variant="ghost" size="s" onClick={clearFilters} className="flex-shrink-0">
+              <X size={12} className="mr-1" />
+              Clear filters
+            </Button>
+          )}
         </div>
+
+        {/* Sort toggle — fixed right */}
+        <Tabs value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)} className="flex-shrink-0">
+          <TabsList variant="pilled" size="s">
+            <TabsTrigger value="impact" variant="pilled" size="s">
+              <ArrowUpDown size={12} />
+              By Impact
+            </TabsTrigger>
+            <TabsTrigger value="chronological" variant="pilled" size="s">
+              Latest first
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Cards list */}
