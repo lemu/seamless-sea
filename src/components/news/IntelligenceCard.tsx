@@ -1,5 +1,5 @@
-import { Card, CardContent, Badge, Button } from "@rafal.lemieszewski/tide-ui";
-import { Bookmark, ArrowRight } from "lucide-react";
+import { Card, CardContent, Badge, Button, Tag } from "@rafal.lemieszewski/tide-ui";
+import { Search, ArrowRight } from "lucide-react";
 import type { ImpactLevel } from "../../types/news";
 import { formatRelativeTime } from "../../utils/dataUtils";
 
@@ -65,13 +65,13 @@ export function IntelligenceCard({ item, onSelect }: IntelligenceCardProps) {
       className={`border-l-4 ${config.border} overflow-hidden cursor-pointer hover:shadow-md transition-shadow`}
       onClick={() => onSelect(item)}
     >
-      <CardContent className="p-4 flex flex-col gap-3">
+      <CardContent className="p-3 flex flex-col gap-2">
         {/* Top metadata row */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1.5">
             <span className={`inline-block w-2 h-2 rounded-full ${config.dot} flex-shrink-0`} />
             <span
-              className="text-body-xs font-semibold uppercase tracking-wide"
+              className="text-body-medium-xsm uppercase tracking-wide"
               style={{ color: config.textColor }}
             >
               {config.label}
@@ -99,31 +99,33 @@ export function IntelligenceCard({ item, onSelect }: IntelligenceCardProps) {
           ))}
         </div>
 
+        {/* Source + time */}
+        <SourceLine sourceName={item.sourceName} publishedAt={item.publishedAt} />
+
         {/* Headline */}
-        <h3 className="text-body-md font-semibold text-[var(--color-text-primary)] leading-snug">
+        <h3 className="text-body-strong-md text-[var(--color-text-primary)] leading-snug">
           {item.title}
         </h3>
 
-        {/* Source + time */}
-        <SourceLine sourceName={item.sourceName} publishedAt={item.publishedAt} />
+        {/* Blurb */}
+        {item.summary && (
+          <p className="text-body-md text-[var(--color-text-secondary)] line-clamp-3 leading-snug">
+            {item.summary}
+          </p>
+        )}
 
         {/* Key signals */}
         {item.keySignals && item.keySignals.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {item.keySignals.map((signal, i) => (
-              <span
-                key={i}
-                className="text-body-xs text-[var(--color-text-secondary)] bg-[var(--color-bg-neutral-subtle,#f5f5f5)] px-2 py-0.5 rounded"
-              >
-                {signal}
-              </span>
+              <Tag key={i} size="s" variant="rectangular">{signal}</Tag>
             ))}
           </div>
         )}
 
         {/* Actions */}
         <div
-          className="flex items-center justify-between pt-1"
+          className="flex items-center justify-between"
           onClick={(e) => e.stopPropagation()}
         >
           <Button
@@ -138,10 +140,10 @@ export function IntelligenceCard({ item, onSelect }: IntelligenceCardProps) {
           <Button
             variant="ghost"
             size="s"
-            aria-label="Flag contract related to this item"
+            aria-label="Search contracts affected by this item"
           >
-            <Bookmark size={14} className="mr-1" />
-            Flag Contract
+            <Search size={14} className="mr-1" />
+            Search affected contracts
           </Button>
         </div>
       </CardContent>
@@ -180,11 +182,11 @@ export function SourceLine({
         />
       )}
       {sourceName && (
-        <span className="text-body-xs font-medium text-[var(--color-text-secondary)]">
+        <span className="text-body-medium-xsm text-[var(--color-text-secondary)]">
           {sourceName}
         </span>
       )}
-      <span className="text-body-xs text-[var(--color-text-tertiary)]">
+      <span className="text-body-xsm text-[var(--color-text-tertiary)]">
         {sourceName ? "· " : ""}{formatRelativeTime(publishedAt)}
       </span>
     </div>
