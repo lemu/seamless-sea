@@ -55,7 +55,7 @@ const exportVolData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oc
   name: m, volume: 80 + Math.round(Math.sin(i * 0.5) * 17 + 17),
 }));
 
-const exportCountryConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const exportCountryConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const exportCountryData = [
   { name: "Brazil", volume: 1253 }, { name: "Australia", volume: 1157 }, { name: "S. Africa", volume: 249 },
   { name: "Canada", volume: 202 }, { name: "India", volume: 101 }, { name: "China", volume: 96 }, { name: "Peru", volume: 71 },
@@ -73,19 +73,19 @@ const seasonalData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct
   y2025: 92 + Math.round(Math.sin(i * 0.4 + 1) * 14),
 }));
 
-const exportPortConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const exportPortConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const exportPortData = [
   { name: "Pt Hedland", volume: 1896 }, { name: "Pt Walcott", volume: 596 },
   { name: "Ponta Madeira", volume: 550 }, { name: "Dampier", volume: 473 }, { name: "Tubarao", volume: 222 },
 ];
 
-const regionConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const regionConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const regionData = [
   { name: "Oceania", volume: 2195 }, { name: "Americas", volume: 1071 },
   { name: "Africa", volume: 158 }, { name: "Asia", volume: 52 }, { name: "Europe", volume: 2 },
 ];
 
-const producerConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const producerConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const producerData = [
   { name: "RTIO", volume: 746 }, { name: "BHP", volume: 689 }, { name: "VALE", volume: 658 },
   { name: "FMG", volume: 442 }, { name: "Anglo", volume: 176 },
@@ -108,7 +108,7 @@ const yoyVarData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 
 // --- Trade flows tab data ---
 
-const originConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const originConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const originData = [
   { name: "Australia", volume: 256 }, { name: "Brazil", volume: 104 }, { name: "S. Africa", volume: 23 },
   { name: "Canada", volume: 16 }, { name: "India", volume: 10 }, { name: "Malaysia", volume: 7 },
@@ -124,7 +124,7 @@ const yoyFlowData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"
   prior: Math.round(36 * (i + 1) + Math.sin(i * 0.4 + 0.3) * 10),
 }));
 
-const destConfig = { volume: { label: "Volume (M mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const destConfig = { volume: { label: "Volume (M mt)", yAxisId: "left" as const } };
 const destData = [
   { name: "China", volume: 310 }, { name: "Japan", volume: 24 }, { name: "S. Korea", volume: 21 },
   { name: "Netherlands", volume: 10 }, { name: "Malaysia", volume: 7 },
@@ -173,13 +173,13 @@ const pipelineVolData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","
   other: 4 + Math.round(Math.sin(i * 0.6) * 1),
 }));
 
-const destBreakdownConfig = { vessels: { label: "Vessels", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const destBreakdownConfig = { vessels: { label: "Vessels", yAxisId: "left" as const } };
 const destBreakdownData = [
   { name: "China", vessels: 255 }, { name: "Unknown", vessels: 239 },
   { name: "S. Korea", vessels: 21 }, { name: "Japan", vessels: 20 }, { name: "Netherlands", vessels: 8 },
 ];
 
-const transitDestConfig = { vessels: { label: "Vessels", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const transitDestConfig = { vessels: { label: "Vessels", yAxisId: "left" as const } };
 const transitDestData = [
   { name: "China", vessels: 255 }, { name: "Unknown", vessels: 239 },
   { name: "S. Korea", vessels: 21 }, { name: "Japan", vessels: 20 }, { name: "Netherlands", vessels: 8 },

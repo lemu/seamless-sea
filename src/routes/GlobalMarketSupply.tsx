@@ -83,7 +83,7 @@ const listData: ListRow[] = [
   { vessel: "Crystal Tiger", route: "Port Kembla → Kashima", status: "Laden", eta: "16/05" },
 ];
 
-const subRegionConfig = { count: { label: "Vessels", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const subRegionConfig = { count: { label: "Vessels", yAxisId: "left" as const } };
 const subRegionData = [
   { name: "SE Asia", count: 2410 },
   { name: "N Australia", count: 1985 },
@@ -129,7 +129,7 @@ const utilizationData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","
 }));
 
 // §1.2 Breakdown by Class
-const ballastRateConfig = { rate: { label: "Ballasting %", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const ballastRateConfig = { rate: { label: "Ballasting %", yAxisId: "left" as const } };
 const ballastRateData = [
   { name: "VLOC", rate: 22 },
   { name: "Capesize", rate: 31 },
@@ -137,7 +137,7 @@ const ballastRateData = [
   { name: "Supramax", rate: 33 },
   { name: "Handysize", rate: 29 },
 ];
-const subtypeHBarConfig = { count: { label: "Vessels", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const subtypeHBarConfig = { count: { label: "Vessels", yAxisId: "left" as const } };
 const subtypeHBarData = [
   { name: "Capesize", count: 4120 },
   { name: "Panamax", count: 2890 },
@@ -219,13 +219,13 @@ const bunkerPriceData = [
   { name: "W9", price: 602, avg7d: 608 }, { name: "W10", price: 618, avg7d: 610 },
 ];
 
-const speedBySectorConfig = { speed: { label: "Avg Speed (kn)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const speedBySectorConfig = { speed: { label: "Avg Speed (kn)", yAxisId: "left" as const } };
 const speedBySectorData = [
   { name: "LNG", speed: 18.2 }, { name: "Container", speed: 15.4 }, { name: "LPG", speed: 13.1 },
   { name: "Bulker", speed: 11.2 }, { name: "Tanker", speed: 10.8 },
 ];
 
-const speedBySubtypeConfig = { speed: { label: "Avg Speed (kn)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const speedBySubtypeConfig = { speed: { label: "Avg Speed (kn)", yAxisId: "left" as const } };
 const speedBySubtypeData = [
   { name: "Feeder", speed: 16.1 }, { name: "Panamax", speed: 12.3 }, { name: "Capesize", speed: 11.5 },
   { name: "Supramax", speed: 11.2 }, { name: "Handysize", speed: 10.8 }, { name: "VLCC", speed: 10.2 },
@@ -250,7 +250,7 @@ const waitingPortBData = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep",
   name: m, vessels: 8 + Math.round(Math.sin(i * 0.6) * 13 + 13),
 }));
 
-const waitTimeConfig = { days: { label: "Avg Wait (days)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const waitTimeConfig = { days: { label: "Avg Wait (days)", yAxisId: "left" as const } };
 const waitTimeData = [
   { name: "Qingdao", days: 4.2 }, { name: "Dampier", days: 1.8 }, { name: "Pt Hedland", days: 2.1 },
   { name: "Ponta Madeira", days: 3.5 }, { name: "Tubarao", days: 2.9 },
@@ -278,7 +278,7 @@ const ciiDistData = [
   { name: "VLOC", a: 120, b: 240, c: 320, d: 140, e: 70 },
 ];
 
-const emissionsIntensityConfig = { intensity: { label: "gCO₂/t·nm", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const emissionsIntensityConfig = { intensity: { label: "gCO₂/t·nm", yAxisId: "left" as const } };
 const emissionsIntensityData = [
   { name: "Tanker", intensity: 12.4 }, { name: "Bulker", intensity: 10.8 },
   { name: "Container", intensity: 9.2 }, { name: "LNG", intensity: 7.1 }, { name: "LPG", intensity: 6.5 },

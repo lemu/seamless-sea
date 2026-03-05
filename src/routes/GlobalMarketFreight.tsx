@@ -158,13 +158,13 @@ const cargoFreightData = [
   { name: "W9", cargo: 9.4, rate: 22.8 }, { name: "W10", cargo: 10.1, rate: 24.2 },
 ];
 
-const fixtureStatusConfig = { count: { label: "Count", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const fixtureStatusConfig = { count: { label: "Count", yAxisId: "left" as const } };
 const fixtureStatusData = [
   { name: "Fully Fixed", count: 1142 }, { name: "On Subs", count: 98 },
   { name: "Subs Lifted", count: 64 }, { name: "Subs Failed", count: 42 }, { name: "Firm", count: 27 },
 ];
 
-const avgRateByRouteConfig = { rate: { label: "Rate ($/mt)", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const avgRateByRouteConfig = { rate: { label: "Rate ($/mt)", yAxisId: "left" as const } };
 const avgRateByRouteData = [
   { name: "C5 W.Aus→Qingdao", rate: 11.20 },
   { name: "C3 Tubarao→Qingdao", rate: 24.80 },
@@ -172,7 +172,7 @@ const avgRateByRouteData = [
   { name: "P1A Transatlantic", rate: 14.20 },
 ];
 
-const ownerFixConfig = { count: { label: "Fixtures", type: "horizontal-bar" as const, yAxisId: "left" as const } };
+const ownerFixConfig = { count: { label: "Fixtures", yAxisId: "left" as const } };
 const ownerFixData = [
   { name: "Solebay", count: 14 }, { name: "Pan Ocean", count: 8 },
   { name: "Pantheon", count: 7 }, { name: "Heidmar", count: 5 }, { name: "Kolossi", count: 4 },
