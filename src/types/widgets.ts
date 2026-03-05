@@ -208,6 +208,7 @@ export interface WidgetSizeConfig {
   label: string;
   h: number;
   defaultW: number;
+  breakpointDefaultW?: Partial<Record<string, number>>;
   minW: number;
   maxW: number;
   chartHeight: number;
@@ -220,7 +221,7 @@ export const WIDGET_SIZE_CONFIGS: Record<WidgetSize, WidgetSizeConfig> = {
 };
 
 export const TIMESERIES_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
-  small:  { label: "Small",  h: 1, defaultW: 2, minW: 2, maxW: 2, chartHeight: 160 },
+  small:  { label: "Small",  h: 1, defaultW: 2, breakpointDefaultW: { lg: 2 }, minW: 2, maxW: 2, chartHeight: 160 },
   medium: { label: "Medium", h: 2, defaultW: 4, minW: 4, maxW: 4, chartHeight: 416 },
 };
 

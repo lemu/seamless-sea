@@ -16,7 +16,8 @@ import {
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
 import type { WidgetDocument, WidgetSize } from "../../types/widgets";
-import { WIDGET_SIZE_CONFIGS, getSizeFromRows, getWidgetSizeConfigs, NEWS_TICKER_SIZE_CONFIGS } from "../../types/widgets";
+import { getSizeFromRows, getWidgetSizeConfigs } from "../../types/widgets";
+import { getChartById } from "../../data/chartRegistry";
 
 // Layout item type for grid
 interface LayoutItem {
@@ -39,14 +40,15 @@ const breakpoints = { lg: 1200, md: 768, sm: 0 };
 const cols = { lg: 4, md: 2, sm: 1 };
 
 // Apply size constraints to a layout item based on its row height
-function withSizeConstraints(item: LayoutItem, widgetType?: string): LayoutItem {
+function withSizeConstraints(item: LayoutItem, breakpoint: string, chartType?: string): LayoutItem {
   const base = { ...item, isResizable: false };
   const size = getSizeFromRows(item.h);
   if (!size) return base; // unknown h (e.g. timeseries h=4) — keep as-is
-  const allConfigs = widgetType === "news_ticker" ? NEWS_TICKER_SIZE_CONFIGS : WIDGET_SIZE_CONFIGS;
-  const cfg = allConfigs[size];
+  const configs = getWidgetSizeConfigs(chartType);
+  const cfg = configs[size];
   if (!cfg) return base;
-  const w = Math.min(cfg.maxW, Math.max(cfg.minW, item.w));
+  const bpMinW = cfg.breakpointDefaultW?.[breakpoint] ?? cfg.defaultW;
+  const w = Math.min(Math.max(item.w, bpMinW), cfg.maxW);
   return { ...base, w, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h };
 }
 
@@ -304,9 +306,10 @@ export function WidgetGrid({
     const base = effectiveLayoutsRef.current;
     const updated: Record<string, Layout[]> = {};
     for (const [bp, layout] of Object.entries(base)) {
+      const w = cfg.breakpointDefaultW?.[bp] ?? cfg.defaultW;
       updated[bp] = (layout as LayoutItem[]).map((item) =>
         item.i === widgetId
-          ? { ...item, w: cfg.defaultW, h: cfg.h, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h, isResizable: false }
+          ? { ...item, w, h: cfg.h, minW: cfg.minW, maxW: cfg.maxW, minH: cfg.h, maxH: cfg.h, isResizable: false }
           : item
       );
     }
@@ -337,11 +340,16 @@ export function WidgetGrid({
       });
 
       // Function to find next available position
-      const findNextAvailablePosition = () => {
+      const findNextAvailablePosition = (w: number, h: number) => {
         for (let y = 0; y < maxRows; y++) {
-          for (let x = 0; x < currentCols; x++) {
-            if (!occupiedGrid.has(`${x},${y}`)) {
-              occupiedGrid.add(`${x},${y}`);
+          for (let x = 0; x <= currentCols - w; x++) {
+            const fits = Array.from({ length: w }, (_, dx) =>
+              Array.from({ length: h }, (_, dy) => !occupiedGrid.has(`${x + dx},${y + dy}`))
+            ).flat().every(Boolean);
+            if (fits) {
+              for (let dx = 0; dx < w; dx++)
+                for (let dy = 0; dy < h; dy++)
+                  occupiedGrid.add(`${x + dx},${y + dy}`);
               return { x, y };
             }
           }
@@ -357,13 +365,16 @@ export function WidgetGrid({
         }
 
         // For new widgets, find the next available position
-        const position = findNextAvailablePosition();
+        const chartEntry = getChartById(widget.config?.source?.chartId);
+        const defaultW = Math.min(chartEntry?.defaultSize.w ?? 1, currentCols);
+        const defaultH = chartEntry?.defaultSize.h ?? 1;
+        const position = findNextAvailablePosition(defaultW, defaultH);
         return {
           i: widget._id,
           x: position.x,
           y: position.y,
-          w: 1,
-          h: 1,
+          w: defaultW,
+          h: defaultH,
           minW: 1,
           minH: 1,
         };
@@ -425,7 +436,11 @@ export function WidgetGrid({
       );
 
       // Apply size constraints derived from h for all existing items
-      const constrainedLayout = existingLayout.map(item => withSizeConstraints(item, widgetTypeMap.get(item.i)));
+      const constrainedLayout = existingLayout.map((item) => {
+        const widget = widgets?.find((w) => w._id === item.i);
+        const chartType = widget?.config?.chartType as string | undefined;
+        return withSizeConstraints(item, breakpoint, chartType);
+      });
 
       if (newWidgets.length > 0) {
         // Create occupied grid for this breakpoint
@@ -441,35 +456,31 @@ export function WidgetGrid({
 
         // Find positions for new widgets
         const newLayoutItems = newWidgets.map((widget) => {
-          // Find next available position
+          const chartEntry = getChartById(widget.config?.source?.chartId);
+          const chartType = widget.config?.chartType as string | undefined;
+          const defaultH = chartEntry?.defaultSize.h ?? 1;
+          const size = getSizeFromRows(defaultH);
+          const configs = getWidgetSizeConfigs(chartType);
+          const sizeConfig = size ? configs[size] : null;
+          const bpDefaultW = sizeConfig?.breakpointDefaultW?.[breakpoint] ?? 0;
+          const defaultW = Math.min(Math.max(chartEntry?.defaultSize.w ?? 1, bpDefaultW), currentCols);
+
+          // Find a position that fits the full w×h footprint
           for (let y = 0; y < maxRows; y++) {
-            for (let x = 0; x < currentCols; x++) {
-              if (!occupiedGrid.has(`${x},${y}`)) {
-                occupiedGrid.add(`${x},${y}`);
-                return {
-                  i: widget._id,
-                  x,
-                  y,
-                  w: 1,
-                  h: 1,
-                  minW: 1,
-                  minH: 1,
-                  maxH: 1,
-                };
+            for (let x = 0; x <= currentCols - defaultW; x++) {
+              const fits = Array.from({ length: defaultW }, (_, dx) =>
+                Array.from({ length: defaultH }, (_, dy) => !occupiedGrid.has(`${x + dx},${y + dy}`))
+              ).flat().every(Boolean);
+              if (fits) {
+                for (let dx = 0; dx < defaultW; dx++)
+                  for (let dy = 0; dy < defaultH; dy++)
+                    occupiedGrid.add(`${x + dx},${y + dy}`);
+                return { i: widget._id, x, y, w: defaultW, h: defaultH, minW: 1, minH: 1 };
               }
             }
           }
-          // If no space available, add to bottom
-          return {
-            i: widget._id,
-            x: 0,
-            y: maxRows,
-            w: 1,
-            h: 1,
-            minW: 1,
-            minH: 1,
-            maxH: 1,
-          };
+          // Fallback: append below existing content
+          return { i: widget._id, x: 0, y: maxRows, w: defaultW, h: defaultH, minW: 1, minH: 1 };
         });
 
         updatedLayouts[breakpoint] = [...constrainedLayout, ...newLayoutItems];
