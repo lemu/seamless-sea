@@ -8,7 +8,8 @@ export type ChartSection =
   | "global_market_supply"
   | "global_market_freight"
   | "global_market_commodities"
-  | "newsroom";
+  | "newsroom"
+  | "port_report";
 
 export interface FilterField {
   key: string;
@@ -22,8 +23,8 @@ export interface ChartRegistryEntry {
   label: string;
   section: ChartSection;
   tab?: string;
-  entityType?: "vessel" | "route" | "commodity";
-  defaultChartType: "bar" | "line" | "composed" | "timeseries";
+  entityType?: "vessel" | "route" | "commodity" | "port";
+  defaultChartType: "bar" | "line" | "composed" | "timeseries" | "horizontal-bar";
   defaultSize: { w: number; h: number };
   filterSchema: FilterField[];
 }
@@ -133,6 +134,117 @@ export const chartRegistry: ChartRegistryEntry[] = [
         type: "multiSelect",
       },
     ],
+  },
+  // ── Port Report ──────────────────────────────────────────────────────────
+  {
+    id: "port_report.activity.vessels_by_type",
+    label: "Vessels by Type",
+    section: "port_report",
+    tab: "port-activity",
+    entityType: "port",
+    defaultChartType: "horizontal-bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.activity.arrivals_by_day",
+    label: "Arrivals by Day — Last 30 Days",
+    section: "port_report",
+    tab: "port-activity",
+    entityType: "port",
+    defaultChartType: "bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.activity.top_origin_ports",
+    label: "Top Origin Ports",
+    section: "port_report",
+    tab: "port-activity",
+    entityType: "port",
+    defaultChartType: "horizontal-bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.calls.monthly",
+    label: "Port Calls — Monthly",
+    section: "port_report",
+    tab: "port-calls",
+    entityType: "port",
+    defaultChartType: "bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.calls.cargo_volume",
+    label: "Cargo Volume — Monthly",
+    section: "port_report",
+    tab: "port-calls",
+    entityType: "port",
+    defaultChartType: "line",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.calls.by_vessel_type",
+    label: "Calls by Vessel Type",
+    section: "port_report",
+    tab: "port-calls",
+    entityType: "port",
+    defaultChartType: "horizontal-bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.calls.top_commodities",
+    label: "Top Commodities",
+    section: "port_report",
+    tab: "port-calls",
+    entityType: "port",
+    defaultChartType: "horizontal-bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.congestion.wait_trend",
+    label: "Avg Waiting Time — Monthly",
+    section: "port_report",
+    tab: "congestion",
+    entityType: "port",
+    defaultChartType: "line",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.congestion.anchorage_by_day",
+    label: "Vessels at Anchorage — Last 30 Days",
+    section: "port_report",
+    tab: "congestion",
+    entityType: "port",
+    defaultChartType: "bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.congestion.wait_distribution",
+    label: "Wait Time Distribution — Monthly",
+    section: "port_report",
+    tab: "congestion",
+    entityType: "port",
+    defaultChartType: "composed",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
+  },
+  {
+    id: "port_report.congestion.avg_wait_by_type",
+    label: "Avg Wait by Vessel Type",
+    section: "port_report",
+    tab: "congestion",
+    entityType: "port",
+    defaultChartType: "horizontal-bar",
+    defaultSize: { w: 3, h: 2 },
+    filterSchema: [],
   },
 ];
 

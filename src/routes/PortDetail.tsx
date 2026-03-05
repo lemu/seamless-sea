@@ -29,6 +29,7 @@ import {
 } from "@rafal.lemieszewski/tide-ui";
 import { Chart } from "@rafal.lemieszewski/tide-ui/chart";
 import { DataTable } from "@rafal.lemieszewski/tide-ui/data-table";
+import { AddToBoardButton } from "../components/AddToBoardButton";
 
 // --- Column definitions ---
 
@@ -316,7 +317,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Vessels by type</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Vessels by type</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Vessels by Type"
+                          source={{ section: "port_report", chartId: "port_report.activity.vessels_by_type", entityId: port._id, tab: "port-activity", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -335,7 +342,13 @@ function PortDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Arrivals by day — last 30 days</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Arrivals by day — last 30 days</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Arrivals by Day — Last 30 Days"
+                          source={{ section: "port_report", chartId: "port_report.activity.arrivals_by_day", entityId: port._id, tab: "port-activity", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -349,7 +362,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Top origin ports</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Top origin ports</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Top Origin Ports"
+                          source={{ section: "port_report", chartId: "port_report.activity.top_origin_ports", entityId: port._id, tab: "port-activity", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -391,7 +410,13 @@ function PortDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Port calls — monthly</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Port calls — monthly</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Port Calls — Monthly"
+                          source={{ section: "port_report", chartId: "port_report.calls.monthly", entityId: port._id, tab: "port-calls", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -405,7 +430,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Cargo volume — monthly (mt m)</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Cargo volume — monthly (mt m)</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Cargo Volume — Monthly"
+                          source={{ section: "port_report", chartId: "port_report.calls.cargo_volume", entityId: port._id, tab: "port-calls", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -423,7 +454,13 @@ function PortDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Calls by vessel type</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Calls by vessel type</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Calls by Vessel Type"
+                          source={{ section: "port_report", chartId: "port_report.calls.by_vessel_type", entityId: port._id, tab: "port-calls", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -438,7 +475,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Top commodities (mt m)</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Top commodities (mt m)</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Top Commodities"
+                          source={{ section: "port_report", chartId: "port_report.calls.top_commodities", entityId: port._id, tab: "port-calls", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -480,7 +523,13 @@ function PortDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Avg waiting time — monthly</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Avg waiting time — monthly</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Avg Waiting Time — Monthly"
+                          source={{ section: "port_report", chartId: "port_report.congestion.wait_trend", entityId: port._id, tab: "congestion", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -494,7 +543,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Vessels at anchorage — last 30 days</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Vessels at anchorage — last 30 days</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Vessels at Anchorage — Last 30 Days"
+                          source={{ section: "port_report", chartId: "port_report.congestion.anchorage_by_day", entityId: port._id, tab: "congestion", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -512,7 +567,13 @@ function PortDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Wait time distribution — monthly</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Wait time distribution — monthly</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Wait Time Distribution — Monthly"
+                          source={{ section: "port_report", chartId: "port_report.congestion.wait_distribution", entityId: port._id, tab: "congestion", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
@@ -526,7 +587,13 @@ function PortDetail() {
                   </Card>
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-heading-sm">Avg wait by vessel type (days)</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-heading-sm">Avg wait by vessel type (days)</CardTitle>
+                        <AddToBoardButton
+                          chartTitle="Avg Wait by Vessel Type"
+                          source={{ section: "port_report", chartId: "port_report.congestion.avg_wait_by_type", entityId: port._id, tab: "congestion", filters: {} }}
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <Chart
