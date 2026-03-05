@@ -2,8 +2,9 @@ import { BaseWidget, type WidgetProps } from "./BaseWidget";
 import { ChartWidget } from "./ChartWidget";
 import { TableWidget } from "./TableWidget";
 import { EmptyWidget } from "./EmptyWidget";
+import { NewsTickerWidget } from "../news/NewsTickerWidget";
 import type { WidgetDocument, WidgetSize } from "../../types/widgets";
-import { getWidgetSizeConfigs } from "../../types/widgets";
+import { getWidgetSizeConfigs, NEWS_TICKER_SIZE_CONFIGS } from "../../types/widgets";
 import { getChartById } from "../../data/chartRegistry";
 
 interface WidgetRendererProps {
@@ -27,7 +28,10 @@ export function WidgetRenderer({
 }: WidgetRendererProps) {
   const registryEntry = widget.config.source ? getChartById(widget.config.source.chartId) : undefined;
   const effectiveChartType = registryEntry?.defaultChartType ?? widget.config.chartType;
-  const sizeConfigs = getWidgetSizeConfigs(effectiveChartType);
+  const sizeConfigs =
+    widget.type === "news_ticker"
+      ? NEWS_TICKER_SIZE_CONFIGS
+      : getWidgetSizeConfigs(effectiveChartType);
 
   // Common props for all widgets
   const commonProps: WidgetProps = {
@@ -57,7 +61,10 @@ export function WidgetRenderer({
       
       case "empty":
         return <EmptyWidget {...commonProps} />;
-      
+
+      case "news_ticker":
+        return <NewsTickerWidget {...commonProps} />;
+
       default:
         // Fallback for unknown widget types
         return (

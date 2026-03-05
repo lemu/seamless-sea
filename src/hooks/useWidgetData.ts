@@ -69,9 +69,8 @@ export interface WidgetDataResult {
 }
 
 export function useWidgetData(source: WidgetSource | undefined): WidgetDataResult {
-  const vesselId = source?.section !== "port_report"
-    ? source?.entityId as Id<"vessels"> | undefined
-    : undefined;
+  const isVesselChart = source?.section === "vessel_report";
+  const vesselId = isVesselChart ? (source?.entityId as Id<"vessels"> | undefined) : undefined;
 
   const portId = source?.section === "port_report"
     ? source.entityId as Id<"ports"> | undefined

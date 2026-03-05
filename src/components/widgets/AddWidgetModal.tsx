@@ -16,12 +16,18 @@ import {
   DialogFooter,
   RadioGroup,
   RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@rafal.lemieszewski/tide-ui";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { defaultChartConfig } from "./ChartWidget";
 import { defaultTableConfig } from "./TableWidget";
 import { defaultEmptyConfig } from "./EmptyWidget";
+import { NEWS_CATEGORIES, VESSEL_TYPES, NEWS_REGIONS } from "../../types/news";
 
 interface AddWidgetModalProps {
   isOpen: boolean;
@@ -30,7 +36,7 @@ interface AddWidgetModalProps {
   boardId: Id<"boards">;
 }
 
-import type { GenericWidgetConfig, WidgetType } from "../../types/widgets";
+import type { GenericWidgetConfig, WidgetType, NewsTickerWidgetConfig } from "../../types/widgets";
 
 interface WidgetTemplate {
   type: WidgetType;
@@ -100,12 +106,35 @@ const widgetTemplates: WidgetTemplate[] = [
       </div>
     ),
   },
+  {
+    type: "news_ticker" as WidgetType,
+    name: "News Ticker",
+    description: "Pinned intelligence feed — animated ticker (small) or scrollable list (medium)",
+    icon: "newspaper",
+    defaultConfig: { title: "News Ticker", filters: {} } as GenericWidgetConfig,
+    preview: (
+      <div className="flex flex-col gap-1.5 h-16 justify-center px-1">
+        {["High impact · Tankers · Middle East", "Canal disruption — Panama backlog", "EU sanctions · shadow fleet"].map((_text, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${i === 0 ? "bg-red-500" : i === 1 ? "bg-amber-500" : "bg-green-500"}`} />
+            <div className="h-1.5 bg-gray-200 rounded flex-1 overflow-hidden">
+              <div className="h-full bg-gray-400 rounded" style={{ width: `${70 - i * 10}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  },
 ];
 
 export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: AddWidgetModalProps) {
   const [selectedType, setSelectedType] = useState<string>("");
   const [widgetTitle, setWidgetTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [tickerRegion, setTickerRegion] = useState("");
+  const [tickerCategory, setTickerCategory] = useState("");
+  const [tickerVesselType, setTickerVesselType] = useState("");
+  const [tickerImpactLevel, setTickerImpactLevel] = useState("");
 
   const createWidget = useMutation(api.widgets.createWidget);
 
@@ -114,6 +143,10 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
     if (isOpen) {
       setSelectedType("");
       setWidgetTitle("");
+      setTickerRegion("");
+      setTickerCategory("");
+      setTickerVesselType("");
+      setTickerImpactLevel("");
     }
   }, [isOpen]);
 
@@ -133,16 +166,25 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
     const selectedTemplate = widgetTemplates.find(t => t.type === selectedType);
     if (!selectedTemplate) return;
 
+    let widgetConfig: GenericWidgetConfig;
+    if (selectedType === "news_ticker") {
+      const filters: NewsTickerWidgetConfig["filters"] = {};
+      if (tickerRegion) filters.region = tickerRegion;
+      if (tickerCategory) filters.category = tickerCategory;
+      if (tickerVesselType) filters.vesselType = tickerVesselType;
+      if (tickerImpactLevel) filters.impactLevel = tickerImpactLevel as "high" | "medium" | "low";
+      widgetConfig = { title: widgetTitle.trim(), filters } as GenericWidgetConfig;
+    } else {
+      widgetConfig = { ...selectedTemplate.defaultConfig, title: widgetTitle.trim() };
+    }
+
     setIsCreating(true);
     try {
       await createWidget({
         boardId,
         type: selectedTemplate.type,
         title: widgetTitle.trim(),
-        config: {
-          ...selectedTemplate.defaultConfig,
-          title: widgetTitle.trim(),
-        },
+        config: widgetConfig,
       });
 
       // Notify parent that widget was successfully created
@@ -202,6 +244,76 @@ export function AddWidgetModal({ isOpen, onClose, onWidgetCreated, boardId }: Ad
                 />
               </FormControl>
             </FormField>
+
+            {selectedType === "news_ticker" && (
+              <div className="space-y-3 rounded-lg border border-[var(--color-border-primary-subtle)] p-4">
+                <p className="text-body-sm font-medium text-[var(--color-text-primary)]">
+                  Filter intelligence (optional)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField>
+                    <FormLabel>Region</FormLabel>
+                    <FormControl>
+                      <Select value={tickerRegion} onValueChange={setTickerRegion}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All regions" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {NEWS_REGIONS.map((r) => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormField>
+                  <FormField>
+                    <FormLabel>Category</FormLabel>
+                    <FormControl>
+                      <Select value={tickerCategory} onValueChange={setTickerCategory}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {NEWS_CATEGORIES.map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormField>
+                  <FormField>
+                    <FormLabel>Vessel type</FormLabel>
+                    <FormControl>
+                      <Select value={tickerVesselType} onValueChange={setTickerVesselType}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All vessel types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VESSEL_TYPES.map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormField>
+                  <FormField>
+                    <FormLabel>Impact level</FormLabel>
+                    <FormControl>
+                      <Select value={tickerImpactLevel} onValueChange={setTickerImpactLevel}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="All levels" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormField>
+                </div>
+              </div>
+            )}
           </div>
         </DialogBody>
 

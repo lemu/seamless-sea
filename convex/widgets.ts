@@ -38,13 +38,13 @@ export const getBoardLayouts = query({
 export const createWidget = mutation({
   args: {
     boardId: v.id("boards"),
-    type: v.union(v.literal("chart"), v.literal("table"), v.literal("empty")),
+    type: v.union(v.literal("chart"), v.literal("table"), v.literal("empty"), v.literal("news_ticker")),
     title: v.string(),
     config: v.any(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    
+
     const widgetId = await ctx.db.insert("widgets", {
       boardId: args.boardId,
       type: args.type,

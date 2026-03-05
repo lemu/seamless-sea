@@ -44,7 +44,10 @@ export function BaseWidget({
       <div className="flex h-full flex-col rounded-l border border-[var(--color-border-primary-subtle)] bg-[var(--color-surface-primary)]">
         <div className="border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-body-medium-md truncate font-medium text-[var(--color-text-primary)]">
+            <h3
+              className="truncate text-[var(--color-text-primary)]"
+              style={{ fontSize: 16, fontWeight: 600, lineHeight: "1.4" }}
+            >
               {title}
             </h3>
           </div>
@@ -69,11 +72,14 @@ export function BaseWidget({
   }
 
   return (
-    <div className="rounded-xl flex h-full flex-col border border-[var(--color-border-primary-medium)] bg-[var(--color-surface-primary)]">
+    <div className="rounded-xl flex h-full flex-col border border-[var(--color-border-primary-medium)] bg-[var(--color-surface-primary)] overflow-hidden">
       {/* Widget Header */}
       <div className="widget-drag-handle cursor-grab border-b border-[var(--color-border-primary-subtle)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-body-medium-md truncate font-medium text-[var(--color-text-primary)]">
+          <h3
+            className="truncate text-[var(--color-text-primary)]"
+            style={{ fontSize: 16, fontWeight: 600, lineHeight: "1.4" }}
+          >
             {title}
           </h3>
 

@@ -96,7 +96,7 @@ export default defineSchema({
   // Widgets table - Individual widget instances on boards
   widgets: defineTable({
     boardId: v.id("boards"),
-    type: v.union(v.literal("chart"), v.literal("table"), v.literal("empty")), // Expandable widget types
+    type: v.union(v.literal("chart"), v.literal("table"), v.literal("empty"), v.literal("news_ticker")), // Expandable widget types
     title: v.string(),
     config: v.any(), // Widget-specific configuration (chart settings, table data source, etc.)
     createdAt: v.number(),

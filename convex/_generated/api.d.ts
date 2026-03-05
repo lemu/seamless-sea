@@ -40,6 +40,7 @@ import type * as migrations_removeUser from "../migrations/removeUser.js";
 import type * as migrations_reorderMemberships from "../migrations/reorderMemberships.js";
 import type * as migrations_updateFixturesOrg from "../migrations/updateFixturesOrg.js";
 import type * as negotiations from "../negotiations.js";
+import type * as news from "../news.js";
 import type * as orders from "../orders.js";
 import type * as organizations from "../organizations.js";
 import type * as passwordReset from "../passwordReset.js";
@@ -97,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/reorderMemberships": typeof migrations_reorderMemberships;
   "migrations/updateFixturesOrg": typeof migrations_updateFixturesOrg;
   negotiations: typeof negotiations;
+  news: typeof news;
   orders: typeof orders;
   organizations: typeof organizations;
   passwordReset: typeof passwordReset;
