@@ -25,6 +25,7 @@ import Compliance from "./routes/Compliance.tsx";
 import GlobalMarketSupply from "./routes/GlobalMarketSupply.tsx";
 import GlobalMarketCommodities from "./routes/GlobalMarketCommodities.tsx";
 import GlobalMarketFreight from "./routes/GlobalMarketFreight.tsx";
+import { GlobalMarketLayout } from "./components/GlobalMarketLayout.tsx";
 import AssetsVessels from "./routes/AssetsVessels.tsx";
 import VesselDetail from "./routes/VesselDetail.tsx";
 import AssetsFleets from "./routes/AssetsFleets.tsx";
@@ -154,6 +155,7 @@ const router = createBrowserRouter([
       },
       {
         path: "global-market",
+        element: <GlobalMarketLayout />,
         children: [
           { index: true, element: <Navigate to="/global-market/supply" replace /> },
           { path: "supply", element: <ProtectedRoute><GlobalMarketSupply /></ProtectedRoute>, handle: { crumb: () => "Supply" } },

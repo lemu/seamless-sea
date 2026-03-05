@@ -1,4 +1,5 @@
 export { useUser } from './useUser';
+export { useDesk } from '../contexts/DeskContext';
 export { useHeaderActions } from './useHeaderActions';
 export { useHeaderTabs } from './useHeaderTabs';
 export { useAppFrameData } from './useAppFrameData';
