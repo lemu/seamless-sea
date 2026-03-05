@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@rafal.lemieszewski/tide-ui";
 import type { WidgetDocument, WidgetSize } from "../../types/widgets";
-import { getSizeFromRows, getWidgetSizeConfigs } from "../../types/widgets";
+import { getSizeFromRows, getWidgetSizeConfigs, NEWS_TICKER_SIZE_CONFIGS } from "../../types/widgets";
 import { getChartById } from "../../data/chartRegistry";
 
 // Layout item type for grid
@@ -365,7 +365,7 @@ export function WidgetGrid({
         }
 
         // For new widgets, find the next available position
-        const chartEntry = getChartById(widget.config?.source?.chartId);
+        const chartEntry = widget.config?.source?.chartId ? getChartById(widget.config.source.chartId) : undefined;
         const defaultW = Math.min(chartEntry?.defaultSize.w ?? 1, currentCols);
         const defaultH = chartEntry?.defaultSize.h ?? 1;
         const position = findNextAvailablePosition(defaultW, defaultH);
@@ -424,7 +424,6 @@ export function WidgetGrid({
     const updatedLayouts = { ...layouts };
     const breakpointsToUpdate = Object.keys(updatedLayouts);
 
-    const widgetTypeMap = new Map<string, string>(widgets.map(w => [w._id as string, w.type]));
 
     for (const breakpoint of breakpointsToUpdate) {
       const existingLayout = (updatedLayouts[breakpoint] || []) as LayoutItem[];

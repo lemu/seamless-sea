@@ -27,7 +27,7 @@ export function DeskContextStrip({ section }: { section: Section }) {
   const locked = desk.lockedKeys[section];
 
   const handleLockedKeyClick = useCallback(
-    (e: React.MouseEvent, key: string) => {
+    (e: React.MouseEvent, _key: string) => {
       if (section !== "freight") return;
       const rect = (e.target as HTMLElement).getBoundingClientRect();
       setTooltip({

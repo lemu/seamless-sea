@@ -59,7 +59,7 @@ const avgWaitByTypeConfig = {
   days: { label: "Avg wait (days)", type: "bar" as const, yAxisId: "left" as const },
 };
 
-type TideChartConfig = Record<string, { label: string; type: "bar" | "line" | "composed"; yAxisId: "left" | "right" }>;
+type TideChartConfig = Record<string, { label: string; type?: "bar" | "line" | "area" | "range-area"; yAxisId?: "left" | "right" }>;
 
 export interface WidgetDataResult {
   data: Record<string, string | number>[];

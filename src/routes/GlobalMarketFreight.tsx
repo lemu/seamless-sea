@@ -14,17 +14,6 @@ import { DeskContextStrip } from "../components/DeskContextStrip";
 
 // --- Shared helpers ---
 
-function KpiCard({ value, label }: { value: string; label: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-heading-lg">{value}</p>
-        <p className="text-body-sm text-[var(--color-text-secondary)]">{label}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function KpiCardDelta({ value, label, delta, up, valueColor }: { value: string; label: string; delta: string; up: boolean; valueColor?: string }) {
   return (
     <Card>
@@ -47,21 +36,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MapPlaceholder({ title }: { title: string }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-heading-sm">{title}</CardTitle></CardHeader>
-      <CardContent>
-        <div className="min-h-[220px] flex items-center justify-center rounded-md bg-[var(--color-bg-secondary)]">
-          <p className="text-body-sm text-[var(--color-text-secondary)]">
-            Map will be available when AIS integration is live.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // --- Overview tab data ---
 
 const balticIndexConfig = {
@@ -69,32 +43,32 @@ const balticIndexConfig = {
   forward: { label: "Forward", type: "line" as const, yAxisId: "left" as const },
 };
 const balticIndexDataMonthly = [
-  { name: "Sep", historical: 32, forward: null },
-  { name: "Oct", historical: 28, forward: null },
-  { name: "Nov", historical: 24, forward: null },
-  { name: "Dec", historical: 20, forward: null },
-  { name: "Jan", historical: 17, forward: null },
-  { name: "Feb", historical: 19, forward: null },
-  { name: "Mar", historical: 21, forward: null },
-  { name: "Apr", historical: null, forward: 22 },
-  { name: "May", historical: null, forward: 24 },
-  { name: "Jun", historical: null, forward: 26 },
+  { name: "Sep", historical: 32, forward: undefined },
+  { name: "Oct", historical: 28, forward: undefined },
+  { name: "Nov", historical: 24, forward: undefined },
+  { name: "Dec", historical: 20, forward: undefined },
+  { name: "Jan", historical: 17, forward: undefined },
+  { name: "Feb", historical: 19, forward: undefined },
+  { name: "Mar", historical: 21, forward: undefined },
+  { name: "Apr", historical: undefined, forward: 22 },
+  { name: "May", historical: undefined, forward: 24 },
+  { name: "Jun", historical: undefined, forward: 26 },
 ];
 const balticIndexDataQuarterly = [
-  { name: "Q1 2024", historical: 28, forward: null },
-  { name: "Q2 2024", historical: 22, forward: null },
-  { name: "Q3 2024", historical: 19, forward: null },
-  { name: "Q4 2024", historical: 17, forward: null },
-  { name: "Q1 2025", historical: 20, forward: null },
-  { name: "Q2 2025", historical: null, forward: 23 },
-  { name: "Q3 2025", historical: null, forward: 25 },
+  { name: "Q1 2024", historical: 28, forward: undefined },
+  { name: "Q2 2024", historical: 22, forward: undefined },
+  { name: "Q3 2024", historical: 19, forward: undefined },
+  { name: "Q4 2024", historical: 17, forward: undefined },
+  { name: "Q1 2025", historical: 20, forward: undefined },
+  { name: "Q2 2025", historical: undefined, forward: 23 },
+  { name: "Q3 2025", historical: undefined, forward: 25 },
 ];
 const balticIndexDataAnnual = [
-  { name: "2022", historical: 26, forward: null },
-  { name: "2023", historical: 22, forward: null },
-  { name: "2024", historical: 19, forward: null },
-  { name: "2025", historical: null, forward: 21 },
-  { name: "2026", historical: null, forward: 24 },
+  { name: "2022", historical: 26, forward: undefined },
+  { name: "2023", historical: 22, forward: undefined },
+  { name: "2024", historical: 19, forward: undefined },
+  { name: "2025", historical: undefined, forward: 21 },
+  { name: "2026", historical: undefined, forward: 24 },
 ];
 
 type LaycanRow = { laycan: string; count: string; cargo: string; avgRate: string; avgDem: string };
