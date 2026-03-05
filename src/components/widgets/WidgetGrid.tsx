@@ -438,6 +438,7 @@ export function WidgetGrid({
       // Apply size constraints derived from h for all existing items
       const constrainedLayout = existingLayout.map((item) => {
         const widget = widgets?.find((w) => w._id === item.i);
+        if (widget?.type === "empty") return item; // free sizing — skip constraints
         const chartType = widget?.config?.chartType as string | undefined;
         return withSizeConstraints(item, breakpoint, chartType);
       });
@@ -496,13 +497,26 @@ export function WidgetGrid({
   const effectiveLayouts = localLayouts ?? currentLayouts;
   effectiveLayoutsRef.current = effectiveLayouts;
 
+  // Inject isResizable: true for empty widgets so RGL renders the SE handle
+  const gridLayouts = Object.fromEntries(
+    Object.entries(effectiveLayouts).map(([bp, layout]) => [
+      bp,
+      (layout as LayoutItem[]).map((item) => {
+        const widget = widgets.find((w) => w._id === item.i);
+        return widget?.type === "empty"
+          ? { ...item, isResizable: isEditable }
+          : item;
+      }),
+    ])
+  );
+
   return (
     <div className="w-full">
       {/* Responsive grid container */}
       <div className="relative" ref={gridRef}>
         <ResponsiveGridLayout
           className="layout"
-          layouts={effectiveLayouts}
+          layouts={gridLayouts}
           breakpoints={breakpoints}
           cols={cols}
           rowHeight={240}
@@ -530,7 +544,7 @@ export function WidgetGrid({
                   rows={layoutItem?.h ?? 1}
                   isEditable={isEditable}
                   onDelete={() => handleDeleteWidget(widget._id)}
-                  onResize={isEditable ? handleWidgetResize : undefined}
+                  onResize={isEditable && widget.type !== "empty" ? handleWidgetResize : undefined}
                 />
               </div>
             );
