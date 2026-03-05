@@ -253,7 +253,7 @@ function OverviewTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <Chart type="line" data={indexData as ChartDataPoint[]} config={balticIndexConfig} height={240} showLegend={true} />
+          <Chart type="line" data={indexData as unknown as ChartDataPoint[]} config={balticIndexConfig} height={240} showLegend={true} />
         </CardContent>
       </Card>
 
