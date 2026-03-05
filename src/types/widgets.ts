@@ -29,7 +29,7 @@ export interface WidgetSource {
 /**
  * Available widget types
  */
-export type WidgetType = "chart" | "table" | "empty";
+export type WidgetType = "chart" | "table" | "empty" | "news_ticker";
 
 // ============================================================================
 // Widget Configuration Types
@@ -81,6 +81,19 @@ export interface EmptyWidgetConfig extends BaseWidgetConfig {
   showBorder?: boolean;
   showBackground?: boolean;
   debugInfo?: boolean;
+}
+
+/**
+ * News ticker widget configuration
+ */
+export interface NewsTickerWidgetConfig extends BaseWidgetConfig {
+  filters: {
+    region?: string;
+    category?: string;
+    vesselType?: string;
+    impactLevel?: "high" | "medium" | "low";
+  };
+  limit?: number;
 }
 
 /**
@@ -209,6 +222,16 @@ export const WIDGET_SIZE_CONFIGS: Record<WidgetSize, WidgetSizeConfig> = {
 export const TIMESERIES_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
   small:  { label: "Small",  h: 1, defaultW: 2, minW: 2, maxW: 2, chartHeight: 160 },
   medium: { label: "Medium", h: 2, defaultW: 4, minW: 4, maxW: 4, chartHeight: 416 },
+};
+
+export const NEWS_TICKER_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
+  small:  { label: "Ticker", h: 1, defaultW: 4, minW: 4, maxW: 4, chartHeight: 64 },
+  medium: { label: "List",   h: 2, defaultW: 3, minW: 2, maxW: 4, chartHeight: 416 },
+};
+
+// Full-width stripe: 1×4 on lg, clamps to 1×2 on md, 1×1 on sm (react-grid-layout auto-clamps)
+export const NEWS_STRIPE_SIZE_CONFIGS: Partial<Record<WidgetSize, WidgetSizeConfig>> = {
+  small: { label: "Stripe", h: 1, defaultW: 4, minW: 4, maxW: 4, chartHeight: 64 },
 };
 
 export function getWidgetSizeConfigs(chartType?: string): Partial<Record<WidgetSize, WidgetSizeConfig>> {
